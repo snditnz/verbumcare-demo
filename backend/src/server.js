@@ -9,12 +9,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import db from './db/index.js';
+import modelManager from './services/modelManager.js';
 import patientRoutes from './routes/patients.js';
 import medicationRoutes from './routes/medications.js';
 import vitalRoutes from './routes/vitals.js';
 import assessmentRoutes from './routes/assessments.js';
 import voiceRoutes from './routes/voice.js';
 import dashboardRoutes from './routes/dashboard.js';
+import configRoutes from './routes/config.js';
 
 dotenv.config();
 
@@ -58,6 +60,7 @@ app.use('/api/vitals', vitalRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/config', configRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -91,15 +94,45 @@ io.on('connection', (socket) => {
 
 async function startServer() {
   try {
+    // Connect to database
     await db.testConnection();
-    console.log('Database connected successfully');
+    console.log('✅ Database connected successfully');
 
+    // Initialize AI services (optional - will fall back to mock data if unavailable)
+    console.log('🤖 Initializing AI services...');
+    const aiStatus = await modelManager.initialize();
+
+    if (aiStatus.ready) {
+      console.log('✅ AI services initialized and ready');
+      console.log(`   Whisper: ${aiStatus.whisper ? 'Connected' : 'Unavailable'}`);
+      console.log(`   Ollama: ${aiStatus.ollama ? 'Connected' : 'Unavailable'}`);
+
+      // Optional: Pre-warm models for faster first request
+      // Uncomment if you want models loaded at startup (uses more memory)
+      // console.log('🔥 Pre-warming AI models...');
+      // await modelManager.prewarmModels();
+      // console.log('✅ Models pre-warmed');
+    } else {
+      console.warn('⚠️  AI services unavailable - will use fallback mode');
+      console.warn('   Voice processing will return mock data');
+      console.warn('   Check M2 Mac AI services are running');
+    }
+
+    // Start HTTP server
     server.listen(PORT, () => {
-      console.log(`VerbumCare Backend running on port ${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
+      console.log('');
+      console.log('================================================================');
+      console.log(`🏥 VerbumCare Backend running on port ${PORT}`);
+      console.log('================================================================');
+      console.log(`Health check:     http://localhost:${PORT}/health`);
+      console.log(`Config display:   http://localhost:${PORT}/api/config/display`);
+      console.log(`Environment:      ${process.env.NODE_ENV || 'development'}`);
+      console.log(`AI Mode:          ${aiStatus.ready ? 'Online (Local Models)' : 'Fallback (Mock Data)'}`);
+      console.log('================================================================');
+      console.log('');
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }

@@ -1,194 +1,152 @@
-import OpenAI from 'openai';
-import fs from 'fs/promises';
-import path from 'path';
+import modelManager from './modelManager.js';
+import { generateSOAPNote } from './soapTemplate.js';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+/**
+ * Voice Processing Service - Offline AI Integration
+ * Uses local Whisper + Ollama models with sequential loading
+ * Completely offline - no internet required
+ */
 
+/**
+ * Transcribe audio file using local Whisper
+ * @param {string} audioFilePath - Path to audio file
+ * @param {string} language - Language code (ja, en, zh-TW)
+ * @returns {Promise<string>} Transcribed text
+ */
 export async function transcribeAudio(audioFilePath, language = 'ja') {
   try {
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      console.warn('OpenAI API key not configured - returning mock transcription');
-      return getMockTranscription(language);
-    }
+    console.log(`🎤 Starting transcription (${language})...`);
 
-    const audioFile = await fs.readFile(audioFilePath);
+    // Use model manager for memory-optimized processing
+    const whisperService = (await import('./whisperLocal.js')).default;
 
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      language: language === 'zh-TW' ? 'zh' : language,
-      response_format: 'text'
-    });
+    // Load Whisper if not already loaded
+    await modelManager.loadWhisper();
+
+    // Transcribe
+    const transcription = await whisperService.transcribe(audioFilePath, language);
+
+    console.log('✅ Transcription completed:', transcription.substring(0, 100) + '...');
 
     return transcription;
   } catch (error) {
-    console.error('Error transcribing audio:', error);
-    return getMockTranscription(language);
+    console.error('❌ Transcription error:', error.message);
+
+    // Fallback to mock data if service unavailable
+    if (error.message.includes('unavailable') || error.message.includes('ECONNREFUSED')) {
+      console.warn('⚠️  Using mock transcription (Whisper service not available)');
+      return getMockTranscription(language);
+    }
+
+    throw error;
   }
 }
 
+/**
+ * Extract structured medical data from transcription
+ * @param {string} transcriptionText - Transcribed text
+ * @param {string} language - Language code (ja, en, zh-TW)
+ * @returns {Promise<object>} Structured data with confidence score
+ */
 export async function extractStructuredData(transcriptionText, language = 'ja') {
   try {
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      console.warn('OpenAI API key not configured - returning mock extraction');
+    console.log(`🤖 Extracting structured data (${language})...`);
+
+    const ollamaService = (await import('./ollamaService.js')).default;
+
+    // Load Llama if not already loaded (will unload Whisper first)
+    await modelManager.loadLlama();
+
+    // Extract structured data
+    const extraction = await ollamaService.extractStructuredData(transcriptionText, language);
+
+    console.log('✅ Extraction completed, confidence:', extraction.confidence);
+
+    return {
+      data: extraction.data,
+      confidence: extraction.confidence
+    };
+  } catch (error) {
+    console.error('❌ Extraction error:', error.message);
+
+    // Fallback to mock data if service unavailable
+    if (error.message.includes('unavailable') || error.message.includes('ECONNREFUSED')) {
+      console.warn('⚠️  Using mock extraction (Ollama service not available)');
       return getMockStructuredData();
     }
 
-    const systemPrompt = `You are a medical data extraction system. Extract structured medical information from nursing documentation in ${getLanguageName(language)}.
-
-Extract the following information if present:
-- Vital signs (blood pressure, heart rate, temperature, respiratory rate, oxygen saturation)
-- Pain assessment (location, intensity 0-10, character)
-- Nutrition (intake percentage, appetite)
-- Sleep (quality, hours)
-- Wound care (location, stage, size in cm, description)
-- Consciousness level and orientation
-- Mobility status
-
-Return JSON only with this structure:
-{
-  "vitals": {
-    "blood_pressure": {"systolic": number, "diastolic": number},
-    "heart_rate": number,
-    "temperature": number,
-    "respiratory_rate": number,
-    "oxygen_saturation": number
-  },
-  "pain": {
-    "present": boolean,
-    "location": string,
-    "intensity": number (0-10),
-    "character": string
-  },
-  "nutrition": {
-    "intake_percent": number,
-    "appetite": string
-  },
-  "sleep": {
-    "quality": string,
-    "hours": number
-  },
-  "wound": {
-    "present": boolean,
-    "location": string,
-    "stage": number,
-    "size_cm": number,
-    "description": string
-  },
-  "consciousness": {
-    "level": string,
-    "orientation": {"person": boolean, "place": boolean, "time": boolean}
-  },
-  "mobility": {
-    "status": string,
-    "assistance_required": boolean
+    throw error;
   }
 }
 
-Only include fields that are explicitly mentioned. Use null for missing values.`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: transcriptionText }
-      ],
-      temperature: 0.2,
-      response_format: { type: 'json_object' }
-    });
-
-    const extracted = JSON.parse(completion.choices[0].message.content);
-    const confidence = calculateConfidenceScore(extracted);
-
-    return {
-      data: extracted,
-      confidence
-    };
-  } catch (error) {
-    console.error('Error extracting structured data:', error);
-    return getMockStructuredData();
-  }
-}
-
+/**
+ * Generate clinical SOAP note from structured data
+ * Uses template-based generation (instant, no LLM required)
+ * @param {object} structuredData - Extracted medical data
+ * @param {string} language - Language code (ja, en, zh-TW)
+ * @param {object} patientInfo - Patient information
+ * @returns {Promise<string>} Formatted clinical note
+ */
 export async function generateClinicalNote(structuredData, language = 'ja', patientInfo = {}) {
   try {
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your_openai_api_key_here') {
-      console.warn('OpenAI API key not configured - returning mock clinical note');
-      return getMockClinicalNote(language);
-    }
+    console.log(`📝 Generating clinical note (${language})...`);
 
-    const languageInstructions = {
-      'ja': 'Generate a clinical nursing note in Japanese using professional medical terminology.',
-      'en': 'Generate a clinical nursing note in English using professional medical terminology.',
-      'zh-TW': 'Generate a clinical nursing note in Traditional Chinese using professional medical terminology.'
-    };
+    // Use template-based generation (instant, no LLM)
+    const clinicalNote = generateSOAPNote(structuredData, language, patientInfo);
 
-    const systemPrompt = `You are a clinical documentation system. ${languageInstructions[language] || languageInstructions['en']}
+    console.log('✅ Clinical note generated');
 
-Format the note with sections:
-- S (Subjective): Patient's complaints and expressions
-- O (Objective): Measurable observations and vital signs
-- A (Assessment): Clinical judgment and analysis
-- P (Plan): Planned interventions and follow-up
-
-Be concise and professional. Use appropriate medical terminology.`;
-
-    const userPrompt = `Patient: ${patientInfo.name || 'Patient'}, Room ${patientInfo.room || 'N/A'}
-Structured Data: ${JSON.stringify(structuredData, null, 2)}
-
-Generate a properly formatted SOAP note.`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-      max_tokens: 500
-    });
-
-    return completion.choices[0].message.content;
+    return clinicalNote;
   } catch (error) {
-    console.error('Error generating clinical note:', error);
+    console.error('❌ Note generation error:', error.message);
     return getMockClinicalNote(language);
   }
 }
 
-function calculateConfidenceScore(extractedData) {
-  let totalFields = 0;
-  let filledFields = 0;
+/**
+ * Complete voice processing pipeline with sequential model loading
+ * This is the main entry point for voice processing
+ * @param {string} audioFilePath - Path to audio file
+ * @param {string} language - Language code (ja, en, zh-TW)
+ * @param {object} patientInfo - Patient information
+ * @returns {Promise<object>} Complete processing results
+ */
+export async function processVoiceComplete(audioFilePath, language = 'ja', patientInfo = {}) {
+  try {
+    console.log('🎬 Starting complete voice processing pipeline...');
+    const startTime = Date.now();
 
-  function countFields(obj) {
-    for (const value of Object.values(obj)) {
-      if (value !== null && value !== undefined) {
-        if (typeof value === 'object' && !Array.isArray(value)) {
-          countFields(value);
-        } else {
-          filledFields++;
-        }
+    // Use model manager for sequential processing
+    const results = await modelManager.processVoiceSequentially(audioFilePath, language);
+
+    // Generate SOAP note from structured data
+    const clinicalNote = await generateClinicalNote(results.structuredData, language, patientInfo);
+
+    // Complete results
+    const finalResults = {
+      transcription: results.transcription,
+      structuredData: results.structuredData,
+      confidence: results.confidence,
+      clinicalNote,
+      language,
+      timestamp: new Date().toISOString(),
+      timings: {
+        ...results.timings,
+        noteGeneration: 0, // Template-based is instant
+        total: Date.now() - startTime
       }
-      totalFields++;
-    }
+    };
+
+    console.log(`✅ Complete processing finished in ${(finalResults.timings.total / 1000).toFixed(2)}s`);
+
+    return finalResults;
+  } catch (error) {
+    console.error('❌ Voice processing pipeline error:', error);
+    throw error;
   }
-
-  countFields(extractedData);
-
-  const baseScore = filledFields / Math.max(totalFields, 1);
-  return Math.min(0.95, baseScore + 0.1);
 }
 
-function getLanguageName(code) {
-  const languages = {
-    'ja': 'Japanese',
-    'en': 'English',
-    'zh-TW': 'Traditional Chinese',
-    'zh': 'Chinese'
-  };
-  return languages[code] || 'English';
-}
+// Mock data functions (fallback when services unavailable)
 
 function getMockTranscription(language) {
   const mockTranscriptions = {
@@ -245,18 +203,18 @@ function getMockStructuredData() {
 
 function getMockClinicalNote(language) {
   const mockNotes = {
-    'ja': `S: 患者は痛みを否定。昨夜はよく眠れたと報告。
-O: BP 142/88, HR 78, T 36.8°C, RR 16, SpO2 98%。朝食摂取量80%。意識清明、見当識良好。
-A: バイタルサイン概ね安定。血圧やや高値だが、経過観察可能な範囲。栄養摂取良好。
-P: 血圧の継続モニタリング。通常の看護ケア継続。医師への報告済み。`,
-    'en': `S: Patient denies pain. Reports sleeping well last night.
-O: BP 142/88, HR 78, T 36.8°C, RR 16, SpO2 98%. Breakfast intake 80%. Alert and oriented x3.
-A: Vital signs generally stable. Blood pressure slightly elevated but within acceptable range. Good nutritional intake.
-P: Continue BP monitoring. Maintain routine nursing care. Physician notified.`,
-    'zh-TW': `S: 患者否認疼痛。報告昨晚睡眠良好。
-O: BP 142/88, HR 78, T 36.8°C, RR 16, SpO2 98%。早餐攝入80%。意識清楚，定向力完整。
-A: 生命徵象大致穩定。血壓略高但在可接受範圍內。營養攝入良好。
-P: 持續監測血壓。維持常規護理。已通知醫師。`
+    'ja': `S: 疼痛の訴えなし。昨夜はよく眠れた。食欲良好。
+O: BP 142/88, HR 78, T 36.8°C, RR 16, SpO2 98%。食事摂取量80%。意識清明、見当識良好。自立歩行可能。
+A: バイタルサイン概ね安定。血圧やや高値。栄養摂取良好。
+P: 通常の看護ケア継続。血圧の継続モニタリング。医師への報告済み。`,
+    'en': `S: Denies pain. Slept well last night. Good appetite.
+O: BP 142/88, HR 78, T 36.8°C, RR 16, SpO2 98%. Nutritional intake 80%. Alert and oriented x3. Ambulates independently.
+A: Vital signs generally stable. Blood pressure slightly elevated. Good nutritional intake.
+P: Continue routine nursing care. Monitor blood pressure closely. Physician notified.`,
+    'zh-TW': `S: 否認疼痛。昨晚睡眠良好。食慾良好。
+O: BP 142/88, HR 78, T 36.8°C, RR 16, SpO2 98%。營養攝入80%。意識清楚，定向力完整。可獨立行走。
+A: 生命徵象大致穩定。血壓略高。營養攝入良好。
+P: 持續常規護理。持續監測血壓。已通知醫師。`
   };
   return mockNotes[language] || mockNotes['en'];
 }
@@ -264,5 +222,6 @@ P: 持續監測血壓。維持常規護理。已通知醫師。`
 export default {
   transcribeAudio,
   extractStructuredData,
-  generateClinicalNote
+  generateClinicalNote,
+  processVoiceComplete
 };
