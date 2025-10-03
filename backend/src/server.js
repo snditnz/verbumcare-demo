@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 
 import db from './db/index.js';
 import modelManager from './services/modelManager.js';
+import backgroundProcessor from './services/backgroundProcessor.js';
 import patientRoutes from './routes/patients.js';
 import medicationRoutes from './routes/medications.js';
 import vitalRoutes from './routes/vitals.js';
@@ -45,6 +46,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.set('io', io);
+
+// Initialize background processor with Socket.IO
+backgroundProcessor.setSocketIO(io);
 
 app.get('/health', (req, res) => {
   res.json({

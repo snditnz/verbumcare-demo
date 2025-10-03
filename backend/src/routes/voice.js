@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db/index.js';
 import { detectLanguage, getTranslation } from '../utils/i18n.js';
 import { processVoiceToStructured, validateStructuredData } from '../services/aiExtraction.js';
+import backgroundProcessor from '../services/backgroundProcessor.js';
 
 const router = express.Router();
 
@@ -118,7 +119,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
 router.post('/process', async (req, res) => {
   try {
     const language = detectLanguage(req);
-    const { recording_id, patient_id, manual_corrections } = req.body;
+    const { recording_id, manual_corrections, async = true } = req.body;
 
     if (!recording_id) {
       return res.status(400).json({
@@ -128,11 +129,11 @@ router.post('/process', async (req, res) => {
       });
     }
 
+    // Check if recording exists
     const recordingQuery = `
-      SELECT vr.*, p.family_name, p.given_name, p.room, p.bed
-      FROM voice_recordings vr
-      LEFT JOIN patients p ON vr.patient_id = p.patient_id
-      WHERE vr.recording_id = $1
+      SELECT recording_id, audio_file_path, processing_status
+      FROM voice_recordings
+      WHERE recording_id = $1
     `;
 
     const recordingResult = await db.query(recordingQuery, [recording_id]);
@@ -146,8 +147,28 @@ router.post('/process', async (req, res) => {
     }
 
     const recording = recordingResult.rows[0];
-    const audioFilePath = path.join(process.cwd(), recording.audio_file_path);
 
+    // Check if already processed
+    if (recording.processing_status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        error: 'Recording already processed',
+        language
+      });
+    }
+
+    // Check if currently processing
+    if (recording.processing_status === 'processing') {
+      return res.status(409).json({
+        success: false,
+        error: 'Recording is already being processed',
+        processing_status: 'processing',
+        language
+      });
+    }
+
+    // Verify audio file exists
+    const audioFilePath = path.join(process.cwd(), recording.audio_file_path);
     const fileExists = await fs.access(audioFilePath).then(() => true).catch(() => false);
     if (!fileExists) {
       return res.status(404).json({
@@ -157,15 +178,48 @@ router.post('/process', async (req, res) => {
       });
     }
 
+    // Start background processing (async by default)
+    if (async !== false) {
+      // Start background job (don't await)
+      backgroundProcessor.processRecording(recording_id, {
+        language,
+        manual_corrections
+      }).catch(err => {
+        console.error('Background processing error:', err);
+      });
+
+      // Return immediately
+      return res.status(202).json({
+        success: true,
+        message: 'Processing started',
+        recording_id,
+        processing_status: 'processing',
+        language,
+        status_url: `/api/voice/status/${recording_id}`
+      });
+    }
+
+    // Synchronous fallback (for compatibility)
+    console.warn('⚠️  Synchronous processing requested - may timeout on long operations');
+
+    const recordingDetails = await db.query(
+      `SELECT vr.*, p.family_name, p.given_name, p.room, p.bed
+       FROM voice_recordings vr
+       LEFT JOIN patients p ON vr.patient_id = p.patient_id
+       WHERE vr.recording_id = $1`,
+      [recording_id]
+    );
+
+    const rec = recordingDetails.rows[0];
     const patientInfo = {
-      name: `${recording.family_name} ${recording.given_name}`,
-      room: recording.room,
-      bed: recording.bed
+      name: `${rec.family_name || ''} ${rec.given_name || ''}`.trim(),
+      room: rec.room,
+      bed: rec.bed
     };
 
     const processedData = await processVoiceToStructured(
       audioFilePath,
-      recording.transcription_language || language,
+      rec.transcription_language || language,
       patientInfo
     );
 
@@ -177,22 +231,14 @@ router.post('/process', async (req, res) => {
 
     const validation = validateStructuredData(finalStructuredData);
 
-    if (!validation.valid && validation.errors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid data extracted',
-        validation_errors: validation.errors,
-        data: processedData,
-        language
-      });
-    }
-
     const updateQuery = `
       UPDATE voice_recordings
       SET
         transcription_text = $1,
         ai_structured_extraction = $2,
-        ai_confidence_score = $3
+        ai_confidence_score = $3,
+        processing_status = 'completed',
+        processing_completed_at = NOW()
       WHERE recording_id = $4
       RETURNING *
     `;
@@ -222,6 +268,65 @@ router.post('/process', async (req, res) => {
     });
   } catch (error) {
     console.error('Error processing voice recording:', error);
+    const language = detectLanguage(req);
+    res.status(500).json({
+      success: false,
+      error: getTranslation('error', language),
+      language
+    });
+  }
+});
+
+router.get('/status/:id', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { id } = req.params;
+
+    const query = `
+      SELECT
+        recording_id,
+        processing_status,
+        processing_started_at,
+        processing_completed_at,
+        processing_error,
+        transcription_text,
+        ai_structured_extraction,
+        ai_confidence_score
+      FROM voice_recordings
+      WHERE recording_id = $1
+    `;
+
+    const result = await db.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Recording not found',
+        language
+      });
+    }
+
+    const recording = result.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        recording_id: recording.recording_id,
+        status: recording.processing_status,
+        started_at: recording.processing_started_at,
+        completed_at: recording.processing_completed_at,
+        error: recording.processing_error,
+        // Include results if completed
+        ...(recording.processing_status === 'completed' && {
+          transcription: recording.transcription_text,
+          structured_data: recording.ai_structured_extraction,
+          confidence: recording.ai_confidence_score
+        })
+      },
+      language
+    });
+  } catch (error) {
+    console.error('Error fetching processing status:', error);
     const language = detectLanguage(req);
     res.status(500).json({
       success: false,
