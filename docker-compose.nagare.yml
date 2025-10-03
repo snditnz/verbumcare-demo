@@ -45,12 +45,13 @@ services:
       CLIENT_URLS: https://admin.nagare.local,https://api.nagare.local
 
       # AI Services - Running on Ubuntu host (bare metal)
-      WHISPER_URL: http://host.docker.internal:8080
-      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      # Use DOCKER_HOST_IP from .env or Docker gateway IP
+      WHISPER_URL: ${WHISPER_URL:-http://172.18.0.1:8080}
+      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
       WHISPER_LANGUAGE: ja
 
-      OLLAMA_URL: http://host.docker.internal:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:8b}
+      OLLAMA_URL: ${OLLAMA_URL:-http://172.18.0.1:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-2048}
       OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-8}
       OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.1}
