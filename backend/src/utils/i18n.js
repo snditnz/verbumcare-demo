@@ -1,4 +1,4 @@
-import translations from '../config/translations.json' assert { type: 'json' };
+import translations from '../config/translations.json' with { type: 'json' };
 
 export function getTranslation(key, language = 'en') {
   const supportedLanguages = ['en', 'ja', 'zh-TW'];
