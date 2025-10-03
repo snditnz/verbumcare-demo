@@ -61,6 +61,9 @@ services:
       CLOUD_SYNC_ENABLED: ${CLOUD_SYNC_ENABLED:-false}
       CLOUD_SYNC_URL: ${CLOUD_SYNC_URL:-https://nagare.verbumcare.com}
 
+    ports:
+      - "3000:3000"  # Expose for direct Socket.IO connections (testing)
+
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/logs:/app/logs

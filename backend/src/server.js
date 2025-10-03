@@ -28,8 +28,9 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URLS?.split(',') || ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:19006'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
+    origin: process.env.SOCKET_CORS_ORIGIN || '*', // Allow all origins for Socket.IO (LAN deployment)
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
   }
 });
 
