@@ -4,8 +4,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CERT_DIR="${SCRIPT_DIR}/certs"
-PRIVATE_DIR="${SCRIPT_DIR}/private"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+CERT_DIR="${PROJECT_ROOT}/ssl/certs"
+PRIVATE_DIR="${PROJECT_ROOT}/ssl/private"
 
 echo "🔍 Verifying SSL certificates..."
 
