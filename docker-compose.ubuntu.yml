@@ -1,0 +1,104 @@
+version: '3.8'
+
+# VerbumCare Ubuntu Server Deployment
+# Optimized for Ubuntu 24.04 LTS x64 with local Ollama + Whisper
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: verbumcare-postgres
+    environment:
+      POSTGRES_DB: verbumcare_demo
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - ./backend/src/db/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql
+    networks:
+      - verbumcare-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d verbumcare_demo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: verbumcare-backend
+    ports:
+      - "3000:3000"
+    environment:
+      # Database connection (internal Docker network)
+      DATABASE_URL: postgres://demo:demo123@postgres:5432/verbumcare_demo
+
+      # Server configuration
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # CORS configuration for client access
+      CLIENT_URLS: ${CLIENT_URLS:-http://localhost:5173,http://localhost:5174,http://verbumcare-lab.local:5173,http://verbumcare-lab.local:5174}
+
+      # AI Services - Running on host Ubuntu server
+      # Use host.docker.internal to access host services from container
+      WHISPER_URL: ${WHISPER_URL:-http://host.docker.internal:8080}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-ja}
+
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:8b}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-2048}
+      OLLAMA_NUM_THREAD: ${OLLAMA_NUM_THREAD:-8}
+      OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.1}
+
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/logs:/app/logs
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - verbumcare-network
+
+    # Enable host network access for Ubuntu
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').request('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).end()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    restart: unless-stopped
+
+  # Admin Portal (optional - can run separately)
+  admin-portal:
+    build:
+      context: ./admin-portal
+      dockerfile: Dockerfile
+    container_name: verbumcare-admin
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://verbumcare-lab.local:3000/api}
+    networks:
+      - verbumcare-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  verbumcare-network:
+    driver: bridge

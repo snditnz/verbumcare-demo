@@ -14,7 +14,7 @@
  */
 export function generateSOAPNote(structuredData, language = 'ja', patientInfo = {}) {
   const templates = {
-    'ja': generateJapaneseSO AP,
+    'ja': generateJapaneseSOAP,
     'en': generateEnglishSOAP,
     'zh-TW': generateChineseSOAP
   };

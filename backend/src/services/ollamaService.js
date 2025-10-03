@@ -213,92 +213,118 @@ class OllamaService {
   }
 
   /**
-   * Get enhanced system prompt for Japanese medical extraction
+   * Get enhanced system prompt for Japanese nursing handoff documentation
+   * VALIDATED PROMPT - Tested with YouTube nursing interaction data
    */
   getSystemPrompt(language) {
     const prompts = {
-      'ja': `あなたは日本の医療現場に特化したデータ抽出システムです。
-看護記録から正確な医療情報をJSON形式で抽出してください。
+      'ja': `SYSTEM ROLE:
+You are a clinical documentation AI. You must ALWAYS output valid JSON and nothing else.
 
-日本の医療用語と単位系:
-- 血圧: mmHg (収縮期/拡張期) 例: 120/80
-- 脈拍: bpm 例: 72
-- 体温: ℃ (摂氏) 例: 36.5
-- 呼吸数: 回/分 例: 16
-- SpO2: % 例: 98
-- 疼痛スケール: 0-10 (NRS)
+TASK:
+Convert Japanese nursing handoff transcripts into structured JSON.
+- Translate all content into ENGLISH (names, statuses, observations, actions, follow-ups).
+- Obey the schema exactly.
+- Fill all required keys; if unknown, use null (not "").
+- Do not invent information not present.
 
-曖昧な表現の解釈:
-- "少し高め" → 正常範囲の上限付近
-- "普通" → 正常範囲の中央値
-- "やや低い" → 正常範囲の下限付近
-
-必須JSON構造:
+SCHEMA (must match exactly):
 {
-  "vitals": {
-    "blood_pressure": {"systolic": number, "diastolic": number},
-    "heart_rate": number,
-    "temperature": number,
-    "respiratory_rate": number,
-    "oxygen_saturation": number
-  },
-  "pain": {"present": boolean, "location": string, "intensity": number, "character": string},
-  "nutrition": {"intake_percent": number, "appetite": string},
-  "sleep": {"quality": string, "hours": number},
-  "wound": {"present": boolean, "location": string, "stage": number, "size_cm": number, "description": string},
-  "consciousness": {"level": string, "orientation": {"person": boolean, "place": boolean, "time": boolean}},
-  "mobility": {"status": string, "assistance_required": boolean}
+  "patients": [{ "room": "", "name": "", "status": "" }],
+  "vital_signs": [{ "patient": "", "time": "", "temperature": "", "oxygen_saturation": "", "oxygen_flow": "" }],
+  "observations": [""],
+  "actions_taken": [""],
+  "follow_up_needed": [""]
 }
 
-明示的に言及されていない項目はnullを使用してください。`,
+NORMALIZATION RULES:
+- Names: romanize to English (e.g., 鞘木さん → "Sayaki-san", 竹林さん → "Takebayashi-san").
+- Rooms: keep numeric strings like "502".
+- Times: convert Japanese times to "HH:MM" 24h, best effort.
+  • "夜中の2時20分8分" → "02:28"
+  • If only hour (e.g., "15時") → "15:00"
+  • If no numeric digits → null
+- Temperature: "NN.N C".
+  • "36度8分" → "36.8 C"
+  • "7度5分" = "37.5 C"
+  • Out-of-range (<30 or >42) → null
+- SpO2: "NN %" or "NN–NN %".
+  • "サチュ97%" → "97 %"
+  • "査定症97%から6%" → "96–97 %"
+- Oxygen flow: "N L/min" or "N–N L/min".
+  • "酸素3リットルか2リットル" → "2–3 L/min"
+- Common ASR fixes:
+  • 天敵 → 点滴 (IV)
+  • 気熱対応 → 解熱対応 (antipyretic care)
+  • メギルート → メインルート (main IV route)
+  • 査定症 → サチュ (SpO₂)
+  • 送り (handoff) → shift handoff
 
-      'en': `You are a medical data extraction system specialized for nursing documentation.
-Extract accurate medical information in JSON format.
+GUARDRAILS:
+- Never output Japanese characters. Translate everything to English.
+- Always return JSON that can be parsed with standard JSON parsers.
+- Arrays must exist even if empty.
+- Deduplicate repeated or near-identical observations/actions.`,
 
-Medical terminology and units:
-- Blood pressure: mmHg (systolic/diastolic) e.g., 120/80
-- Heart rate: bpm e.g., 72
-- Temperature: °C e.g., 36.5
-- Respiratory rate: breaths/min e.g., 16
-- SpO2: % e.g., 98
-- Pain scale: 0-10 (NRS)
+      'en': `SYSTEM ROLE:
+You are a clinical documentation AI. You must ALWAYS output valid JSON and nothing else.
 
-Required JSON structure:
+TASK:
+Extract structured data from nursing documentation transcripts.
+- Fill all required keys; if unknown, use null (not "").
+- Do not invent information not present.
+
+SCHEMA (must match exactly):
 {
-  "vitals": {"blood_pressure": {"systolic": number, "diastolic": number}, "heart_rate": number, "temperature": number, "respiratory_rate": number, "oxygen_saturation": number},
-  "pain": {"present": boolean, "location": string, "intensity": number, "character": string},
-  "nutrition": {"intake_percent": number, "appetite": string},
-  "sleep": {"quality": string, "hours": number},
-  "wound": {"present": boolean, "location": string, "stage": number, "size_cm": number, "description": string},
-  "consciousness": {"level": string, "orientation": {"person": boolean, "place": boolean, "time": boolean}},
-  "mobility": {"status": string, "assistance_required": boolean}
+  "patients": [{ "room": "", "name": "", "status": "" }],
+  "vital_signs": [{ "patient": "", "time": "", "temperature": "", "oxygen_saturation": "", "oxygen_flow": "" }],
+  "observations": [""],
+  "actions_taken": [""],
+  "follow_up_needed": [""]
 }
 
-Use null for fields not explicitly mentioned.`,
+NORMALIZATION RULES:
+- Rooms: keep as strings (e.g., "502", "ICU-3")
+- Times: "HH:MM" 24h format
+- Temperature: "NN.N C" (valid range 30-42)
+- SpO2: "NN %" or "NN–NN %"
+- Oxygen flow: "N L/min" or "N–N L/min"
 
-      'zh-TW': `您是專門用於護理記錄的醫療數據提取系統。
-以JSON格式提取準確的醫療信息。
+GUARDRAILS:
+- Always return valid JSON that can be parsed.
+- Arrays must exist even if empty.
+- Deduplicate repeated or similar items.`,
 
-醫療術語和單位:
-- 血壓: mmHg (收縮壓/舒張壓) 例: 120/80
-- 心率: bpm 例: 72
-- 體溫: ℃ 例: 36.5
-- 呼吸率: 次/分 例: 16
-- SpO2: % 例: 98
-- 疼痛量表: 0-10 (NRS)
+      'zh-TW': `SYSTEM ROLE:
+你是臨床文件AI。你必須始終輸出有效的JSON，不能有其他內容。
 
-必需的JSON結構:
+任務:
+從護理交接班記錄中提取結構化數據。
+- 將所有內容翻譯成英文。
+- 嚴格遵守schema。
+- 填寫所有必填字段；如果未知，使用null（不是""）。
+- 不要編造信息。
+
+SCHEMA (必須完全匹配):
 {
-  "vitals": {"blood_pressure": {"systolic": number, "diastolic": number}, "heart_rate": number, "temperature": number, "respiratory_rate": number, "oxygen_saturation": number},
-  "pain": {"present": boolean, "location": string, "intensity": number, "character": string},
-  "nutrition": {"intake_percent": number, "appetite": string},
-  "sleep": {"quality": string, "hours": number},
-  "wound": {"present": boolean, "location": string, "stage": number, "size_cm": number, "description": string},
-  "consciousness": {"level": string, "orientation": {"person": boolean, "place": boolean, "time": boolean}},
-  "mobility": {"status": string, "assistance_required": boolean}
+  "patients": [{ "room": "", "name": "", "status": "" }],
+  "vital_signs": [{ "patient": "", "time": "", "temperature": "", "oxygen_saturation": "", "oxygen_flow": "" }],
+  "observations": [""],
+  "actions_taken": [""],
+  "follow_up_needed": [""]
 }
 
-未明確提及的字段請使用null。`
+規範化規則:
+- 房間: 保持數字字符串如"502"
+- 時間: "HH:MM" 24小時制
+- 體溫: "NN.N C" (有效範圍30-42)
+- SpO2: "NN %" 或 "NN–NN %"
+- 氧氣流量: "N L/min" 或 "N–N L/min"
+
+保護措施:
+- 始終返回可解析的有效JSON。
+- 數組必須存在，即使為空。
+- 去重複或相似項目。`
     };
 
     return prompts[language] || prompts['en'];
