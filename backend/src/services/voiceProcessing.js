@@ -91,7 +91,45 @@ export async function generateClinicalNote(structuredData, language = 'ja', pati
   try {
     console.log(`📝 Generating clinical note (${language})...`);
 
-    // Use template-based generation (instant, no LLM)
+    // Check if this is custom nursing handoff format
+    if (structuredData.patients && Array.isArray(structuredData.patients)) {
+      // Custom format - generate simple summary
+      const sections = [];
+
+      if (structuredData.patients && structuredData.patients.length > 0) {
+        sections.push('PATIENTS:');
+        structuredData.patients.forEach(p => {
+          if (p.name || p.room || p.status) {
+            sections.push(`- ${p.name || 'Unknown'} (Room: ${p.room || 'N/A'}, Status: ${p.status || 'N/A'})`);
+          }
+        });
+      }
+
+      if (structuredData.vital_signs && structuredData.vital_signs.length > 0) {
+        sections.push('\nVITAL SIGNS:');
+        structuredData.vital_signs.forEach(vs => sections.push(`- ${JSON.stringify(vs)}`));
+      }
+
+      if (structuredData.observations && structuredData.observations.length > 0) {
+        sections.push('\nOBSERVATIONS:');
+        structuredData.observations.forEach(obs => sections.push(`- ${obs}`));
+      }
+
+      if (structuredData.actions_taken && structuredData.actions_taken.length > 0) {
+        sections.push('\nACTIONS TAKEN:');
+        structuredData.actions_taken.forEach(action => sections.push(`- ${action}`));
+      }
+
+      if (structuredData.follow_up_needed && structuredData.follow_up_needed.length > 0) {
+        sections.push('\nFOLLOW-UP:');
+        structuredData.follow_up_needed.forEach(fu => sections.push(`- ${fu}`));
+      }
+
+      console.log('✅ Clinical note generated (custom format)');
+      return sections.join('\n');
+    }
+
+    // Use template-based SOAP generation for standard format
     const clinicalNote = generateSOAPNote(structuredData, language, patientInfo);
 
     console.log('✅ Clinical note generated');
