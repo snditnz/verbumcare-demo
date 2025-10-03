@@ -89,13 +89,13 @@ rlimit-stack=4194304
 rlimit-nproc=3
 EOF
 
-# Step 4: Create Avahi service files for additional hostnames
-echo "4️⃣ Creating Avahi service files for nagare.local, nagare-api.local, nagare-admin.local..."
+# Step 4: Create Avahi service files (services advertise on main hostname)
+echo "4️⃣ Creating Avahi service files..."
 
 # Remove old service files
 rm -f /etc/avahi/services/nagare*.service
 
-# nagare.local - main entry point
+# Nagare HTTPS service (advertises on verbumcare-lab.local)
 cat > /etc/avahi/services/nagare.service <<EOF
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
@@ -104,48 +104,27 @@ cat > /etc/avahi/services/nagare.service <<EOF
   <service>
     <type>_https._tcp</type>
     <port>443</port>
-    <host-name>nagare.local</host-name>
     <txt-record>path=/</txt-record>
   </service>
 </service-group>
 EOF
 
-# nagare-api.local - API endpoint
-cat > /etc/avahi/services/nagare-api.service <<EOF
-<?xml version="1.0" standalone='no'?>
-<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
-<service-group>
-  <name>Nagare API Server</name>
-  <service>
-    <type>_https._tcp</type>
-    <port>443</port>
-    <host-name>nagare-api.local</host-name>
-    <txt-record>path=/api</txt-record>
-  </service>
-</service-group>
+# Step 5: Create /etc/avahi/hosts for additional hostname A records
+echo "5️⃣ Creating /etc/avahi/hosts for additional hostnames..."
+cat > /etc/avahi/hosts <<EOF
+# Nagare Edge Server - Additional hostname mappings
+# These publish A records for nagare.local, nagare-api.local, nagare-admin.local
+$WIFI_IP nagare.local
+$WIFI_IP nagare-api.local
+$WIFI_IP nagare-admin.local
 EOF
 
-# nagare-admin.local - admin portal
-cat > /etc/avahi/services/nagare-admin.service <<EOF
-<?xml version="1.0" standalone='no'?>
-<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
-<service-group>
-  <name>Nagare Admin Portal</name>
-  <service>
-    <type>_https._tcp</type>
-    <port>443</port>
-    <host-name>nagare-admin.local</host-name>
-    <txt-record>path=/</txt-record>
-  </service>
-</service-group>
-EOF
-
-# Step 5: Restart Avahi
-echo "5️⃣ Restarting Avahi daemon..."
+# Step 6: Restart Avahi
+echo "6️⃣ Restarting Avahi daemon..."
 systemctl restart avahi-daemon
 sleep 3
 
-# Step 6: Verify
+# Step 7: Verify
 echo ""
 echo "✅ Configuration complete!"
 echo ""
