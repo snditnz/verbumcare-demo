@@ -98,12 +98,16 @@ class WhisperLocalService {
       // Handle different response formats
       if (typeof response.data === 'string') {
         return response.data.trim();
+      } else if (response.data.full_text) {
+        // faster-whisper format
+        return response.data.full_text.trim();
       } else if (response.data.text) {
         return response.data.text.trim();
       } else if (response.data.transcription) {
         return response.data.transcription.trim();
       }
 
+      console.error('Unknown Whisper response format:', JSON.stringify(response.data));
       throw new Error('Invalid response format from Whisper service');
 
     } catch (error) {
