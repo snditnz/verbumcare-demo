@@ -38,7 +38,8 @@ const PORT = process.env.PORT || 3000;
 
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URLS?.split(',') || ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:19006']
+  origin: process.env.API_CORS_ORIGIN || '*', // Allow all origins for testing (LAN deployment)
+  credentials: true
 }));
 app.use(morgan('dev'));
 app.use(express.json());

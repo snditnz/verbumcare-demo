@@ -501,8 +501,12 @@
         uploadBtn.textContent = 'Upload & Process';
 
       } catch (error) {
+        console.error('Upload/Process error:', error);
         log('ERROR', error.message);
-        alert(`Error: ${error.message}`);
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error';
+        errorDiv.textContent = `Error: ${error.message}`;
+        progressContainer.insertAdjacentElement('afterend', errorDiv);
         uploadBtn.textContent = 'Upload & Process';
       } finally {
         uploadBtn.disabled = false;
