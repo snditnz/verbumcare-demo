@@ -41,8 +41,8 @@ services:
       PORT: 3000
       NODE_ENV: ${NODE_ENV:-production}
 
-      # CORS - SSL subdomains only
-      CLIENT_URLS: https://admin.nagare.local,https://api.nagare.local
+      # CORS - SSL for verbumcare-lab.local
+      CLIENT_URLS: https://verbumcare-lab.local
 
       # AI Services - Running on Ubuntu host (bare metal)
       # Use DOCKER_HOST_IP from .env or Docker gateway IP
@@ -96,8 +96,7 @@ services:
     volumes:
       # nginx configuration
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/api.nagare.local.conf:/etc/nginx/conf.d/api.nagare.local.conf:ro
-      - ./nginx/admin.nagare.local.conf:/etc/nginx/conf.d/admin.nagare.local.conf:ro
+      - ./nginx/verbumcare-lab.local.conf:/etc/nginx/conf.d/verbumcare-lab.local.conf:ro
 
       # SSL certificates
       - ./ssl/certs/nginx.crt:/etc/nginx/ssl/nginx.crt:ro
