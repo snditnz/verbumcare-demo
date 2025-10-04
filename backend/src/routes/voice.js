@@ -181,9 +181,9 @@ router.post('/process', async (req, res) => {
     // Start background processing (async by default)
     if (async !== false) {
       // Start background job (don't await)
-      // NOTE: Always use 'en' for AI extraction output, regardless of transcription language
+      // NOTE: Language is for transcription, translation to English happens automatically
       backgroundProcessor.processRecording(recording_id, {
-        language: 'en',  // Always output in English
+        language,  // Transcription language (ja, en, zh-TW)
         manual_corrections
       }).catch(err => {
         console.error('Background processing error:', err);
@@ -218,10 +218,10 @@ router.post('/process', async (req, res) => {
       bed: rec.bed
     };
 
-    // NOTE: Always use 'en' for AI output, transcription_language is for Whisper only
+    // Extract in Japanese first (native language)
     const processedData = await processVoiceToStructured(
       audioFilePath,
-      'en',  // Always output in English
+      rec.transcription_language || language,
       patientInfo
     );
 
@@ -230,6 +230,36 @@ router.post('/process', async (req, res) => {
       const { mergeWithManualInput } = await import('../services/aiExtraction.js');
       finalStructuredData = mergeWithManualInput(processedData.structuredData, manual_corrections);
     }
+
+    // Translate to English
+    const ollamaService = (await import('../services/ollamaService.js')).default;
+    let englishStructuredData = null;
+    let englishClinicalNote = null;
+
+    try {
+      const translationResult = await ollamaService.translateToEnglish(finalStructuredData);
+      englishStructuredData = translationResult.data;
+
+      if (processedData.clinicalNote) {
+        const noteTranslation = await ollamaService.translateToEnglish({
+          clinical_note: processedData.clinicalNote
+        });
+        englishClinicalNote = noteTranslation.data.clinical_note;
+      }
+    } catch (translationError) {
+      console.warn('⚠️  Translation failed, continuing with Japanese only:', translationError.message);
+    }
+
+    // Create bilingual data
+    const bilingualStructuredData = {
+      ja: finalStructuredData,
+      en: englishStructuredData || finalStructuredData
+    };
+
+    const bilingualClinicalNote = {
+      ja: processedData.clinicalNote,
+      en: englishClinicalNote || processedData.clinicalNote
+    };
 
     const validation = validateStructuredData(finalStructuredData);
 
@@ -247,7 +277,7 @@ router.post('/process', async (req, res) => {
 
     const updateValues = [
       processedData.transcription,
-      JSON.stringify(finalStructuredData),
+      JSON.stringify(bilingualStructuredData),
       processedData.confidence,
       recording_id
     ];
@@ -259,8 +289,8 @@ router.post('/process', async (req, res) => {
       data: {
         recording: updateResult.rows[0],
         transcription: processedData.transcription,
-        structured_data: finalStructuredData,
-        clinical_note: processedData.clinicalNote,
+        structured_data: bilingualStructuredData,
+        clinical_note: bilingualClinicalNote,
         confidence: processedData.confidence,
         validation: validation,
         language: processedData.language

@@ -251,6 +251,13 @@
         <label>Server URL (mDNS: https://verbumcare-lab.local)</label>
         <input type="text" id="server-url" value="https://verbumcare-lab.local" placeholder="https://verbumcare-lab.local">
       </div>
+      <div class="form-group">
+        <label>Display Language / 表示言語</label>
+        <select id="language-selector" onchange="updateDisplayLanguage()">
+          <option value="en">English</option>
+          <option value="ja">日本語 (Japanese)</option>
+        </select>
+      </div>
       <button class="btn" id="connect-btn" onclick="connect()">Connect</button>
     </div>
 
@@ -311,12 +318,15 @@
   <script>
     let socket = null;
     let currentRecordingId = null;
+    let currentRecordingData = null;
+    let displayLanguage = localStorage.getItem('displayLanguage') || 'en';
 
     // UI Elements
     const statusBadge = document.getElementById('status-badge');
     const connectBtn = document.getElementById('connect-btn');
     const uploadBtn = document.getElementById('upload-btn');
     const serverUrl = document.getElementById('server-url');
+    const languageSelector = document.getElementById('language-selector');
     const eventLog = document.getElementById('event-log');
     const progressContainer = document.getElementById('progress');
     const progressFill = document.getElementById('progress-fill');
@@ -339,6 +349,44 @@
     function clearLog() {
       eventLog.innerHTML = '';
       log('SYSTEM', 'Log cleared');
+    }
+
+    function updateDisplayLanguage() {
+      displayLanguage = languageSelector.value;
+      localStorage.setItem('displayLanguage', displayLanguage);
+
+      // Re-render results if they exist
+      if (currentRecordingData) {
+        displayResults(currentRecordingData);
+      }
+
+      const langName = displayLanguage === 'ja' ? '日本語' : 'English';
+      log('LANGUAGE', `Display language changed to: ${langName}`);
+    }
+
+    function displayResults(data) {
+      currentRecordingData = data;
+      resultsContainer.classList.add('active');
+
+      // Get data in selected language (with fallback)
+      const structuredData = data.structured_data?.[displayLanguage] ||
+                            data.structured_data?.ja ||
+                            data.structured_data;
+      const clinicalNote = data.clinical_note?.[displayLanguage] ||
+                          data.clinical_note?.ja ||
+                          data.clinical_note;
+
+      // Display with language indicator
+      const displayData = {
+        language: displayLanguage,
+        transcription: data.transcription,
+        structured_data: structuredData,
+        clinical_note: clinicalNote,
+        confidence: data.confidence,
+        validation: data.validation
+      };
+
+      resultsData.textContent = JSON.stringify(displayData, null, 2);
     }
 
     function updateStatus(connected) {
@@ -417,17 +465,20 @@
       progressFill.style.width = `${progress}%`;
       progressFill.textContent = `${progress}%`;
 
-      // Update message
-      progressMessage.textContent = data.message || data.phase || 'Processing...';
+      // Update message (hide translation step for Japanese users)
+      let message = data.message || data.phase || 'Processing...';
+      if (data.phase === 'translation' && displayLanguage === 'ja') {
+        message = 'Processing...';  // Hide translation details for Japanese users
+      }
+      progressMessage.textContent = message;
 
       // Handle completion
       if (data.status === 'completed') {
         progressFill.style.background = 'linear-gradient(90deg, #3c3, #2a2)';
         progressMessage.textContent = '✅ Processing complete!';
 
-        // Show results
-        resultsContainer.classList.add('active');
-        resultsData.textContent = JSON.stringify(data.data, null, 2);
+        // Show results using new bilingual display function
+        displayResults(data.data);
 
         log('SUCCESS', `Processing completed in ${
           ((new Date(data.data.recording.processing_completed_at) -
@@ -514,8 +565,10 @@
     }
 
     // Initialize
+    languageSelector.value = displayLanguage;
     log('SYSTEM', 'Socket.IO test client loaded');
     log('INFO', 'Click "Connect" to start');
+    log('LANGUAGE', `Display language: ${displayLanguage === 'ja' ? '日本語' : 'English'}`);
   </script>
 </body>
 </html>

@@ -163,6 +163,78 @@ class OllamaService {
   }
 
   /**
+   * Translate Japanese structured data to English
+   * @param {object} japaneseData - Structured data in Japanese
+   * @returns {Promise<object>} Same structure with English translations
+   */
+  async translateToEnglish(japaneseData) {
+    try {
+      console.log('🌐 Translating structured data to English...');
+      const startTime = Date.now();
+
+      const translationPrompt = `You are a medical translator. Translate the following Japanese medical data to English.
+
+CRITICAL RULES:
+1. Preserve the exact JSON structure
+2. Translate all Japanese text to English
+3. Keep all field names in English (do not translate keys)
+4. Medical terminology should be accurate
+5. Output ONLY valid JSON
+
+Input JSON:
+${JSON.stringify(japaneseData, null, 2)}
+
+Output the same JSON structure with all Japanese text translated to English:`;
+
+      const response = await axios.post(`${OLLAMA_URL}/api/generate`, {
+        model: this.modelName,
+        prompt: translationPrompt,
+        stream: false,
+        format: 'json',
+        options: {
+          temperature: 0.7,  // Higher temperature for better translation quality
+          num_ctx: OLLAMA_NUM_CTX,
+          num_thread: OLLAMA_NUM_THREAD,
+          num_gpu: 1,
+          top_p: 0.9,
+          top_k: 40
+        }
+      }, {
+        timeout: 120000,
+        maxContentLength: 10 * 1024 * 1024
+      });
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+      // Parse response
+      let translatedData;
+      try {
+        const responseText = response.data.response || response.data.text || '';
+        translatedData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.warn('⚠️  JSON parse failed, attempting cleanup...');
+        const jsonMatch = response.data.response?.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          translatedData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Failed to extract valid JSON from translation response');
+        }
+      }
+
+      console.log(`✅ Translation completed in ${duration}s`);
+
+      return {
+        data: translatedData,
+        processingTime: parseFloat(duration)
+      };
+
+    } catch (error) {
+      console.error('❌ Ollama translation error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Generate chat completion (for future use)
    */
   async chat(messages, options = {}) {

@@ -1,6 +1,7 @@
 import path from 'path';
 import db from '../db/index.js';
 import { processVoiceToStructured, validateStructuredData } from './aiExtraction.js';
+import ollamaService from './ollamaService.js';
 
 /**
  * Background Voice Processing Service
@@ -115,6 +116,47 @@ class BackgroundProcessor {
         finalStructuredData = mergeWithManualInput(processedData.structuredData, manual_corrections);
       }
 
+      // Phase 3: Translation to English
+      this.emitProgress(recordingId, {
+        status: 'processing',
+        phase: 'translation',
+        message: 'Translating to English...',
+        progress: 75
+      });
+
+      let englishStructuredData = null;
+      let englishClinicalNote = null;
+
+      try {
+        // Translate structured data
+        const translationResult = await ollamaService.translateToEnglish(finalStructuredData);
+        englishStructuredData = translationResult.data;
+
+        // Translate clinical note if it exists
+        if (processedData.clinicalNote) {
+          const noteTranslation = await ollamaService.translateToEnglish({
+            clinical_note: processedData.clinicalNote
+          });
+          englishClinicalNote = noteTranslation.data.clinical_note;
+        }
+
+        console.log('✅ Translation to English completed');
+      } catch (translationError) {
+        console.warn('⚠️  Translation failed, continuing with Japanese only:', translationError.message);
+        // Continue processing even if translation fails - we have Japanese data
+      }
+
+      // Create bilingual data structure
+      const bilingualStructuredData = {
+        ja: finalStructuredData,
+        en: englishStructuredData || finalStructuredData  // Fallback to Japanese if translation failed
+      };
+
+      const bilingualClinicalNote = {
+        ja: processedData.clinicalNote,
+        en: englishClinicalNote || processedData.clinicalNote  // Fallback to Japanese if translation failed
+      };
+
       // Validate
       const validation = validateStructuredData(finalStructuredData);
 
@@ -125,7 +167,7 @@ class BackgroundProcessor {
         progress: 90
       });
 
-      // Save results
+      // Save results with bilingual data
       const updateQuery = `
         UPDATE voice_recordings
         SET
@@ -141,14 +183,14 @@ class BackgroundProcessor {
 
       const updateValues = [
         processedData.transcription,
-        JSON.stringify(finalStructuredData),
+        JSON.stringify(bilingualStructuredData),  // Store both ja and en
         processedData.confidence,
         recordingId
       ];
 
       const updateResult = await db.query(updateQuery, updateValues);
 
-      // Emit completion
+      // Emit completion with bilingual data
       this.emitProgress(recordingId, {
         status: 'completed',
         phase: 'done',
@@ -157,8 +199,8 @@ class BackgroundProcessor {
         data: {
           recording: updateResult.rows[0],
           transcription: processedData.transcription,
-          structured_data: finalStructuredData,
-          clinical_note: processedData.clinicalNote,
+          structured_data: bilingualStructuredData,  // Both ja and en
+          clinical_note: bilingualClinicalNote,      // Both ja and en
           confidence: processedData.confidence,
           validation: validation,
           language: processedData.language

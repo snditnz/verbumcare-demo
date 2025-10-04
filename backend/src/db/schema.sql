@@ -156,8 +156,12 @@ CREATE TABLE voice_recordings (
     audio_file_path TEXT,
     transcription_text TEXT,
     transcription_language VARCHAR(10),
-    ai_structured_extraction JSONB,
+    ai_structured_extraction JSONB,  -- Bilingual format: {ja: {...}, en: {...}}
     ai_confidence_score DECIMAL(3,2),
+    processing_status VARCHAR(50) DEFAULT 'pending',
+    processing_started_at TIMESTAMP,
+    processing_completed_at TIMESTAMP,
+    processing_error TEXT,
     recorded_by UUID NOT NULL REFERENCES staff(staff_id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -179,3 +183,6 @@ CREATE INDEX idx_vital_signs_patient ON vital_signs(patient_id);
 CREATE INDEX idx_vital_signs_measured ON vital_signs(measured_at);
 CREATE INDEX idx_nursing_assessments_patient ON nursing_assessments(patient_id);
 CREATE INDEX idx_voice_recordings_patient ON voice_recordings(patient_id);
+CREATE INDEX idx_voice_recordings_processing_status ON voice_recordings(processing_status);
+CREATE INDEX idx_voice_recordings_extraction_ja ON voice_recordings USING GIN ((ai_structured_extraction->'ja'));
+CREATE INDEX idx_voice_recordings_extraction_en ON voice_recordings USING GIN ((ai_structured_extraction->'en'));
