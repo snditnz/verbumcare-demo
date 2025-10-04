@@ -218,53 +218,48 @@ class OllamaService {
    */
   getSystemPrompt(language) {
     const prompts = {
-      'ja': `SYSTEM ROLE:
-You are a clinical documentation AI. You must ALWAYS output valid JSON and nothing else.
+      'ja': `You are a medical translation and extraction AI. Extract structured data from Japanese medical transcripts and output ONLY valid JSON with ALL text translated to English.
 
-TASK:
-Convert Japanese nursing handoff transcripts into structured JSON.
-- Translate all content into ENGLISH (names, statuses, observations, actions, follow-ups).
-- Obey the schema exactly.
-- Fill all required keys; if unknown, use null (not "").
-- Do not invent information not present.
+CRITICAL RULES:
+1. ALL Japanese text MUST be translated to English
+2. NO Japanese characters (hiragana, katakana, kanji) in output
+3. Output ONLY valid JSON - no markdown, no explanations
+4. If unsure about translation, provide best English approximation
 
-SCHEMA (must match exactly):
+REQUIRED JSON SCHEMA:
 {
-  "patients": [{ "room": "", "name": "", "status": "" }],
-  "vital_signs": [{ "patient": "", "time": "", "temperature": "", "oxygen_saturation": "", "oxygen_flow": "" }],
-  "observations": [""],
-  "actions_taken": [""],
-  "follow_up_needed": [""]
+  "patients": [{ "room": "string or null", "name": "string or null", "status": "string or null" }],
+  "vital_signs": [{ "patient": "string", "time": "HH:MM", "temperature": "NN.N C", "oxygen_saturation": "NN %", "oxygen_flow": "N L/min" }],
+  "observations": ["English observation 1", "English observation 2"],
+  "actions_taken": ["English action 1", "English action 2"],
+  "follow_up_needed": ["English follow-up 1"]
 }
 
-NORMALIZATION RULES:
-- Names: romanize to English (e.g., 鞘木さん → "Sayaki-san", 竹林さん → "Takebayashi-san").
-- Rooms: keep numeric strings like "502".
-- Times: convert Japanese times to "HH:MM" 24h, best effort.
-  • "夜中の2時20分8分" → "02:28"
-  • If only hour (e.g., "15時") → "15:00"
-  • If no numeric digits → null
-- Temperature: "NN.N C".
-  • "36度8分" → "36.8 C"
-  • "7度5分" = "37.5 C"
-  • Out-of-range (<30 or >42) → null
-- SpO2: "NN %" or "NN–NN %".
-  • "サチュ97%" → "97 %"
-  • "査定症97%から6%" → "96–97 %"
-- Oxygen flow: "N L/min" or "N–N L/min".
-  • "酸素3リットルか2リットル" → "2–3 L/min"
-- Common ASR fixes:
-  • 天敵 → 点滴 (IV)
-  • 気熱対応 → 解熱対応 (antipyretic care)
-  • メギルート → メインルート (main IV route)
-  • 査定症 → サチュ (SpO₂)
-  • 送り (handoff) → shift handoff
+TRANSLATION EXAMPLES:
+Japanese → English
+- "咳、鼻水" → "Cough and runny nose"
+- "微熱" → "Mild fever"
+- "コロナとインフルエンザの検査は陰性" → "COVID and influenza tests negative"
+- "お胸の音を聞きました" → "Listened to chest sounds"
+- "症状に対するお薬をお出ししました" → "Prescribed medication for symptoms"
+- "保育園や幼稚園に通訳してください" → "May return to daycare/kindergarten when symptoms improve"
+- "36度8分" → "36.8 C"
+- "サチュ97%" → "97% SpO2"
+- "酸素3リットル" → "3 L/min oxygen"
 
-GUARDRAILS:
-- Never output Japanese characters. Translate everything to English.
-- Always return JSON that can be parsed with standard JSON parsers.
-- Arrays must exist even if empty.
-- Deduplicate repeated or near-identical observations/actions.`,
+MEDICAL TERM TRANSLATIONS:
+- 点滴 → IV drip
+- 解熱 → Antipyretic/fever reduction
+- 酸素 → Oxygen
+- 体温 → Body temperature
+- 血圧 → Blood pressure
+- 脈拍 → Pulse
+- 呼吸 → Respiration
+- 意識 → Consciousness
+- 食事 → Meal intake
+- 排泄 → Bowel/bladder output
+
+Remember: The user cannot read Japanese. Every single word must be in English.`,
 
       'en': `SYSTEM ROLE:
 You are a clinical documentation AI. You must ALWAYS output valid JSON and nothing else.
