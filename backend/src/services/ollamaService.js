@@ -7,7 +7,7 @@ import axios from 'axios';
  */
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3:8b-q4_K_M';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 
 // Reduced context window for medical extraction (saves memory)
 const OLLAMA_NUM_CTX = parseInt(process.env.OLLAMA_NUM_CTX || '2048');
