@@ -181,8 +181,9 @@ router.post('/process', async (req, res) => {
     // Start background processing (async by default)
     if (async !== false) {
       // Start background job (don't await)
+      // NOTE: Always use 'en' for AI extraction output, regardless of transcription language
       backgroundProcessor.processRecording(recording_id, {
-        language,
+        language: 'en',  // Always output in English
         manual_corrections
       }).catch(err => {
         console.error('Background processing error:', err);
@@ -217,9 +218,10 @@ router.post('/process', async (req, res) => {
       bed: rec.bed
     };
 
+    // NOTE: Always use 'en' for AI output, transcription_language is for Whisper only
     const processedData = await processVoiceToStructured(
       audioFilePath,
-      rec.transcription_language || language,
+      'en',  // Always output in English
       patientInfo
     );
 
