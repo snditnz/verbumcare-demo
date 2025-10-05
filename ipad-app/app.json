@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "VerbumCare",
+    "slug": "verbumcare-ipad",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "verbumcare",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#667eea"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.verbumcare.ipad",
+      "infoPlist": {
+        "NSCameraUsageDescription": "VerbumCare needs camera access to scan patient barcodes and document incidents",
+        "NSMicrophoneUsageDescription": "VerbumCare needs microphone access to record nursing assessments",
+        "NSPhotoLibraryUsageDescription": "VerbumCare needs photo library access to save incident photos",
+        "NSBluetoothAlwaysUsageDescription": "VerbumCare needs Bluetooth to connect to the A&D blood pressure monitor",
+        "NSBluetoothPeripheralUsageDescription": "VerbumCare needs Bluetooth to connect to medical devices",
+        "UIRequiresFullScreen": true,
+        "UIStatusBarHidden": false,
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "requireFullScreen": true
+    },
+    "android": {
+      "package": "com.verbumcare.ipad",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#667eea"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN",
+        "ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "VerbumCare needs camera access to scan patient barcodes"
+        }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [],
+          "bluetoothAlwaysPermission": "VerbumCare needs Bluetooth to connect to medical devices"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d9136cdd-8db4-4c95-9c16-67d0a9697d28"
+      }
+    },
+    "owner": "verbumcare"
+  }
+}
