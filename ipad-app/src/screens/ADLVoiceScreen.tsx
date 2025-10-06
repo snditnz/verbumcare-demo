@@ -130,7 +130,7 @@ export default function ADLVoiceScreen({ navigation }: Props) {
         <View style={styles.recorderContainer}>
           <VoiceRecorder
             onRecordingComplete={handleRecordingComplete}
-            maxDuration={60000}
+            maxDuration={120000}
           />
         </View>
 

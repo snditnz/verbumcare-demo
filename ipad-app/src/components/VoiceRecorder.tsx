@@ -37,9 +37,19 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         return;
       }
 
-      await voiceService.startRecording((newDuration) => {
-        setDuration(newDuration);
-      });
+      await voiceService.startRecording(
+        (newDuration) => {
+          setDuration(newDuration);
+        },
+        (uri, duration) => {
+          // Auto-stop callback
+          setIsRecording(false);
+          setDuration(duration);
+          if (onRecordingComplete) {
+            onRecordingComplete(uri, duration);
+          }
+        }
+      );
 
       setIsRecording(true);
       setDuration(0);

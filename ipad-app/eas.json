@@ -6,8 +6,13 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "node": "20.18.0",
+      "cache": {
+        "key": "dev-cache"
+      },
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "cocoapods": "1.15.2"
       }
     },
     "preview": {

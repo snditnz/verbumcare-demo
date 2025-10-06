@@ -16,7 +16,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({ patient, onPress }) =>
 
   // Determine status color based on risk factors
   const getStatusColor = () => {
-    const riskCount = patient.risk_factors.length;
+    const riskCount = patient.risk_factors?.length || 0;
     if (riskCount >= 3) return UI_COLORS.error;
     if (riskCount >= 1) return UI_COLORS.warning;
     return UI_COLORS.success;
@@ -43,7 +43,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({ patient, onPress }) =>
           )}
         </View>
 
-        {patient.risk_factors.length > 0 && (
+        {patient.risk_factors && patient.risk_factors.length > 0 && (
           <View style={styles.riskFactors}>
             {patient.risk_factors.map((risk, index) => (
               <View key={index} style={styles.riskChip}>

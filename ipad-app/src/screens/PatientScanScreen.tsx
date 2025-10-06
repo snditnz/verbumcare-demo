@@ -67,16 +67,9 @@ export default function PatientScanScreen({ navigation }: Props) {
         );
       }
     } else {
-      Alert.alert(
-        t['scan.invalidFormat'],
-        t['scan.invalidFormatMessage'],
-        [
-          {
-            text: t['common.tryAgain'],
-            onPress: () => setScanned(false),
-          },
-        ]
-      );
+      // Silently ignore invalid barcodes - just reset to scan again
+      // (prevents annoying popups when camera picks up random codes)
+      setScanned(false);
     }
   };
 

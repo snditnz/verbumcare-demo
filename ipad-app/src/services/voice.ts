@@ -6,6 +6,7 @@ class VoiceService {
   private recording: Audio.Recording | null = null;
   private recordingDuration: number = 0;
   private durationInterval: NodeJS.Timeout | null = null;
+  private onAutoStopCallback: ((uri: string, duration: number) => void) | null = null;
 
   async requestPermissions(): Promise<boolean> {
     try {
@@ -17,7 +18,11 @@ class VoiceService {
     }
   }
 
-  async startRecording(onDurationUpdate?: (duration: number) => void): Promise<void> {
+  async startRecording(
+    onDurationUpdate?: (duration: number) => void,
+    onAutoStop?: (uri: string, duration: number) => void
+  ): Promise<void> {
+    this.onAutoStopCallback = onAutoStop || null;
     try {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
@@ -58,13 +63,16 @@ class VoiceService {
       this.recordingDuration = 0;
 
       // Update duration every second
-      this.durationInterval = setInterval(() => {
+      this.durationInterval = setInterval(async () => {
         this.recordingDuration += 1000;
         onDurationUpdate?.(this.recordingDuration);
 
         // Auto-stop at max duration
         if (this.recordingDuration >= VOICE_CONFIG.MAX_DURATION) {
-          this.stopRecording();
+          const uri = await this.stopRecording();
+          if (uri && this.onAutoStopCallback) {
+            this.onAutoStopCallback(uri, this.recordingDuration);
+          }
         }
       }, 1000);
 

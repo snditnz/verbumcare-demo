@@ -132,20 +132,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
 
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.button, styles.buttonSecondary]}
-            onPress={handleSkip}
+            style={styles.button}
+            onPress={reading ? handleContinue : handleSkip}
           >
-            <Text style={[styles.buttonText, styles.buttonTextSecondary]}>
-              {t['common.skip']}
+            <Text style={styles.buttonText}>
+              {reading ? t['common.continue'] : t['common.skip']}
             </Text>
           </TouchableOpacity>
 
-          {reading && (
+          {bleStatus === 'error' && !reading && (
             <TouchableOpacity
-              style={styles.button}
-              onPress={handleContinue}
+              style={[styles.button, styles.buttonRetry]}
+              onPress={handleRetry}
             >
-              <Text style={styles.buttonText}>{t['common.continue']}</Text>
+              <Text style={styles.buttonText}>{t['common.retry']}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -218,20 +218,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 8,
     backgroundColor: UI_COLORS.primary,
-    minWidth: 120,
+    minWidth: 150,
     alignItems: 'center',
   },
-  buttonSecondary: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: UI_COLORS.border,
+  buttonRetry: {
+    backgroundColor: UI_COLORS.warning,
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  buttonTextSecondary: {
-    color: UI_COLORS.text,
   },
 });

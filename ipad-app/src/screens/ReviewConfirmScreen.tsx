@@ -46,7 +46,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
         setProcessingProgress(data.progress || 0);
 
         if (data.status === 'completed' && data.data) {
-          const structuredData = data.data.structured_data[language];
+          const structuredData = data.data.structured_data?.[language] || data.data.structured_data;
           setADLProcessedData(structuredData);
           setIsProcessing(false);
         }
@@ -63,6 +63,43 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
     // Check if we're waiting for processing
     if (adlRecordingId && !adlProcessedData) {
       setIsProcessing(true);
+
+      // Fallback: Poll API if Socket.IO doesn't deliver results (after 10 seconds)
+      const fallbackTimer = setTimeout(async () => {
+        console.log('⚠️  Socket.IO timeout - fetching via API fallback');
+        try {
+          const response = await apiService.getVoiceStatus(adlRecordingId);
+          console.log('📥 API fallback response:', response);
+          if (response.status === 'completed' && response.structured_data) {
+            const structuredData = response.structured_data[language] || response.structured_data;
+            setADLProcessedData(structuredData);
+            setIsProcessing(false);
+          } else if (response.status === 'processing') {
+            // Still processing, poll again in 5 seconds
+            setTimeout(async () => {
+              try {
+                const retryResponse = await apiService.getVoiceStatus(adlRecordingId);
+                if (retryResponse.status === 'completed' && retryResponse.structured_data) {
+                  const structuredData = retryResponse.structured_data[language] || retryResponse.structured_data;
+                  setADLProcessedData(structuredData);
+                  setIsProcessing(false);
+                }
+              } catch (e) {
+                console.error('Retry failed:', e);
+                setIsProcessing(false);
+              }
+            }, 5000);
+          }
+        } catch (error) {
+          console.error('Fallback fetch failed:', error);
+          setIsProcessing(false);
+        }
+      }, 10000);
+
+      return () => {
+        clearTimeout(fallbackTimer);
+        socketService.off('voice-processing-progress', handleVoiceProgress);
+      };
     }
 
     return () => {
