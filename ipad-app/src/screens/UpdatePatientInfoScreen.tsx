@@ -45,6 +45,16 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
   // Note: This screen is part of hub-and-spoke navigation from PatientInfo,
   // not part of the main workflow, so we don't set currentStep
 
+  // Reload form values when screen opens (supports reopening with saved data)
+  useEffect(() => {
+    // Priority: session draft > current patient data
+    setHeight(sessionPatientUpdates?.height?.toString() || currentPatient?.height?.toString() || '');
+    setWeight(sessionPatientUpdates?.weight?.toString() || currentPatient?.weight?.toString() || '');
+    setAllergies(sessionPatientUpdates?.allergies || currentPatient?.allergies || '');
+    setMedications(sessionPatientUpdates?.medications || currentPatient?.medications || '');
+    setKeyNotes(sessionPatientUpdates?.keyNotes || currentPatient?.key_notes || '');
+  }, [sessionPatientUpdates, currentPatient]);
+
   useEffect(() => {
     // Check if form has changes from original patient data
     const changed =

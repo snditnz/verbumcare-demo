@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { API_CONFIG, FACILITY_ID } from '@constants/config';
-import { VoiceProcessingProgress } from '@types/api';
+import { VoiceProcessingProgress } from '@models/api';
 
 type SocketCallback = (data: any) => void;
 

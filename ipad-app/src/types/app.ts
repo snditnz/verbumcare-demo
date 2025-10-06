@@ -54,6 +54,7 @@ export interface VitalSigns {
   blood_pressure_diastolic?: number;
   heart_rate?: number;
   oxygen_saturation?: number;
+  respiratory_rate?: number;
   measured_at: Date;
 }
 

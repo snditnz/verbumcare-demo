@@ -5,16 +5,22 @@ import { StatusBar } from 'expo-status-bar';
 import { socketService } from './src/services';
 import PatientListScreen from './src/screens/PatientListScreen';
 import PatientScanScreen from './src/screens/PatientScanScreen';
+import PatientInfoScreen from './src/screens/PatientInfoScreen';
 import VitalsCaptureScreen from './src/screens/VitalsCaptureScreen';
 import ADLVoiceScreen from './src/screens/ADLVoiceScreen';
+import MedicineAdminScreen from './src/screens/MedicineAdminScreen';
+import UpdatePatientInfoScreen from './src/screens/UpdatePatientInfoScreen';
 import IncidentReportScreen from './src/screens/IncidentReportScreen';
 import ReviewConfirmScreen from './src/screens/ReviewConfirmScreen';
 
 export type RootStackParamList = {
   PatientList: undefined;
   PatientScan: undefined;
+  PatientInfo: undefined;
   VitalsCapture: undefined;
   ADLVoice: undefined;
+  MedicineAdmin: undefined;
+  UpdatePatientInfo: undefined;
   IncidentReport: undefined;
   ReviewConfirm: undefined;
 };
@@ -55,6 +61,11 @@ export default function App() {
             options={{ title: 'Patient Barcode Scan' }}
           />
           <Stack.Screen
+            name="PatientInfo"
+            component={PatientInfoScreen}
+            options={{ title: 'Patient Information' }}
+          />
+          <Stack.Screen
             name="VitalsCapture"
             component={VitalsCaptureScreen}
             options={{ title: 'Vital Signs' }}
@@ -63,6 +74,16 @@ export default function App() {
             name="ADLVoice"
             component={ADLVoiceScreen}
             options={{ title: 'ADL Voice Recording' }}
+          />
+          <Stack.Screen
+            name="MedicineAdmin"
+            component={MedicineAdminScreen}
+            options={{ title: 'Medicine Administration' }}
+          />
+          <Stack.Screen
+            name="UpdatePatientInfo"
+            component={UpdatePatientInfoScreen}
+            options={{ title: 'Update Patient Info' }}
           />
           <Stack.Screen
             name="IncidentReport"

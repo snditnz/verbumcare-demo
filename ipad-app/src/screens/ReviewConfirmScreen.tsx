@@ -23,7 +23,7 @@ type Props = {
 export default function ReviewConfirmScreen({ navigation }: Props) {
   const {
     currentPatient,
-    vitals,
+    sessionVitals,
     barthelIndex,
     adlRecordingId,
     adlProcessedData,
@@ -121,7 +121,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
     try {
       // Submit all session data to backend
       await apiService.submitAllSessionData(currentPatient.patient_id, {
-        vitals: vitals ?? undefined,
+        vitals: sessionVitals ?? undefined,
         barthelIndex: barthelIndex ?? undefined,
         medications: sessionMedications,
         patientUpdates: sessionPatientUpdates ?? undefined,
@@ -224,7 +224,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
         )}
 
         {/* Vitals Summary Card */}
-        {vitals && (
+        {sessionVitals && (
           <Card>
             <View style={styles.cardHeader}>
               <Ionicons name="heart" size={ICON_SIZES.lg} color={COLORS.primary} />
@@ -233,36 +233,44 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
               </Text>
             </View>
             <View style={styles.vitalsGrid}>
-              {vitals.blood_pressure_systolic && vitals.blood_pressure_diastolic && (
+              {sessionVitals.blood_pressure_systolic && sessionVitals.blood_pressure_diastolic && (
                 <View style={styles.vitalItem}>
-                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.blood_pressure_systolic, [90, 140]) }]} />
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(sessionVitals.blood_pressure_systolic, [90, 140]) }]} />
                   <Text style={styles.vitalLabel}>{language === 'ja' ? '血圧' : 'BP'}</Text>
-                  <Text style={styles.vitalValue}>{vitals.blood_pressure_systolic}/{vitals.blood_pressure_diastolic}</Text>
+                  <Text style={styles.vitalValue}>{sessionVitals.blood_pressure_systolic}/{sessionVitals.blood_pressure_diastolic}</Text>
                   <Text style={styles.vitalUnit}>mmHg</Text>
                 </View>
               )}
-              {vitals.heart_rate && (
+              {sessionVitals.heart_rate && (
                 <View style={styles.vitalItem}>
-                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.heart_rate, [60, 100]) }]} />
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(sessionVitals.heart_rate, [60, 100]) }]} />
                   <Text style={styles.vitalLabel}>{language === 'ja' ? '脈拍' : 'Pulse'}</Text>
-                  <Text style={styles.vitalValue}>{vitals.heart_rate}</Text>
+                  <Text style={styles.vitalValue}>{sessionVitals.heart_rate}</Text>
                   <Text style={styles.vitalUnit}>bpm</Text>
                 </View>
               )}
-              {vitals.temperature_celsius && (
+              {sessionVitals.temperature_celsius && (
                 <View style={styles.vitalItem}>
-                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.temperature_celsius, [36.0, 37.5]) }]} />
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(sessionVitals.temperature_celsius, [36.0, 37.5]) }]} />
                   <Text style={styles.vitalLabel}>{language === 'ja' ? '体温' : 'Temp'}</Text>
-                  <Text style={styles.vitalValue}>{vitals.temperature_celsius.toFixed(1)}</Text>
+                  <Text style={styles.vitalValue}>{sessionVitals.temperature_celsius.toFixed(1)}</Text>
                   <Text style={styles.vitalUnit}>°C</Text>
                 </View>
               )}
-              {vitals.oxygen_saturation && (
+              {sessionVitals.oxygen_saturation && (
                 <View style={styles.vitalItem}>
-                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.oxygen_saturation, [95, 100]) }]} />
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(sessionVitals.oxygen_saturation, [95, 100]) }]} />
                   <Text style={styles.vitalLabel}>SpO₂</Text>
-                  <Text style={styles.vitalValue}>{vitals.oxygen_saturation}</Text>
+                  <Text style={styles.vitalValue}>{sessionVitals.oxygen_saturation}</Text>
                   <Text style={styles.vitalUnit}>%</Text>
+                </View>
+              )}
+              {sessionVitals.respiratory_rate && (
+                <View style={styles.vitalItem}>
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(sessionVitals.respiratory_rate, [12, 20]) }]} />
+                  <Text style={styles.vitalLabel}>{language === 'ja' ? '呼吸数' : 'RR'}</Text>
+                  <Text style={styles.vitalValue}>{sessionVitals.respiratory_rate}</Text>
+                  <Text style={styles.vitalUnit}>/min</Text>
                 </View>
               )}
             </View>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { BLEConnectionStatus } from '@types/ble';
+import { BLEConnectionStatus } from '@models/ble';
 import { UI_COLORS } from '@constants/config';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { translations } from '@constants/translations';

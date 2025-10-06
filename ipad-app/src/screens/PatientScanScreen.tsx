@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { WorkflowProgress, LanguageToggle } from '@components';
+import { LanguageToggle } from '@components';
+import { Button } from '@components/ui';
 import { translations } from '@constants/translations';
-import { UI_COLORS } from '@constants/config';
-import { apiService } from '@services';
+import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '@constants/theme';
+import { DEMO_PATIENTS } from '@constants/demoPatients';
+import { Patient } from '@models';
 
 type RootStackParamList = {
   PatientList: undefined;
@@ -19,9 +21,10 @@ type Props = {
 };
 
 export default function PatientScanScreen({ navigation }: Props) {
-  const { currentPatient, setCurrentStep, language } = useAssessmentStore();
+  const { setCurrentPatient, setCurrentStep, language } = useAssessmentStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [patients] = useState<Patient[]>(DEMO_PATIENTS);
   const t = translations[language];
 
   useEffect(() => {
@@ -43,21 +46,35 @@ export default function PatientScanScreen({ navigation }: Props) {
     if (data.startsWith('PAT-')) {
       const mrn = data.substring(4); // Remove 'PAT-' prefix
 
-      if (currentPatient?.mrn === mrn) {
+      // Find patient in the list by MRN
+      const foundPatient = patients.find(p => p.mrn === mrn);
+
+      if (foundPatient) {
+        setCurrentPatient(foundPatient);
+
+        // Navigate immediately with a brief success toast-style alert
         Alert.alert(
           t['scan.success'],
-          `${currentPatient.family_name} ${currentPatient.given_name}`,
+          `${foundPatient.family_name} ${foundPatient.given_name}`,
           [
             {
               text: t['common.continue'],
-              onPress: () => navigation.navigate('VitalsCapture'),
+              onPress: () => navigation.navigate('PatientInfo' as any),
             },
-          ]
+          ],
+          { cancelable: false } // Prevent dismissing by tapping outside
         );
+
+        // Auto-navigate after 1 second if user doesn't tap
+        setTimeout(() => {
+          navigation.navigate('PatientInfo' as any);
+        }, 1000);
       } else {
         Alert.alert(
           t['scan.mismatch'],
-          t['scan.mismatchMessage'],
+          language === 'ja'
+            ? `患者が見つかりません: ${mrn}`
+            : `Patient not found: ${mrn}`,
           [
             {
               text: t['common.tryAgain'],
@@ -73,8 +90,8 @@ export default function PatientScanScreen({ navigation }: Props) {
     }
   };
 
-  const handleSkip = () => {
-    navigation.navigate('VitalsCapture');
+  const handleCancel = () => {
+    navigation.navigate('PatientList');
   };
 
   if (!permission) {
@@ -84,11 +101,17 @@ export default function PatientScanScreen({ navigation }: Props) {
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Button variant="text" onPress={handleCancel}>
+            {`← ${t['common.cancel']}`}
+          </Button>
+          <LanguageToggle />
+        </View>
         <View style={styles.permissionContainer}>
           <Text style={styles.permissionText}>{t['scan.cameraPermission']}</Text>
-          <TouchableOpacity style={styles.button} onPress={requestPermission}>
-            <Text style={styles.buttonText}>{t['common.grantPermission']}</Text>
-          </TouchableOpacity>
+          <Button onPress={requestPermission}>
+            {t['common.grantPermission']}
+          </Button>
         </View>
       </SafeAreaView>
     );
@@ -97,14 +120,24 @@ export default function PatientScanScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <WorkflowProgress />
+        <View style={styles.headerLeft}>
+          <Button variant="text" onPress={handleCancel}>
+            {`← ${t['common.cancel']}`}
+          </Button>
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={styles.screenTitle}>
+            {language === 'ja' ? 'バーコードスキャン' : 'Scan Barcode'}
+          </Text>
+        </View>
         <LanguageToggle />
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>{t['scan.title']}</Text>
-        <Text style={styles.subtitle}>
-          {t['scan.instruction']}: {currentPatient?.family_name} {currentPatient?.given_name}
+        <Text style={styles.instruction}>
+          {language === 'ja'
+            ? '患者IDバーコードをスキャンしてください'
+            : 'Scan patient ID barcode'}
         </Text>
 
         <View style={styles.cameraContainer}>
@@ -122,25 +155,13 @@ export default function PatientScanScreen({ navigation }: Props) {
           </CameraView>
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.button, styles.buttonSecondary]}
-            onPress={handleSkip}
-          >
-            <Text style={[styles.buttonText, styles.buttonTextSecondary]}>
-              {t['common.skip']}
-            </Text>
-          </TouchableOpacity>
-
-          {scanned && (
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => setScanned(false)}
-            >
-              <Text style={styles.buttonText}>{t['scan.scanAgain']}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        {scanned && (
+          <View style={styles.actions}>
+            <Button variant="outline" onPress={() => setScanned(false)}>
+              {t['scan.scanAgain']}
+            </Button>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -149,38 +170,45 @@ export default function PatientScanScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: UI_COLORS.background,
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: UI_COLORS.border,
+    borderBottomColor: COLORS.border,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerCenter: {
+    flex: 2,
+    alignItems: 'center',
+  },
+  screenTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: SPACING.lg,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: UI_COLORS.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: UI_COLORS.textSecondary,
-    marginBottom: 24,
+  instruction: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginBottom: SPACING.xl,
   },
   cameraContainer: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.md,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: SPACING.xl,
   },
   camera: {
     flex: 1,
@@ -194,46 +222,23 @@ const styles = StyleSheet.create({
   scanFrame: {
     width: 250,
     height: 250,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    borderRadius: 12,
+    borderWidth: 4,
+    borderColor: COLORS.accent,
+    borderRadius: BORDER_RADIUS.md,
   },
   actions: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-  },
-  button: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 8,
-    backgroundColor: UI_COLORS.primary,
-    minWidth: 120,
     alignItems: 'center',
-  },
-  buttonSecondary: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: UI_COLORS.border,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  buttonTextSecondary: {
-    color: UI_COLORS.text,
   },
   permissionContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
+    padding: SPACING['3xl'],
+    gap: SPACING.xl,
   },
   permissionText: {
-    fontSize: 18,
-    color: UI_COLORS.text,
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    color: COLORS.text.primary,
     textAlign: 'center',
-    marginBottom: 24,
   },
 });

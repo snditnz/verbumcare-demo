@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { Language } from '@types';
+import { Language } from '@models';
 import { UI_COLORS } from '@constants/config';
 
 export const LanguageToggle: React.FC = () => {

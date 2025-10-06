@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Patient } from '@types';
-import { UI_COLORS } from '@constants/config';
+import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Patient } from '@models';
+import { Card } from '@components/ui';
+import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES } from '@constants/theme';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { translations } from '@constants/translations';
 
@@ -14,126 +16,140 @@ export const PatientCard: React.FC<PatientCardProps> = ({ patient, onPress }) =>
   const { language } = useAssessmentStore();
   const t = translations[language];
 
-  // Determine status color based on risk factors
-  const getStatusColor = () => {
+  // Determine status based on risk factors
+  const getStatus = () => {
     const riskCount = patient.risk_factors?.length || 0;
-    if (riskCount >= 3) return UI_COLORS.error;
-    if (riskCount >= 1) return UI_COLORS.warning;
-    return UI_COLORS.success;
+    if (riskCount >= 3) return { color: COLORS.status.critical, icon: 'alert-circle' as const, label: t['common.highRisk'] || 'High Risk' };
+    if (riskCount >= 1) return { color: COLORS.status.warning, icon: 'warning' as const, label: t['common.caution'] || 'Caution' };
+    return { color: COLORS.status.normal, icon: 'checkmark-circle' as const, label: t['common.stable'] || 'Stable' };
   };
 
-  const statusColor = getStatusColor();
+  const status = getStatus();
 
-  const CardContent = (
-    <View style={[styles.card, onPress && styles.cardTouchable]}>
-      <View style={[styles.statusIndicator, { backgroundColor: statusColor }]} />
+  // Display name in English when language is 'en'
+  const displayName = language === 'ja'
+    ? `${patient.family_name} ${patient.given_name}`
+    : `${patient.family_name_en || patient.family_name} ${patient.given_name_en || patient.given_name}`;
 
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.name}>
-            {patient.family_name} {patient.given_name}
-          </Text>
-          <Text style={styles.mrn}>MRN: {patient.mrn}</Text>
-        </View>
-
-        <View style={styles.info}>
-          <Text style={styles.age}>{patient.age}{t['common.years']}</Text>
-          {patient.room && (
-            <Text style={styles.room}>{t['patient.room']}: {patient.room}</Text>
-          )}
-        </View>
-
-        {patient.risk_factors && patient.risk_factors.length > 0 && (
-          <View style={styles.riskFactors}>
-            {patient.risk_factors.map((risk, index) => (
-              <View key={index} style={styles.riskChip}>
-                <Text style={styles.riskText}>{risk}</Text>
-              </View>
-            ))}
-          </View>
+  return (
+    <Card
+      onPress={onPress}
+      style={styles.card}
+      padding="lg"
+    >
+      <View style={styles.topRow}>
+        <Text style={styles.name}>
+          {displayName}
+        </Text>
+        {patient.room && (
+          <Text style={styles.roomNumber}>{patient.room}</Text>
         )}
       </View>
-    </View>
+
+      <View style={styles.infoRow}>
+        <Text style={styles.info}>
+          {patient.age}{t['common.years']}
+        </Text>
+        <Text style={styles.info}>•</Text>
+        <Text style={styles.info}>
+          {patient.gender === 'male' ? (t['common.male'] || 'Male') :
+           patient.gender === 'female' ? (t['common.female'] || 'Female') :
+           (t['common.other'] || 'Other')}
+        </Text>
+        <View style={styles.statusContainer}>
+          <View style={[styles.statusDot, { backgroundColor: status.color }]} />
+          <Ionicons name={status.icon} size={ICON_SIZES.sm} color={status.color} />
+          <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+        </View>
+      </View>
+
+      {patient.risk_factors && patient.risk_factors.length > 0 && (
+        <View style={styles.riskFactors}>
+          {patient.risk_factors.map((risk, index) => (
+            <View key={index} style={[styles.riskChip, { backgroundColor: `${status.color}15` }]}>
+              <Text style={[styles.riskText, { color: status.color }]}>{risk}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <Text style={styles.timestamp}>
+        {t['common.lastAssessment'] || 'Last assessment'}: {t['common.notAvailable'] || 'N/A'}
+      </Text>
+    </Card>
   );
-
-  if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} accessibilityLabel={`Select patient ${patient.family_name} ${patient.given_name}`}>
-        {CardContent}
-      </TouchableOpacity>
-    );
-  }
-
-  return CardContent;
 };
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginVertical: 8,
-    marginHorizontal: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    minHeight: SPACING.touchTarget.xl,
+    marginBottom: SPACING.lg,
   },
-  cardTouchable: {
-    minHeight: 48,
-  },
-  statusIndicator: {
-    width: 8,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  header: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   name: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: UI_COLORS.text,
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+    flex: 1,
   },
-  mrn: {
-    fontSize: 14,
-    color: UI_COLORS.textSecondary,
-    fontWeight: '500',
+  roomNumber: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
+    backgroundColor: `${COLORS.primary}10`,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
   },
   info: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+  },
+  statusContainer: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginLeft: SPACING.xs,
   },
-  age: {
-    fontSize: 16,
-    color: UI_COLORS.textSecondary,
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  room: {
-    fontSize: 16,
-    color: UI_COLORS.textSecondary,
+  statusText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   riskFactors: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   riskChip: {
-    backgroundColor: UI_COLORS.errorLight,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
     borderRadius: 12,
   },
   riskText: {
-    fontSize: 12,
-    color: UI_COLORS.error,
-    fontWeight: '600',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  timestamp: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.disabled,
+    marginTop: SPACING.xs,
   },
 });

@@ -9,12 +9,19 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
+      "@screens": ["src/screens"],
       "@screens/*": ["src/screens/*"],
+      "@components": ["src/components"],
       "@components/*": ["src/components/*"],
+      "@services": ["src/services"],
       "@services/*": ["src/services/*"],
+      "@stores": ["src/stores"],
       "@stores/*": ["src/stores/*"],
-      "@types/*": ["src/types/*"],
+      "@models": ["src/types"],
+      "@models/*": ["src/types/*"],
+      "@utils": ["src/utils"],
       "@utils/*": ["src/utils/*"],
+      "@constants": ["src/constants"],
       "@constants/*": ["src/constants/*"]
     }
   }

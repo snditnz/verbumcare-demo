@@ -18,15 +18,30 @@ router.get('/', async (req, res) => {
         p.given_name,
         p.family_name_kana,
         p.given_name_kana,
+        p.family_name_en,
+        p.given_name_en,
         p.date_of_birth,
         p.gender,
         p.room,
         p.bed,
         p.blood_type,
         p.admission_date,
+        p.height_cm,
+        p.weight_kg,
+        p.allergies,
+        p.medications_summary,
+        p.key_notes,
+        p.risk_factors,
+        p.status,
         DATE_PART('year', AGE(p.date_of_birth)) as age,
+        (SELECT b.total_score FROM barthel_assessments b
+         WHERE b.patient_id = p.patient_id
+         ORDER BY b.assessed_at DESC LIMIT 1) as latest_barthel_index,
+        (SELECT b.assessed_at FROM barthel_assessments b
+         WHERE b.patient_id = p.patient_id
+         ORDER BY b.assessed_at DESC LIMIT 1) as latest_barthel_date,
+        MAX(vs.measured_at) as latest_vitals_date,
         COUNT(DISTINCT mo.order_id) FILTER (WHERE mo.status = 'active' AND mo.prn = false) as active_medications,
-        MAX(vs.measured_at) as last_vitals,
         COUNT(DISTINCT ma.administration_id) FILTER (
           WHERE ma.scheduled_datetime < NOW()
           AND ma.scheduled_datetime::date = CURRENT_DATE
@@ -237,7 +252,14 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
-    const allowedFields = ['family_name', 'given_name', 'family_name_kana', 'given_name_kana', 'room', 'bed', 'blood_type'];
+    const allowedFields = [
+      'family_name', 'given_name', 'family_name_kana', 'given_name_kana',
+      'family_name_en', 'given_name_en',
+      'room', 'bed', 'blood_type',
+      'height_cm', 'weight_kg',
+      'allergies', 'medications_summary', 'key_notes',
+      'risk_factors', 'status'
+    ];
     const updateFields = [];
     const values = [];
     let paramCount = 1;

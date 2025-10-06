@@ -27,7 +27,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
   const {
     currentPatient,
     language,
-    vitals,
+    sessionVitals,
     adlRecordingId,
     adlProcessedData,
     sessionMedications,
@@ -52,7 +52,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
   const getActionStatus = (actionType: string) => {
     switch (actionType) {
       case 'vitals':
-        const vitalCount = vitals ? Object.keys(vitals).filter(k => vitals[k as keyof typeof vitals]).length : 0;
+        const vitalCount = sessionVitals ? Object.keys(sessionVitals).filter(k => sessionVitals[k as keyof typeof sessionVitals]).length : 0;
         return {
           completed: vitalCount > 0,
           count: vitalCount,
@@ -93,7 +93,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
       case 'review':
         const totalActions =
-          (vitals ? 1 : 0) +
+          (sessionVitals ? 1 : 0) +
           (adlRecordingId ? 1 : 0) +
           sessionMedications.length +
           (sessionPatientUpdates ? 1 : 0) +
@@ -131,8 +131,8 @@ export default function PatientInfoScreen({ navigation }: Props) {
   };
 
   // Check if vitals were captured today
-  const hasVitalsToday = vitals && vitals.measured_at
-    ? new Date(vitals.measured_at).toDateString() === new Date().toDateString()
+  const hasVitalsToday = sessionVitals && sessionVitals.measured_at
+    ? new Date(sessionVitals.measured_at).toDateString() === new Date().toDateString()
     : false;
 
   return (
@@ -227,19 +227,35 @@ export default function PatientInfoScreen({ navigation }: Props) {
               <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.tileTitle}>{t['review.vitals']}</Text>
             </View>
-            {hasVitalsToday && vitals ? (
+            {hasVitalsToday && sessionVitals ? (
               <>
-                <Text style={styles.infoText}>
-                  BP: {vitals.blood_pressure_systolic}/{vitals.blood_pressure_diastolic}
-                </Text>
-                <Text style={styles.infoText}>
-                  HR: {vitals.heart_rate} bpm
-                </Text>
-                <Text style={styles.infoText}>
-                  Temp: {vitals.temperature_celsius}°C
-                </Text>
+                {sessionVitals.blood_pressure_systolic && sessionVitals.blood_pressure_diastolic && (
+                  <Text style={styles.infoText}>
+                    BP: {sessionVitals.blood_pressure_systolic}/{sessionVitals.blood_pressure_diastolic} mmHg
+                  </Text>
+                )}
+                {sessionVitals.heart_rate && (
+                  <Text style={styles.infoText}>
+                    HR: {sessionVitals.heart_rate} bpm
+                  </Text>
+                )}
+                {sessionVitals.temperature_celsius && (
+                  <Text style={styles.infoText}>
+                    Temp: {sessionVitals.temperature_celsius}°C
+                  </Text>
+                )}
+                {sessionVitals.oxygen_saturation && (
+                  <Text style={styles.infoText}>
+                    SpO₂: {sessionVitals.oxygen_saturation}%
+                  </Text>
+                )}
+                {sessionVitals.respiratory_rate && (
+                  <Text style={styles.infoText}>
+                    RR: {sessionVitals.respiratory_rate}/min
+                  </Text>
+                )}
                 <Text style={styles.tileTimestamp}>
-                  {new Date(vitals.measured_at).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US', {
+                  {new Date(sessionVitals.measured_at).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US', {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}

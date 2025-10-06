@@ -146,7 +146,9 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     alignItems: 'center',
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   hint: {
-    marginTop: 16,
+    marginTop: 8,
     fontSize: 14,
     color: UI_COLORS.textSecondary,
     textAlign: 'center',

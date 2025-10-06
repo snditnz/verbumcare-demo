@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { VitalSigns } from '@types';
+import { VitalSigns } from '@models';
 import { UI_COLORS } from '@constants/config';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { translations } from '@constants/translations';
@@ -43,27 +43,27 @@ export const VitalsDisplay: React.FC<VitalsDisplayProps> = ({ vitals }) => {
       <View style={styles.row}>
         <VitalCard
           label={t['vitals.systolic']}
-          value={vitals.systolic}
+          value={vitals.blood_pressure_systolic}
           unit="mmHg"
-          color={getSystolicColor(vitals.systolic)}
+          color={vitals.blood_pressure_systolic ? getSystolicColor(vitals.blood_pressure_systolic) : undefined}
         />
         <VitalCard
           label={t['vitals.diastolic']}
-          value={vitals.diastolic}
+          value={vitals.blood_pressure_diastolic}
           unit="mmHg"
-          color={getDiastolicColor(vitals.diastolic)}
+          color={vitals.blood_pressure_diastolic ? getDiastolicColor(vitals.blood_pressure_diastolic) : undefined}
         />
         <VitalCard
           label={t['vitals.pulse']}
-          value={vitals.pulse}
+          value={vitals.heart_rate}
           unit="bpm"
-          color={getPulseColor(vitals.pulse)}
+          color={vitals.heart_rate ? getPulseColor(vitals.heart_rate) : undefined}
         />
       </View>
 
-      {vitals.timestamp && (
+      {vitals.measured_at && (
         <Text style={styles.timestamp}>
-          {t['vitals.measuredAt']}: {new Date(vitals.timestamp).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US')}
+          {t['vitals.measuredAt']}: {new Date(vitals.measured_at).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US')}
         </Text>
       )}
     </View>
@@ -72,16 +72,18 @@ export const VitalsDisplay: React.FC<VitalsDisplayProps> = ({ vitals }) => {
 
 interface VitalCardProps {
   label: string;
-  value: number;
+  value?: number;
   unit: string;
-  color: string;
+  color?: string;
 }
 
 const VitalCard: React.FC<VitalCardProps> = ({ label, value, unit, color }) => (
   <View style={styles.card}>
     <Text style={styles.label}>{label}</Text>
     <View style={styles.valueContainer}>
-      <Text style={[styles.value, { color }]}>{value}</Text>
+      <Text style={[styles.value, color ? { color } : undefined]}>
+        {value !== undefined ? value : '-'}
+      </Text>
       <Text style={styles.unit}>{unit}</Text>
     </View>
   </View>

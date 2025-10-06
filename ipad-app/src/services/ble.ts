@@ -1,8 +1,8 @@
 import { BleManager, Device, Characteristic } from 'react-native-ble-plx';
 import { Platform } from 'react-native';
 import { BLE_CONFIG } from '@constants/config';
-import { AD_BP_SERVICE_UUID, AD_BP_CHARACTERISTIC_UUID, AD_DEVICE_NAME } from '@types/ble';
-import type { BLEConnectionStatus, BPReading } from '@types/ble';
+import { AD_BP_SERVICE_UUID, AD_BP_CHARACTERISTIC_UUID, AD_DEVICE_NAME } from '@models/ble';
+import type { BLEConnectionStatus, BPReading } from '@models/ble';
 
 class BLEService {
   private manager: BleManager;

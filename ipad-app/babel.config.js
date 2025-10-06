@@ -14,7 +14,7 @@ module.exports = function(api) {
             '@components': './src/components',
             '@services': './src/services',
             '@stores': './src/stores',
-            '@types': './src/types',
+            '@models': './src/types',
             '@utils': './src/utils',
             '@constants': './src/constants'
           }

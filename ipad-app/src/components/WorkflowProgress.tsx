@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { WorkflowStep } from '@types';
+import { WorkflowStep } from '@models';
 import { UI_COLORS } from '@constants/config';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { translations } from '@constants/translations';
