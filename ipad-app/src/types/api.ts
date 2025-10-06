@@ -7,28 +7,10 @@ export interface APIResponse<T> {
   error?: string;
 }
 
-export interface Patient {
-  patient_id: string;
-  facility_id: string;
-  mrn: string;
-  family_name: string;
-  given_name: string;
-  family_name_kana?: string;
-  given_name_kana?: string;
-  date_of_birth: string;
-  gender: 'male' | 'female' | 'other';
-  room?: string;
-  bed?: string;
-  blood_type?: string;
-  admission_date?: string;
-  age?: number;
-  status?: 'green' | 'yellow' | 'red';
-  pending_medications?: number;
-  active_medications?: number;
-  barcode?: string;
-}
+// Note: Patient type is in app.ts - backend now returns app.ts Patient format
 
-export interface VitalSigns {
+// API-specific VitalSigns (for backend requests/responses with string dates)
+export interface APIVitalSigns {
   vital_sign_id?: string;
   patient_id: string;
   measured_at: string;

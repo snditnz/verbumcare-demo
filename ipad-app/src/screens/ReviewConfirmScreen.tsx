@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { WorkflowProgress, LanguageToggle, PatientCard, VitalsDisplay } from '@components';
+import { LanguageToggle } from '@components';
+import { Button, Card } from '@components/ui';
 import { socketService, apiService } from '@services';
-import { VoiceProcessingProgress } from '@types/api';
+import { VoiceProcessingProgress } from '@models/api';
 import { translations } from '@constants/translations';
-import { UI_COLORS } from '@constants/config';
+import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { DEMO_STAFF_ID } from '@constants/config';
 
 type RootStackParamList = {
@@ -22,9 +24,13 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
   const {
     currentPatient,
     vitals,
+    barthelIndex,
     adlRecordingId,
     adlProcessedData,
     setADLProcessedData,
+    sessionMedications,
+    sessionPatientUpdates,
+    sessionIncidents,
     resetAssessment,
     setCurrentStep,
     language,
@@ -113,15 +119,37 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
     setIsSubmitting(true);
 
     try {
-      // In a real app, submit the complete assessment here
-      // For now, just reset and go back to patient list
+      // Submit all session data to backend
+      await apiService.submitAllSessionData(currentPatient.patient_id, {
+        vitals: vitals ?? undefined,
+        barthelIndex: barthelIndex ?? undefined,
+        medications: sessionMedications,
+        patientUpdates: sessionPatientUpdates ?? undefined,
+        incidents: sessionIncidents,
+      });
 
-      alert(t['review.submitSuccess']);
-      resetAssessment();
-      navigation.navigate('PatientList');
-    } catch (error) {
+      Alert.alert(
+        t['review.submitSuccess'] || 'Success',
+        t['review.submitSuccessMessage'] || 'Assessment data has been saved successfully.',
+        [
+          {
+            text: t['common.ok'] || 'OK',
+            onPress: () => {
+              resetAssessment();
+              navigation.navigate('PatientList');
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
       console.error('Failed to submit assessment:', error);
-      alert(t['review.submitFailed']);
+      Alert.alert(
+        t['review.submitFailed'] || 'Submission Failed',
+        error.message || t['review.submitFailedMessage'] || 'Failed to save assessment data. Please try again.',
+        [
+          { text: t['common.ok'] || 'OK', style: 'cancel' },
+        ]
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -138,90 +166,290 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
     return phaseMap[phase] || phase;
   };
 
+  const getVitalStatus = (value: number | undefined, normalRange: [number, number]) => {
+    if (!value) return COLORS.status.neutral;
+    if (value < normalRange[0] * 0.85 || value > normalRange[1] * 1.15) return COLORS.status.critical;
+    if (value < normalRange[0] || value > normalRange[1]) return COLORS.status.warning;
+    return COLORS.status.normal;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <WorkflowProgress />
-        <LanguageToggle />
+        <View style={styles.headerLeft}>
+          <Button variant="text" onPress={() => navigation.navigate('PatientInfo' as any)}>
+            {`← ${t['common.back']}`}
+          </Button>
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={styles.screenTitle}>
+            {language === 'ja' ? '確認・送信' : 'Review & Submit'}
+          </Text>
+        </View>
+        <View style={styles.headerRight}>
+          <LanguageToggle />
+        </View>
       </View>
 
       <ScrollView style={styles.content}>
-        <Text style={styles.title}>{t['review.title']}</Text>
-        <Text style={styles.subtitle}>{t['review.instruction']}</Text>
-
+        {/* Patient Summary Card */}
         {currentPatient && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t['patient.information']}</Text>
-            <PatientCard patient={currentPatient} />
-          </View>
-        )}
-
-        {vitals && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t['vitals.title']}</Text>
-            <VitalsDisplay vitals={vitals} />
-          </View>
-        )}
-
-        {adlRecordingId && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t['voice.adlData']}</Text>
-
-            {isProcessing ? (
-              <View style={styles.processingContainer}>
-                <ActivityIndicator size="large" color={UI_COLORS.primary} />
-                <Text style={styles.processingText}>
-                  {getPhaseText(processingPhase)}
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="person-circle" size={ICON_SIZES.lg} color={COLORS.primary} />
+              <Text style={styles.cardTitle}>{t['patient.information']}</Text>
+            </View>
+            <View style={styles.patientInfo}>
+              <Text style={styles.patientName}>
+                {currentPatient.family_name} {currentPatient.given_name}
+              </Text>
+              <View style={styles.patientDetails}>
+                <Text style={styles.detailText}>
+                  {currentPatient.age}{t['common.years']} • {
+                    currentPatient.gender === 'male' ? t['common.male'] :
+                    currentPatient.gender === 'female' ? t['common.female'] :
+                    t['common.other']
+                  }
                 </Text>
-                {processingProgress > 0 && (
-                  <View style={styles.progressBarContainer}>
-                    <View
-                      style={[
-                        styles.progressBar,
-                        { width: `${processingProgress}%` },
-                      ]}
-                    />
+                {currentPatient.room && (
+                  <Text style={styles.detailText}>{t['patient.room']}: {currentPatient.room}</Text>
+                )}
+              </View>
+              <Text style={styles.timestamp}>
+                {new Date().toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US')}
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* Vitals Summary Card */}
+        {vitals && (
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="heart" size={ICON_SIZES.lg} color={COLORS.primary} />
+              <Text style={styles.cardTitle}>
+                {language === 'ja' ? 'バイタルサイン' : 'Vital Signs'}
+              </Text>
+            </View>
+            <View style={styles.vitalsGrid}>
+              {vitals.blood_pressure_systolic && vitals.blood_pressure_diastolic && (
+                <View style={styles.vitalItem}>
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.blood_pressure_systolic, [90, 140]) }]} />
+                  <Text style={styles.vitalLabel}>{language === 'ja' ? '血圧' : 'BP'}</Text>
+                  <Text style={styles.vitalValue}>{vitals.blood_pressure_systolic}/{vitals.blood_pressure_diastolic}</Text>
+                  <Text style={styles.vitalUnit}>mmHg</Text>
+                </View>
+              )}
+              {vitals.heart_rate && (
+                <View style={styles.vitalItem}>
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.heart_rate, [60, 100]) }]} />
+                  <Text style={styles.vitalLabel}>{language === 'ja' ? '脈拍' : 'Pulse'}</Text>
+                  <Text style={styles.vitalValue}>{vitals.heart_rate}</Text>
+                  <Text style={styles.vitalUnit}>bpm</Text>
+                </View>
+              )}
+              {vitals.temperature_celsius && (
+                <View style={styles.vitalItem}>
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.temperature_celsius, [36.0, 37.5]) }]} />
+                  <Text style={styles.vitalLabel}>{language === 'ja' ? '体温' : 'Temp'}</Text>
+                  <Text style={styles.vitalValue}>{vitals.temperature_celsius.toFixed(1)}</Text>
+                  <Text style={styles.vitalUnit}>°C</Text>
+                </View>
+              )}
+              {vitals.oxygen_saturation && (
+                <View style={styles.vitalItem}>
+                  <View style={[styles.vitalIndicator, { backgroundColor: getVitalStatus(vitals.oxygen_saturation, [95, 100]) }]} />
+                  <Text style={styles.vitalLabel}>SpO₂</Text>
+                  <Text style={styles.vitalValue}>{vitals.oxygen_saturation}</Text>
+                  <Text style={styles.vitalUnit}>%</Text>
+                </View>
+              )}
+            </View>
+          </Card>
+        )}
+
+        {/* Barthel Index / ADL Assessment Card */}
+        {(barthelIndex || adlRecordingId) && (
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="clipboard" size={ICON_SIZES.lg} color={COLORS.primary} />
+              <Text style={styles.cardTitle}>
+                {language === 'ja' ? 'ADL評価' : 'ADL Assessment'}
+              </Text>
+            </View>
+
+            {barthelIndex && (
+              <View style={styles.barthelContainer}>
+                <View style={styles.barthelHeader}>
+                  <Text style={styles.barthelScore}>
+                    {language === 'ja' ? 'バーセル指数: ' : 'Barthel Index: '}
+                    <Text style={styles.barthelScoreValue}>{barthelIndex.total_score}/100</Text>
+                  </Text>
+                </View>
+                {barthelIndex.additional_notes && (
+                  <View style={styles.notesSection}>
+                    <Text style={styles.notesLabel}>
+                      {language === 'ja' ? '追加メモ:' : 'Additional Notes:'}
+                    </Text>
+                    <Text style={styles.notesText}>{barthelIndex.additional_notes}</Text>
                   </View>
                 )}
               </View>
-            ) : adlProcessedData ? (
-              <View style={styles.adlDataContainer}>
-                <Text style={styles.adlText}>
-                  {JSON.stringify(adlProcessedData, null, 2)}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.noData}>{t['voice.noData']}</Text>
             )}
-          </View>
+
+            {adlRecordingId && (
+              <>
+                {isProcessing ? (
+                  <View style={styles.processingContainer}>
+                    <ActivityIndicator size="large" color={COLORS.primary} />
+                    <Text style={styles.processingText}>
+                      {getPhaseText(processingPhase)}
+                    </Text>
+                    {processingProgress > 0 && (
+                      <View style={styles.progressBarContainer}>
+                        <View
+                          style={[
+                            styles.progressBar,
+                            { width: `${processingProgress}%` },
+                          ]}
+                        />
+                      </View>
+                    )}
+                  </View>
+                ) : adlProcessedData ? (
+                  <View style={styles.adlDataContainer}>
+                    <Text style={styles.adlSummary}>
+                      {typeof adlProcessedData === 'string'
+                        ? adlProcessedData
+                        : adlProcessedData.summary || JSON.stringify(adlProcessedData, null, 2)}
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            )}
+
+            {!barthelIndex && !adlRecordingId && (
+              <View style={styles.noDataContainer}>
+                <Ionicons name="information-circle-outline" size={ICON_SIZES.lg} color={COLORS.text.disabled} />
+                <Text style={styles.noData}>{t['voice.noData']}</Text>
+              </View>
+            )}
+          </Card>
+        )}
+
+        {/* Session Medications */}
+        {sessionMedications.length > 0 && (
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="medical" size={ICON_SIZES.lg} color={COLORS.primary} />
+              <Text style={styles.cardTitle}>
+                {language === 'ja' ? '服薬管理' : 'Medications Administered'}
+              </Text>
+            </View>
+            <View style={styles.medicationsContainer}>
+              {sessionMedications.map((med, index) => (
+                <View key={index} style={styles.medicationItem}>
+                  <Text style={styles.medicationName}>{med.medicationName}</Text>
+                  <Text style={styles.medicationDetails}>
+                    {med.dosage} • {med.route} • {med.time}
+                  </Text>
+                  {med.notes && (
+                    <Text style={styles.medicationNotes}>{med.notes}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          </Card>
+        )}
+
+        {/* Patient Updates */}
+        {sessionPatientUpdates && (
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="person" size={ICON_SIZES.lg} color={COLORS.primary} />
+              <Text style={styles.cardTitle}>
+                {language === 'ja' ? '患者情報更新' : 'Patient Information Updates'}
+              </Text>
+            </View>
+            <View style={styles.updatesContainer}>
+              {sessionPatientUpdates.height && (
+                <Text style={styles.updateItem}>
+                  {language === 'ja' ? '身長: ' : 'Height: '}{sessionPatientUpdates.height} cm
+                </Text>
+              )}
+              {sessionPatientUpdates.weight && (
+                <Text style={styles.updateItem}>
+                  {language === 'ja' ? '体重: ' : 'Weight: '}{sessionPatientUpdates.weight} kg
+                </Text>
+              )}
+              {sessionPatientUpdates.allergies && (
+                <Text style={styles.updateItem}>
+                  {language === 'ja' ? 'アレルギー: ' : 'Allergies: '}{sessionPatientUpdates.allergies}
+                </Text>
+              )}
+              {sessionPatientUpdates.medications && (
+                <Text style={styles.updateItem}>
+                  {language === 'ja' ? '服薬: ' : 'Medications: '}{sessionPatientUpdates.medications}
+                </Text>
+              )}
+              {sessionPatientUpdates.keyNotes && (
+                <Text style={styles.updateItem}>
+                  {language === 'ja' ? '特記事項: ' : 'Key Notes: '}{sessionPatientUpdates.keyNotes}
+                </Text>
+              )}
+            </View>
+          </Card>
+        )}
+
+        {/* Incident Reports */}
+        {sessionIncidents.length > 0 && (
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="warning" size={ICON_SIZES.lg} color={COLORS.error} />
+              <Text style={styles.cardTitle}>
+                {language === 'ja' ? 'インシデント報告' : 'Incident Reports'}
+              </Text>
+            </View>
+            <View style={styles.incidentsContainer}>
+              {sessionIncidents.map((incident, index) => (
+                <View key={incident.id} style={styles.incidentItem}>
+                  <View style={styles.incidentHeader}>
+                    <Text style={[styles.incidentType, { color:
+                      incident.severity === 'critical' ? COLORS.status.critical :
+                      incident.severity === 'high' ? COLORS.error :
+                      incident.severity === 'medium' ? COLORS.status.warning :
+                      COLORS.status.normal
+                    }]}>
+                      {incident.type.toUpperCase()}
+                    </Text>
+                    <Text style={styles.incidentTime}>{incident.datetime}</Text>
+                  </View>
+                  <Text style={styles.incidentDescription}>{incident.description}</Text>
+                </View>
+              ))}
+            </View>
+          </Card>
         )}
       </ScrollView>
 
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.button, styles.buttonSecondary]}
-          onPress={() => navigation.goBack()}
+      {/* Bottom Actions */}
+      <View style={styles.bottomActions}>
+        <Button
+          variant="outline"
+          onPress={() => navigation.navigate('PatientInfo' as any)}
           disabled={isSubmitting}
         >
-          <Text style={[styles.buttonText, styles.buttonTextSecondary]}>
-            {t['common.back']}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.button,
-            (isProcessing || isSubmitting) && styles.buttonDisabled,
-          ]}
+          {t['common.back']}
+        </Button>
+        <Button
+          variant="primary"
           onPress={handleSubmit}
           disabled={isProcessing || isSubmitting}
+          loading={isSubmitting}
         >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>{t['review.submit']}</Text>
-          )}
-        </TouchableOpacity>
+          {t['review.submit']}
+        </Button>
       </View>
     </SafeAreaView>
   );
@@ -230,115 +458,240 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: UI_COLORS.background,
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: UI_COLORS.border,
+    borderBottomColor: COLORS.border,
+  },
+  headerLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  headerCenter: {
+    flex: 2,
+    alignItems: 'center',
+  },
+  headerRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  screenTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: SPACING.lg,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: UI_COLORS.text,
-    marginBottom: 8,
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
   },
-  subtitle: {
-    fontSize: 16,
-    color: UI_COLORS.textSecondary,
-    marginBottom: 24,
+  cardTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
   },
-  section: {
-    marginBottom: 24,
+  patientInfo: {
+    gap: SPACING.sm,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: UI_COLORS.text,
-    marginBottom: 12,
+  patientName: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+  },
+  patientDetails: {
+    gap: SPACING.xs,
+  },
+  detailText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+  },
+  timestamp: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.disabled,
+    marginTop: SPACING.sm,
+  },
+  vitalsGrid: {
+    gap: SPACING.md,
+  },
+  vitalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  vitalIndicator: {
+    width: 4,
+    height: 32,
+    borderRadius: 2,
+    marginRight: SPACING.md,
+  },
+  vitalLabel: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+    flex: 1,
+  },
+  vitalValue: {
+    fontSize: TYPOGRAPHY.fontSize['3xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+    marginRight: SPACING.xs,
+  },
+  vitalUnit: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: COLORS.text.secondary,
+    minWidth: 60,
   },
   processingContainer: {
-    padding: 32,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    padding: SPACING['2xl'],
     alignItems: 'center',
+    gap: SPACING.lg,
   },
   processingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: UI_COLORS.text,
-    fontWeight: '600',
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: COLORS.text.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   progressBarContainer: {
     width: '100%',
     height: 8,
-    backgroundColor: UI_COLORS.border,
-    borderRadius: 4,
-    marginTop: 16,
+    backgroundColor: COLORS.divider,
+    borderRadius: BORDER_RADIUS.sm,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    backgroundColor: UI_COLORS.primary,
+    backgroundColor: COLORS.primary,
   },
   adlDataContainer: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    padding: SPACING.lg,
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.md,
   },
-  adlText: {
-    fontSize: 14,
-    fontFamily: 'monospace',
-    color: UI_COLORS.text,
+  adlSummary: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.primary,
+    lineHeight: TYPOGRAPHY.fontSize.base * TYPOGRAPHY.lineHeight.relaxed,
+  },
+  noDataContainer: {
+    alignItems: 'center',
+    padding: SPACING['2xl'],
+    gap: SPACING.md,
   },
   noData: {
-    padding: 24,
-    fontSize: 16,
-    color: UI_COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.disabled,
     textAlign: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
   },
-  actions: {
+  bottomActions: {
     flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
+    justifyContent: 'space-between',
+    padding: SPACING.lg,
+    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: UI_COLORS.border,
+    borderTopColor: COLORS.border,
+    gap: SPACING.lg,
   },
-  button: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 8,
-    backgroundColor: UI_COLORS.primary,
-    minWidth: 120,
+  barthelContainer: {
+    gap: SPACING.md,
+  },
+  barthelHeader: {
+    marginBottom: SPACING.sm,
+  },
+  barthelScore: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: COLORS.text.primary,
+  },
+  barthelScoreValue: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+  },
+  notesSection: {
+    backgroundColor: COLORS.background,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.xs,
+  },
+  notesLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.secondary,
+  },
+  notesText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.primary,
+    lineHeight: TYPOGRAPHY.fontSize.base * TYPOGRAPHY.lineHeight.relaxed,
+  },
+  medicationsContainer: {
+    gap: SPACING.md,
+  },
+  medicationItem: {
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+    gap: SPACING.xs,
+  },
+  medicationName: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  medicationDetails: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+  },
+  medicationNotes: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
+    fontStyle: 'italic',
+  },
+  updatesContainer: {
+    gap: SPACING.md,
+  },
+  updateItem: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.primary,
+    paddingVertical: SPACING.sm,
+  },
+  incidentsContainer: {
+    gap: SPACING.md,
+  },
+  incidentItem: {
+    padding: SPACING.md,
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.md,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.error,
+    gap: SPACING.sm,
+  },
+  incidentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  buttonSecondary: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: UI_COLORS.border,
+  incidentType: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
-  buttonDisabled: {
-    backgroundColor: UI_COLORS.textSecondary,
+  incidentTime: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
   },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  buttonTextSecondary: {
-    color: UI_COLORS.text,
+  incidentDescription: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.primary,
+    lineHeight: TYPOGRAPHY.fontSize.base * TYPOGRAPHY.lineHeight.relaxed,
   },
 });

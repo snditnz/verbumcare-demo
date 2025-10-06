@@ -1,4 +1,4 @@
-import { Language } from '@types';
+import { Language } from '@models';
 
 type TranslationKey = string;
 type Translations = Record<Language, Record<TranslationKey, string>>;
@@ -60,6 +60,7 @@ export const translations: Translations = {
     'vitals.readingComplete': '測定完了',
     'vitals.skipWarning': 'バイタル測定をスキップ',
     'vitals.skipWarningMessage': 'バイタルサインを測定せずに続行しますか？',
+    'vitals.manualInput': '手動入力してください',
 
     // BLE
     'ble.connected': '接続済み',
@@ -123,7 +124,6 @@ export const translations: Translations = {
     'review.submitSuccess': '送信完了しました',
     'review.submitFailed': '送信に失敗しました',
     'review.cancel': 'キャンセル',
-    'patient.information': '患者情報',
 
     // Common
     'common.back': '戻る',
@@ -131,7 +131,10 @@ export const translations: Translations = {
     'common.continue': '続ける',
     'common.skip': 'スキップ',
     'common.cancel': 'キャンセル',
+    'common.confirm': '確定',
+    'common.discard': '破棄',
     'common.save': '保存',
+    'common.info': '情報',
     'common.error': 'エラー',
     'common.loading': '読み込み中...',
     'common.retry': '再試行',
@@ -142,6 +145,92 @@ export const translations: Translations = {
     'common.years': '歳',
     'common.grantPermission': '許可する',
     'common.tryAgain': 'もう一度',
+    'common.highRisk': '高リスク',
+    'common.caution': '要注意',
+    'common.stable': '安定',
+    'common.male': '男性',
+    'common.female': '女性',
+    'common.lastAssessment': '最終評価',
+    'common.notAvailable': 'なし',
+    'common.points': '点',
+    'patient.allRooms': '全病室',
+
+    // Patient Info Screen (Hub)
+    'patientInfo.title': '患者情報',
+    'patientInfo.quickStats': '概要',
+    'patientInfo.latestBarthel': '最新ADL評価',
+    'patientInfo.currentMeds': '現在の投薬',
+    'patientInfo.physicalMeasurements': '身体測定',
+    'patientInfo.allergies': 'アレルギー',
+    'patientInfo.keyNotes': '重要情報',
+    'patientInfo.noVitalsToday': '本日のバイタルなし',
+    'patientInfo.height': '身長',
+    'patientInfo.weight': '体重',
+    'patientInfo.bmi': 'BMI',
+    'patientInfo.activeMeds': '件',
+    'patientInfo.nextDose': '次回',
+
+    // Action Buttons
+    'action.vitalSigns': 'バイタルサイン',
+    'action.adlRecording': 'ADL記録',
+    'action.medicineAdmin': '服薬管理',
+    'action.updatePatientInfo': '患者情報更新',
+    'action.reportIncident': 'インシデント報告',
+    'action.saveAndReview': '保存・確認',
+
+    // Medicine Admin
+    'medicine.title': '服薬管理',
+    'medicine.schedule': '投薬スケジュール',
+    'medicine.dueNow': '投与時刻',
+    'medicine.upcoming': '予定',
+    'medicine.completed': '完了',
+    'medicine.scanBarcode': '薬剤バーコードをスキャン',
+    'medicine.selectManually': 'または手動で選択',
+    'medicine.confirmAdministration': '投与確認',
+    'medicine.lot': 'ロット',
+    'medicine.expiry': '期限',
+    'medicine.dosage': '用量',
+    'medicine.route': '経路',
+    'medicine.notes': 'メモ',
+    'medicine.adminSuccess': '投薬記録を保存しました',
+
+    // Update Patient Info
+    'updatePatient.title': '患者情報更新',
+    'updatePatient.measurements': '身体測定',
+    'updatePatient.saveDraft': '下書き保存',
+    'updatePatient.confirm': '確定',
+    'updatePatient.draftSaved': '下書きを保存しました',
+    'updatePatient.updateSuccess': '患者情報を更新しました',
+
+    // Incident Report
+    'incident.type': 'インシデント種別',
+    'incident.fall': '転倒',
+    'incident.medicationError': '服薬エラー',
+    'incident.behavioralIssue': '行動問題',
+    'incident.injury': '傷害',
+    'incident.other': 'その他',
+    'incident.severity': '重症度',
+    'incident.low': '低',
+    'incident.medium': '中',
+    'incident.high': '高',
+    'incident.critical': '緊急',
+    'incident.recordDescription': '詳細を録音',
+    'incident.manualDescription': '詳細を入力',
+    'incident.photoEvidence': '写真証拠',
+    'incident.submitReport': '報告',
+    'incident.reportSuccess': 'インシデント報告を送信しました',
+
+    // Dialogs
+    'dialog.confirmSave': '保存確認',
+    'dialog.confirmSaveMessage': '入力データを保存しますか？',
+    'dialog.discardChanges': '変更を破棄',
+    'dialog.discardChangesMessage': '入力したデータは保存されません',
+    'dialog.discard': '破棄',
+
+    // Toasts
+    'toast.vitalsSaved': 'バイタルサインを保存しました',
+    'toast.adlSaved': 'ADL記録を保存しました',
+    'toast.savedSuccess': '保存しました',
   },
   en: {
     // Workflow steps
@@ -199,6 +288,7 @@ export const translations: Translations = {
     'vitals.readingComplete': 'Reading Complete',
     'vitals.skipWarning': 'Skip Vitals Measurement',
     'vitals.skipWarningMessage': 'Continue without measuring vital signs?',
+    'vitals.manualInput': 'Please enter manually',
 
     // BLE
     'ble.connected': 'Connected',
@@ -262,7 +352,6 @@ export const translations: Translations = {
     'review.submitSuccess': 'Assessment submitted successfully',
     'review.submitFailed': 'Failed to submit assessment',
     'review.cancel': 'Cancel',
-    'patient.information': 'Patient Information',
 
     // Common
     'common.back': 'Back',
@@ -270,7 +359,10 @@ export const translations: Translations = {
     'common.continue': 'Continue',
     'common.skip': 'Skip',
     'common.cancel': 'Cancel',
+    'common.confirm': 'Confirm',
+    'common.discard': 'Discard',
     'common.save': 'Save',
+    'common.info': 'Info',
     'common.error': 'Error',
     'common.loading': 'Loading...',
     'common.retry': 'Retry',
@@ -281,6 +373,92 @@ export const translations: Translations = {
     'common.years': 'yo',
     'common.grantPermission': 'Grant Permission',
     'common.tryAgain': 'Try Again',
+    'common.highRisk': 'High Risk',
+    'common.caution': 'Caution',
+    'common.stable': 'Stable',
+    'common.male': 'Male',
+    'common.female': 'Female',
+    'common.lastAssessment': 'Last Assessment',
+    'common.notAvailable': 'N/A',
+    'common.points': 'pts',
+    'patient.allRooms': 'All Rooms',
+
+    // Patient Info Screen (Hub)
+    'patientInfo.title': 'Patient Information',
+    'patientInfo.quickStats': 'Quick Stats',
+    'patientInfo.latestBarthel': 'Latest Barthel Index',
+    'patientInfo.currentMeds': 'Current Medications',
+    'patientInfo.physicalMeasurements': 'Physical Measurements',
+    'patientInfo.allergies': 'Allergies',
+    'patientInfo.keyNotes': 'Key Notes',
+    'patientInfo.noVitalsToday': 'No vitals today',
+    'patientInfo.height': 'Height',
+    'patientInfo.weight': 'Weight',
+    'patientInfo.bmi': 'BMI',
+    'patientInfo.activeMeds': 'active',
+    'patientInfo.nextDose': 'Next',
+
+    // Action Buttons
+    'action.vitalSigns': 'Vital Signs',
+    'action.adlRecording': 'ADL Recording',
+    'action.medicineAdmin': 'Medicine Admin',
+    'action.updatePatientInfo': 'Update Patient Info',
+    'action.reportIncident': 'Report Incident',
+    'action.saveAndReview': 'Save & Review',
+
+    // Medicine Admin
+    'medicine.title': 'Medicine Administration',
+    'medicine.schedule': 'Medication Schedule',
+    'medicine.dueNow': 'Due Now',
+    'medicine.upcoming': 'Upcoming',
+    'medicine.completed': 'Completed',
+    'medicine.scanBarcode': 'Scan Medication Barcode',
+    'medicine.selectManually': 'Or select manually',
+    'medicine.confirmAdministration': 'Confirm Administration',
+    'medicine.lot': 'Lot',
+    'medicine.expiry': 'Expiry',
+    'medicine.dosage': 'Dosage',
+    'medicine.route': 'Route',
+    'medicine.notes': 'Notes',
+    'medicine.adminSuccess': 'Medication recorded successfully',
+
+    // Update Patient Info
+    'updatePatient.title': 'Update Patient Info',
+    'updatePatient.measurements': 'Physical Measurements',
+    'updatePatient.saveDraft': 'Save Draft',
+    'updatePatient.confirm': 'Confirm',
+    'updatePatient.draftSaved': 'Draft saved',
+    'updatePatient.updateSuccess': 'Patient information updated',
+
+    // Incident Report
+    'incident.type': 'Incident Type',
+    'incident.fall': 'Fall',
+    'incident.medicationError': 'Medication Error',
+    'incident.behavioralIssue': 'Behavioral Issue',
+    'incident.injury': 'Injury',
+    'incident.other': 'Other',
+    'incident.severity': 'Severity',
+    'incident.low': 'Low',
+    'incident.medium': 'Medium',
+    'incident.high': 'High',
+    'incident.critical': 'Critical',
+    'incident.recordDescription': 'Record Description',
+    'incident.manualDescription': 'Enter details',
+    'incident.photoEvidence': 'Photo Evidence',
+    'incident.submitReport': 'Submit Report',
+    'incident.reportSuccess': 'Incident report submitted',
+
+    // Dialogs
+    'dialog.confirmSave': 'Confirm Save',
+    'dialog.confirmSaveMessage': 'Save entered data?',
+    'dialog.discardChanges': 'Discard Changes?',
+    'dialog.discardChangesMessage': 'Entered data will not be saved',
+    'dialog.discard': 'Discard',
+
+    // Toasts
+    'toast.vitalsSaved': 'Vital signs saved',
+    'toast.adlSaved': 'ADL recording saved',
+    'toast.savedSuccess': 'Saved successfully',
   },
 };
 

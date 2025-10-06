@@ -18,6 +18,9 @@ import assessmentRoutes from './routes/assessments.js';
 import voiceRoutes from './routes/voice.js';
 import dashboardRoutes from './routes/dashboard.js';
 import configRoutes from './routes/config.js';
+import barthelRoutes from './routes/barthel.js';
+import incidentRoutes from './routes/incidents.js';
+import sessionRoutes from './routes/sessions.js';
 
 dotenv.config();
 
@@ -67,6 +70,9 @@ app.use('/api/assessments', assessmentRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api', barthelRoutes);
+app.use('/api', incidentRoutes);
+app.use('/api', sessionRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
