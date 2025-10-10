@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   AssessmentSession,
   Patient,
@@ -26,6 +28,9 @@ interface AssessmentStore extends AssessmentSession {
 
   // Session-based data (hub model) - scoped by patient ID
   patientSessions: Record<string, PatientSessionData>;
+
+  // Hydration flag to prevent saving before data is loaded
+  _hasHydrated: boolean;
 
   // Computed properties for current patient's session data (updated automatically)
   sessionVitals: VitalSigns | null;
@@ -55,8 +60,6 @@ interface AssessmentStore extends AssessmentSession {
   resetAssessment: () => void;
   clearPatientSession: (patientId: string) => void;
 
-  // Internal helper to recompute session data
-  _updateSessionData: () => void;
 }
 
 const WORKFLOW_ORDER: WorkflowStep[] = [
@@ -72,6 +75,7 @@ const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData =>
   if (!state.currentPatient) {
     return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null };
   }
+
   return state.patientSessions[state.currentPatient.patient_id] || {
     vitals: null,
     medications: [],
@@ -81,7 +85,12 @@ const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData =>
   };
 };
 
-export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
+// Track last saved state to prevent overwriting with empty data
+let lastSavedPatientSessions: Record<string, PatientSessionData> = {};
+
+export const useAssessmentStore = create<AssessmentStore>()(
+  persist(
+    (set, get) => ({
   // Initial state
   currentPatient: null,
   currentStep: 'patient-list',
@@ -93,42 +102,66 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
   startedAt: null,
   language: 'ja',
 
-  // Session state (hub model) - scoped by patient ID
+  // Session state (hub model) - scoped by patient ID - will be loaded async
   patientSessions: {},
 
-  // Computed properties for current patient (will be updated by _updateSessionData)
+  // Hydration tracking
+  _hasHydrated: false,
+
+  // Computed properties for current patient (updated automatically in each action)
   sessionVitals: null,
   sessionMedications: [],
   sessionPatientUpdates: null,
   sessionIncidents: [],
   sessionBarthelIndex: null,
 
-  // Internal helper to recompute session data based on current patient
-  _updateSessionData: () => {
-    const state = get();
-    const sessionData = getSessionDataForPatient(state);
-    set({
-      sessionVitals: sessionData.vitals,
-      sessionMedications: sessionData.medications,
-      sessionPatientUpdates: sessionData.patientUpdates,
-      sessionIncidents: sessionData.incidents,
-      sessionBarthelIndex: sessionData.barthelIndex,
-    });
-  },
-
   // Actions
-  setLanguage: (language) => set({ language }),
+  setLanguage: (language) => set((state) => ({ ...state, language })),
 
   setCurrentPatient: (patient) => {
-    set({
-      currentPatient: patient,
-      startedAt: patient ? new Date() : null,
+    console.log('[Store] setCurrentPatient called with:', patient?.patient_id);
+
+    set((state) => {
+      console.log('[Store] setCurrentPatient set() - _hasHydrated:', state._hasHydrated);
+      console.log('[Store] setCurrentPatient set() - state.patientSessions:', Object.keys(state.patientSessions));
+
+      // CRITICAL: If state is empty but we have saved data, use the saved data!
+      // This prevents race conditions where navigation clears the state
+      const preservedSessions = Object.keys(state.patientSessions).length === 0 && Object.keys(lastSavedPatientSessions).length > 0
+        ? lastSavedPatientSessions
+        : state.patientSessions;
+
+      console.log('[Store] Using sessions:', Object.keys(preservedSessions), '(preserved:', preservedSessions !== state.patientSessions, ')', 'lastSaved:', Object.keys(lastSavedPatientSessions));
+
+      // Compute session data for the new patient INSIDE this set() callback
+      const sessionData: PatientSessionData = patient
+        ? (preservedSessions[patient.patient_id] || {
+            vitals: null,
+            medications: [],
+            patientUpdates: null,
+            incidents: [],
+            barthelIndex: null,
+          })
+        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null };
+
+      console.log('[Store] Computed sessionData for patient:', patient?.patient_id, sessionData);
+
+      return {
+        ...state,
+        currentPatient: patient,
+        startedAt: patient ? new Date() : null,
+        patientSessions: preservedSessions,  // Use preserved sessions
+        // Update all session-computed properties IN THE SAME UPDATE
+        sessionVitals: sessionData.vitals,
+        sessionMedications: sessionData.medications,
+        sessionPatientUpdates: sessionData.patientUpdates,
+        sessionIncidents: sessionData.incidents,
+        sessionBarthelIndex: sessionData.barthelIndex,
+      };
     });
-    // Update session data for the new patient
-    get()._updateSessionData();
   },
 
-  setCurrentStep: (step) => set({ currentStep: step }),
+  setCurrentStep: (step) => set((state) => ({ ...state, currentStep: step })),
 
   setVitals: (vitals) => {
     set((state) => {
@@ -142,31 +175,46 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
         barthelIndex: null,
       };
 
+      const newSession = {
+        ...currentSession,
+        vitals,
+      };
+
+      const newPatientSessions = {
+        ...state.patientSessions,
+        [patientId]: newSession,
+      };
+
+      console.log('[setVitals] 🔵 Setting vitals for patient:', patientId);
+      console.log('[setVitals] 🔵 New vitals:', vitals);
+
       return {
+        ...state, // ← CRITICAL: preserve all other state
         vitals, // Keep for backward compatibility with PatientInfoScreen
-        patientSessions: {
-          ...state.patientSessions,
-          [patientId]: {
-            ...currentSession,
-            vitals,
-          },
-        },
+        patientSessions: newPatientSessions,
+        // Compute session data IN THE SAME UPDATE to avoid async issues
+        sessionVitals: newSession.vitals,
+        sessionMedications: newSession.medications,
+        sessionPatientUpdates: newSession.patientUpdates,
+        sessionIncidents: newSession.incidents,
+        sessionBarthelIndex: newSession.barthelIndex,
       };
     });
-    get()._updateSessionData();
   },
 
-  setADLRecordingId: (id) => set({ adlRecordingId: id }),
+  setADLRecordingId: (id) => set((state) => ({ ...state, adlRecordingId: id })),
 
-  setADLProcessedData: (data) => set({ adlProcessedData: data }),
+  setADLProcessedData: (data) => set((state) => ({ ...state, adlProcessedData: data })),
 
   addIncidentPhoto: (photo) =>
     set((state) => ({
+      ...state,
       incidentPhotos: [...state.incidentPhotos, photo],
     })),
 
   removeIncidentPhoto: (photoId) =>
     set((state) => ({
+      ...state,
       incidentPhotos: state.incidentPhotos.filter((p) => p.id !== photoId),
     })),
 
@@ -183,17 +231,21 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
         barthelIndex: null,
       };
 
+      const newSession = {
+        ...currentSession,
+        medications: [...currentSession.medications, med],
+      };
+
       return {
+        ...state, // ← CRITICAL: preserve all other state
         patientSessions: {
           ...state.patientSessions,
-          [patientId]: {
-            ...currentSession,
-            medications: [...currentSession.medications, med],
-          },
+          [patientId]: newSession,
         },
+        // Update computed properties
+        sessionMedications: newSession.medications,
       };
     });
-    get()._updateSessionData();
   },
 
   setPatientUpdates: (updates) => {
@@ -216,18 +268,22 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       if (updates.medications !== undefined) updatedPatient.medications = updates.medications;
       if (updates.keyNotes !== undefined) updatedPatient.key_notes = updates.keyNotes;
 
+      const newSession = {
+        ...currentSession,
+        patientUpdates: updates,
+      };
+
       return {
+        ...state, // ← CRITICAL: preserve all other state
         currentPatient: updatedPatient,
         patientSessions: {
           ...state.patientSessions,
-          [patientId]: {
-            ...currentSession,
-            patientUpdates: updates,
-          },
+          [patientId]: newSession,
         },
+        // Update computed properties
+        sessionPatientUpdates: newSession.patientUpdates,
       };
     });
-    get()._updateSessionData();
   },
 
   addIncident: (incident) => {
@@ -242,17 +298,21 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
         barthelIndex: null,
       };
 
+      const newSession = {
+        ...currentSession,
+        incidents: [...currentSession.incidents, incident],
+      };
+
       return {
+        ...state, // ← CRITICAL: preserve all other state
         patientSessions: {
           ...state.patientSessions,
-          [patientId]: {
-            ...currentSession,
-            incidents: [...currentSession.incidents, incident],
-          },
+          [patientId]: newSession,
         },
+        // Update computed properties
+        sessionIncidents: newSession.incidents,
       };
     });
-    get()._updateSessionData();
   },
 
   setBarthelIndex: (barthel) => {
@@ -272,45 +332,63 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       updatedPatient.latest_barthel_index = barthel.total_score;
       updatedPatient.latest_barthel_date = new Date().toISOString().split('T')[0]; // Today's date
 
+      const newSession = {
+        ...currentSession,
+        barthelIndex: barthel,
+      };
+
       return {
+        ...state, // ← CRITICAL: preserve all other state
         currentPatient: updatedPatient,
         patientSessions: {
           ...state.patientSessions,
-          [patientId]: {
-            ...currentSession,
-            barthelIndex: barthel,
-          },
+          [patientId]: newSession,
         },
+        // Update computed properties
+        sessionBarthelIndex: newSession.barthelIndex,
       };
     });
-    get()._updateSessionData();
   },
 
   clearPatientSession: (patientId) => {
     set((state) => {
       const newSessions = { ...state.patientSessions };
       delete newSessions[patientId];
-      return { patientSessions: newSessions };
+
+      // If we're clearing the current patient's session, reset computed properties
+      const shouldResetComputed = state.currentPatient?.patient_id === patientId;
+
+      return {
+        ...state, // ← CRITICAL: preserve all other state
+        patientSessions: newSessions,
+        ...(shouldResetComputed && {
+          sessionVitals: null,
+          sessionMedications: [],
+          sessionPatientUpdates: null,
+          sessionIncidents: [],
+          sessionBarthelIndex: null,
+        }),
+      };
     });
-    get()._updateSessionData();
   },
 
   nextStep: () => {
     const currentIndex = WORKFLOW_ORDER.indexOf(get().currentStep);
     if (currentIndex < WORKFLOW_ORDER.length - 1) {
-      set({ currentStep: WORKFLOW_ORDER[currentIndex + 1] });
+      set((state) => ({ ...state, currentStep: WORKFLOW_ORDER[currentIndex + 1] }));
     }
   },
 
   previousStep: () => {
     const currentIndex = WORKFLOW_ORDER.indexOf(get().currentStep);
     if (currentIndex > 0) {
-      set({ currentStep: WORKFLOW_ORDER[currentIndex - 1] });
+      set((state) => ({ ...state, currentStep: WORKFLOW_ORDER[currentIndex - 1] }));
     }
   },
 
   resetAssessment: () =>
-    set({
+    set((state) => ({
+      ...state,
       currentPatient: null,
       currentStep: 'patient-list',
       vitals: null,
@@ -319,6 +397,80 @@ export const useAssessmentStore = create<AssessmentStore>((set, get) => ({
       incidentPhotos: [],
       barthelIndex: null,
       startedAt: null,
-      // Do NOT clear patientSessions - keep session data for all patients
-    }),
-}));
+      // patientSessions preserved by ...state spread
+    })),
+}),
+    {
+      name: 'verbumcare-assessment-store',
+      storage: createJSONStorage(() => ({
+        getItem: async (key) => {
+          const value = await AsyncStorage.getItem(key);
+          console.log('[AsyncStorage] GET', key, value ? `${value.substring(0, 100)}...` : 'null');
+          return value;
+        },
+        setItem: async (key, value) => {
+          console.log('[AsyncStorage] SET', key, value.substring(0, 200));
+          await AsyncStorage.setItem(key, value);
+          console.log('[AsyncStorage] ✅ SET complete');
+        },
+        removeItem: async (key) => {
+          console.log('[AsyncStorage] REMOVE', key);
+          await AsyncStorage.removeItem(key);
+        },
+      })),
+      // Only persist patientSessions - this is the data we want to keep
+      partialize: (state) => {
+        const currentKeys = Object.keys(state.patientSessions);
+        const lastKeys = Object.keys(lastSavedPatientSessions);
+
+        // CRITICAL: Don't save empty state - NEVER overwrite existing data with empty state
+        // This can happen due to stale closures or batched updates during navigation
+        if (currentKeys.length === 0 && lastKeys.length > 0) {
+          console.log('[Persist] ⏭️ Preventing empty save - using last saved data:', lastKeys);
+          // Return the last valid state instead of empty state
+          return {
+            patientSessions: lastSavedPatientSessions,
+          };
+        }
+
+        // Update last saved state if current state has data
+        if (currentKeys.length > 0) {
+          lastSavedPatientSessions = state.patientSessions;
+          console.log('[Persist] 💾 Saving patientSessions:', currentKeys);
+        }
+
+        return {
+          patientSessions: state.patientSessions,
+        };
+      },
+      // Custom merge to ensure patientSessions is properly restored
+      merge: (persistedState: any, currentState: AssessmentStore) => {
+        const hydratedSessions = persistedState?.patientSessions || {};
+        console.log('[Persist] 📥 Hydrating with persistedState patientSessions:', Object.keys(hydratedSessions));
+
+        // Initialize lastSavedPatientSessions with hydrated data
+        lastSavedPatientSessions = hydratedSessions;
+
+        return {
+          ...currentState,
+          patientSessions: hydratedSessions,
+          _hasHydrated: true, // Mark as hydrated
+        };
+      },
+      onRehydrateStorage: () => {
+        console.log('[Persist] 🔄 Starting hydration');
+        return (state, error) => {
+          if (error) {
+            console.error('[Persist] ❌ Hydration error:', error);
+          } else {
+            console.log('[Persist] ✅ Hydration complete');
+            // Ensure _hasHydrated is set
+            if (state) {
+              state._hasHydrated = true;
+            }
+          }
+        };
+      },
+    }
+  )
+);

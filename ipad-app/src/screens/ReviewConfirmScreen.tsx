@@ -32,6 +32,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
     sessionPatientUpdates,
     sessionIncidents,
     resetAssessment,
+    clearPatientSession,
     setCurrentStep,
     language,
   } = useAssessmentStore();
@@ -127,6 +128,9 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
         patientUpdates: sessionPatientUpdates ?? undefined,
         incidents: sessionIncidents,
       });
+
+      // Clear this patient's session from local storage after successful DB submission
+      clearPatientSession(currentPatient.patient_id);
 
       Alert.alert(
         t['review.submitSuccess'] || 'Success',

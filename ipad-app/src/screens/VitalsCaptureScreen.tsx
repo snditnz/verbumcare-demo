@@ -35,16 +35,23 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   const t = translations[language];
 
   useEffect(() => {
+    console.log('[VitalsCapture] Screen mounted');
+    console.log('[VitalsCapture] currentPatient:', currentPatient?.patient_id);
+    console.log('[VitalsCapture] sessionVitals:', sessionVitals);
+
     setCurrentStep('vitals-capture');
 
     // Load existing vitals if they exist
     if (sessionVitals) {
+      console.log('[VitalsCapture] Loading existing vitals into form');
       if (sessionVitals.blood_pressure_systolic) setSystolic(sessionVitals.blood_pressure_systolic.toString());
       if (sessionVitals.blood_pressure_diastolic) setDiastolic(sessionVitals.blood_pressure_diastolic.toString());
       if (sessionVitals.heart_rate) setPulse(sessionVitals.heart_rate.toString());
       if (sessionVitals.temperature_celsius) setTemperature(sessionVitals.temperature_celsius.toString());
       if (sessionVitals.oxygen_saturation) setSpo2(sessionVitals.oxygen_saturation.toString());
       if (sessionVitals.respiratory_rate) setRespiratoryRate(sessionVitals.respiratory_rate.toString());
+    } else {
+      console.log('[VitalsCapture] No existing vitals found');
     }
 
     initializeBLE();
@@ -111,7 +118,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           },
           {
             text: t['common.save'],
-            onPress: () => {
+            onPress: async () => {
               setVitals({
                 blood_pressure_systolic: parseInt(systolic) || undefined,
                 blood_pressure_diastolic: parseInt(diastolic) || undefined,
@@ -121,6 +128,10 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
                 respiratory_rate: parseInt(respiratoryRate) || undefined,
                 measured_at: new Date(),
               });
+
+              // Wait a moment for persist middleware to write to AsyncStorage
+              await new Promise(resolve => setTimeout(resolve, 100));
+
               // Navigate back to Patient Info hub
               navigation.navigate('PatientInfo' as any);
             },

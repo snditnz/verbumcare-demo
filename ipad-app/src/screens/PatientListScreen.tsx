@@ -8,6 +8,7 @@ import { Patient } from '@models';
 import { apiService } from '@services';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, ICON_SIZES, SHADOWS } from '@constants/theme';
+import { debugStorage } from '../utils/debugStorage';
 
 type RootStackParamList = {
   PatientList: undefined;
@@ -86,7 +87,12 @@ export default function PatientListScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.logo}>VerbumCare</Text>
-        <LanguageToggle />
+        <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => debugStorage()}>
+            <Ionicons name="bug-outline" size={24} color={COLORS.accent} />
+          </TouchableOpacity>
+          <LanguageToggle />
+        </View>
       </View>
 
       {/* Search Section */}

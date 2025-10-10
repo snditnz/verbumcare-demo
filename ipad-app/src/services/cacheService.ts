@@ -11,6 +11,7 @@ const CACHE_KEYS = {
   PATIENT_PREFIX: '@verbumcare/patient/',
   LAST_SYNC: '@verbumcare/last_sync',
   PENDING_SYNC: '@verbumcare/pending_sync',
+  SESSION_DATA: '@verbumcare/session_data',
 } as const;
 
 // Cache expiry: 1 hour for patients list, 5 minutes for individual patient
@@ -194,6 +195,41 @@ class CacheService {
       await AsyncStorage.removeItem(CACHE_KEYS.PENDING_SYNC);
     } catch (error) {
       console.error('Error clearing pending sync:', error);
+    }
+  }
+
+  /**
+   * Store session data (patient-scoped vitals, medications, etc.)
+   */
+  async cacheSessionData(sessionData: any): Promise<void> {
+    try {
+      await AsyncStorage.setItem(CACHE_KEYS.SESSION_DATA, JSON.stringify(sessionData));
+    } catch (error) {
+      console.error('Error caching session data:', error);
+    }
+  }
+
+  /**
+   * Get session data from cache
+   */
+  async getCachedSessionData(): Promise<any | null> {
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.SESSION_DATA);
+      return cached ? JSON.parse(cached) : null;
+    } catch (error) {
+      console.error('Error reading cached session data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Clear session data
+   */
+  async clearSessionData(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(CACHE_KEYS.SESSION_DATA);
+    } catch (error) {
+      console.error('Error clearing session data:', error);
     }
   }
 
