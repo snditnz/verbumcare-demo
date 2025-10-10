@@ -130,6 +130,18 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
         incidents: sessionIncidents,
       });
 
+      // Update currentPatient with newly saved Barthel score
+      // This ensures the PatientInfo screen shows the latest data after submission
+      if (sessionBarthelIndex) {
+        const updatedPatient = {
+          ...currentPatient,
+          latest_barthel_index: sessionBarthelIndex.total_score,
+          latest_barthel_date: new Date().toISOString().split('T')[0],
+        };
+        // Update the patient in store before clearing session
+        useAssessmentStore.getState().setCurrentPatient(updatedPatient);
+      }
+
       // Clear this patient's session from local storage after successful DB submission
       clearPatientSession(currentPatient.patient_id);
 
@@ -140,8 +152,9 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
           {
             text: t['common.ok'] || 'OK',
             onPress: () => {
-              resetAssessment();
-              navigation.navigate('PatientList');
+              // Navigate back to PatientInfo to show updated data
+              // Don't call resetAssessment() yet - patient is still selected
+              navigation.navigate('PatientInfo' as any);
             },
           },
         ]
