@@ -64,6 +64,12 @@ export const UI_CONFIG = {
 // Export UI colors separately for easier access
 export const UI_COLORS = UI_CONFIG.COLORS;
 
+// Session configuration
+export const SESSION_CONFIG = {
+  // Time in hours after which session badges/ticks are hidden (data persists)
+  BADGE_TIMEOUT_HOURS: 4,
+};
+
 // Workflow steps configuration
 export const WORKFLOW_STEPS = [
   'patient-list',

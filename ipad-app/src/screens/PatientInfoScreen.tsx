@@ -7,6 +7,7 @@ import { LanguageToggle } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { SESSION_CONFIG } from '@constants/config';
 
 type RootStackParamList = {
   PatientList: undefined;
@@ -28,6 +29,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     currentPatient,
     language,
     sessionVitals,
+    sessionBarthelIndex,
     adlRecordingId,
     adlProcessedData,
     sessionMedications,
@@ -48,11 +50,20 @@ export default function PatientInfoScreen({ navigation }: Props) {
     return null;
   }
 
+  // Helper: Check if timestamp is within badge timeout window
+  const isDataRecent = (timestamp: Date | string | undefined): boolean => {
+    if (!timestamp) return false;
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    const hoursSince = (Date.now() - date.getTime()) / (1000 * 60 * 60);
+    return hoursSince <= SESSION_CONFIG.BADGE_TIMEOUT_HOURS;
+  };
+
   // Calculate action statuses for visual indicators
   const getActionStatus = (actionType: string) => {
     switch (actionType) {
       case 'vitals':
-        const vitalCount = sessionVitals ? Object.keys(sessionVitals).filter(k => sessionVitals[k as keyof typeof sessionVitals]).length : 0;
+        const hasRecentVitals = sessionVitals && isDataRecent(sessionVitals.measured_at);
+        const vitalCount = hasRecentVitals ? Object.keys(sessionVitals).filter(k => sessionVitals[k as keyof typeof sessionVitals]).length : 0;
         return {
           completed: vitalCount > 0,
           count: vitalCount,
@@ -60,8 +71,9 @@ export default function PatientInfoScreen({ navigation }: Props) {
         };
 
       case 'adl':
-        const adlCompleted = adlRecordingId !== null || adlProcessedData !== null;
-        const adlCount = adlProcessedData?.categories?.length || (adlRecordingId ? 1 : 0);
+        const hasRecentBarthel = sessionBarthelIndex && isDataRecent(sessionBarthelIndex.recorded_at);
+        const adlCompleted = hasRecentBarthel || adlRecordingId !== null || adlProcessedData !== null;
+        const adlCount = hasRecentBarthel ? 1 : (adlProcessedData?.categories?.length || (adlRecordingId ? 1 : 0));
         return {
           completed: adlCompleted,
           count: adlCount,
@@ -69,35 +81,44 @@ export default function PatientInfoScreen({ navigation }: Props) {
         };
 
       case 'medicine':
+        const recentMeds = sessionMedications.filter(med => isDataRecent(med.timestamp));
         return {
-          completed: sessionMedications.length > 0,
-          count: sessionMedications.length,
-          borderColor: sessionMedications.length > 0 ? COLORS.success : COLORS.border,
+          completed: recentMeds.length > 0,
+          count: recentMeds.length,
+          borderColor: recentMeds.length > 0 ? COLORS.success : COLORS.border,
         };
 
       case 'patientInfo':
-        const isDraft = sessionPatientUpdates !== null && !sessionPatientUpdates.confirmed;
-        const isConfirmed = sessionPatientUpdates?.confirmed === true;
+        const hasRecentUpdates = sessionPatientUpdates && isDataRecent(sessionPatientUpdates.updatedAt);
+        const isDraft = hasRecentUpdates && !sessionPatientUpdates.confirmed;
+        const isConfirmed = hasRecentUpdates && sessionPatientUpdates?.confirmed === true;
         return {
-          completed: sessionPatientUpdates !== null,
+          completed: hasRecentUpdates,
           badge: isDraft ? '✎' : isConfirmed ? '✓' : '',
           borderColor: isDraft ? COLORS.warning : isConfirmed ? COLORS.success : COLORS.border,
         };
 
       case 'incident':
+        const recentIncidents = sessionIncidents.filter(inc => isDataRecent(inc.timestamp));
         return {
-          completed: sessionIncidents.length > 0,
-          count: sessionIncidents.length,
-          borderColor: sessionIncidents.length > 0 ? COLORS.error : COLORS.border,
+          completed: recentIncidents.length > 0,
+          count: recentIncidents.length,
+          borderColor: recentIncidents.length > 0 ? COLORS.error : COLORS.border,
         };
 
       case 'review':
+        const hasRecentVitalsForReview = sessionVitals && isDataRecent(sessionVitals.measured_at);
+        const hasRecentBarthelForReview = sessionBarthelIndex && isDataRecent(sessionBarthelIndex.recorded_at);
+        const recentMedsForReview = sessionMedications.filter(med => isDataRecent(med.timestamp));
+        const hasRecentUpdatesForReview = sessionPatientUpdates && isDataRecent(sessionPatientUpdates.updatedAt);
+        const recentIncidentsForReview = sessionIncidents.filter(inc => isDataRecent(inc.timestamp));
+
         const totalActions =
-          (sessionVitals ? 1 : 0) +
-          (adlRecordingId ? 1 : 0) +
-          sessionMedications.length +
-          (sessionPatientUpdates ? 1 : 0) +
-          sessionIncidents.length;
+          (hasRecentVitalsForReview ? 1 : 0) +
+          (hasRecentBarthelForReview ? 1 : 0) +
+          recentMedsForReview.length +
+          (hasRecentUpdatesForReview ? 1 : 0) +
+          recentIncidentsForReview.length;
         return {
           completed: totalActions > 0,
           count: totalActions,

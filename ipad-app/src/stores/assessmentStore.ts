@@ -287,7 +287,10 @@ export const useAssessmentStore = create<AssessmentStore>()(
 
       const newSession = {
         ...currentSession,
-        patientUpdates: updates,
+        patientUpdates: {
+          ...updates,
+          updatedAt: new Date().toISOString(), // Add timestamp
+        },
       };
 
       return {
