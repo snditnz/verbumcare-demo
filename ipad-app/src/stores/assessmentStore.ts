@@ -29,6 +29,9 @@ interface AssessmentStore extends AssessmentSession {
   // Session-based data (hub model) - scoped by patient ID
   patientSessions: Record<string, PatientSessionData>;
 
+  // Original patient data (before any edits) - for diff comparison
+  originalPatientData: Record<string, Patient>;
+
   // Hydration flag to prevent saving before data is loaded
   _hasHydrated: boolean;
 
@@ -54,6 +57,9 @@ interface AssessmentStore extends AssessmentSession {
   setPatientUpdates: (updates: PatientUpdateDraft) => void;
   addIncident: (incident: IncidentReport) => void;
   setBarthelIndex: (barthel: BarthelIndex) => void;
+
+  // Helper to get original patient data
+  getOriginalPatient: (patientId: string) => Patient | null;
 
   nextStep: () => void;
   previousStep: () => void;
@@ -105,6 +111,9 @@ export const useAssessmentStore = create<AssessmentStore>()(
   // Session state (hub model) - scoped by patient ID - will be loaded async
   patientSessions: {},
 
+  // Original patient data (before any edits) - for diff comparison
+  originalPatientData: {},
+
   // Hydration tracking
   _hasHydrated: false,
 
@@ -133,6 +142,13 @@ export const useAssessmentStore = create<AssessmentStore>()(
 
       console.log('[Store] Using sessions:', Object.keys(preservedSessions), '(preserved:', preservedSessions !== state.patientSessions, ')', 'lastSaved:', Object.keys(lastSavedPatientSessions));
 
+      // Store original patient data if not already stored (for diff comparison)
+      const newOriginalPatientData = { ...state.originalPatientData };
+      if (patient && !newOriginalPatientData[patient.patient_id]) {
+        newOriginalPatientData[patient.patient_id] = JSON.parse(JSON.stringify(patient)); // Deep clone
+        console.log('[Store] 📸 Stored original patient data for:', patient.patient_id);
+      }
+
       // Compute session data for the new patient INSIDE this set() callback
       const sessionData: PatientSessionData = patient
         ? (preservedSessions[patient.patient_id] || {
@@ -151,6 +167,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         currentPatient: patient,
         startedAt: patient ? new Date() : null,
         patientSessions: preservedSessions,  // Use preserved sessions
+        originalPatientData: newOriginalPatientData,
         // Update all session-computed properties IN THE SAME UPDATE
         sessionVitals: sessionData.vitals,
         sessionMedications: sessionData.medications,
@@ -348,6 +365,11 @@ export const useAssessmentStore = create<AssessmentStore>()(
         sessionBarthelIndex: newSession.barthelIndex,
       };
     });
+  },
+
+  // Helper to get original patient data
+  getOriginalPatient: (patientId) => {
+    return get().originalPatientData[patientId] || null;
   },
 
   clearPatientSession: (patientId) => {

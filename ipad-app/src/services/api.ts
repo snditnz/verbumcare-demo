@@ -224,7 +224,10 @@ class APIService {
   }> {
     const response = await this.client.post<APIResponse<any>>(
       `/patients/${patientId}/session/submit`,
-      { session_id: sessionId }
+      {
+        session_id: sessionId,
+        staff_id: DEMO_STAFF_ID,
+      }
     );
     return response.data.data;
   }

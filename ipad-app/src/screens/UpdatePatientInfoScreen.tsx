@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,6 +8,7 @@ import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { PatientUpdateDraft } from '@models/app';
+import { getEditedFields } from '@utils/patientDiff';
 
 type RootStackParamList = {
   UpdatePatientInfo: undefined;
@@ -19,7 +20,7 @@ type Props = {
 };
 
 export default function UpdatePatientInfoScreen({ navigation }: Props) {
-  const { currentPatient, sessionPatientUpdates, setPatientUpdates, setCurrentStep, language } = useAssessmentStore();
+  const { currentPatient, sessionPatientUpdates, setPatientUpdates, setCurrentStep, language, getOriginalPatient } = useAssessmentStore();
 
   // Form state - initialize with current patient data or session draft
   const [height, setHeight] = useState(
@@ -41,6 +42,17 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
   const [hasChanges, setHasChanges] = useState(false);
 
   const t = translations[language];
+
+  // Get original patient data (before any edits) for diff comparison
+  const originalPatient = useMemo(() => {
+    if (!currentPatient) return null;
+    return getOriginalPatient(currentPatient.patient_id);
+  }, [currentPatient, getOriginalPatient]);
+
+  // Calculate which fields have been edited (for yellow background decoration)
+  const editedFields = useMemo(() => {
+    return getEditedFields(originalPatient, sessionPatientUpdates);
+  }, [originalPatient, sessionPatientUpdates]);
 
   // Note: This screen is part of hub-and-spoke navigation from PatientInfo,
   // not part of the main workflow, so we don't set currentStep
@@ -254,7 +266,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
                 {language === 'ja' ? '身長 (cm)' : 'Height (cm)'}
               </Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, editedFields.height && styles.editedInput]}
                 placeholder="165"
                 placeholderTextColor={COLORS.text.disabled}
                 value={height}
@@ -268,7 +280,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
                 {language === 'ja' ? '体重 (kg)' : 'Weight (kg)'}
               </Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, editedFields.weight && styles.editedInput]}
                 placeholder="60"
                 placeholderTextColor={COLORS.text.disabled}
                 value={weight}
@@ -308,7 +320,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
               {language === 'ja' ? 'アレルギー' : 'Allergies'}
             </Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, editedFields.allergies && styles.editedInput]}
               placeholder={language === 'ja' ? 'アレルギー情報を入力' : 'Enter allergy information'}
               placeholderTextColor={COLORS.text.disabled}
               value={allergies}
@@ -324,7 +336,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
               {language === 'ja' ? '現在の服薬' : 'Current Medications'}
             </Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, editedFields.medications && styles.editedInput]}
               placeholder={language === 'ja' ? '服薬情報を入力' : 'Enter current medications'}
               placeholderTextColor={COLORS.text.disabled}
               value={medications}
@@ -347,7 +359,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
 
           <View style={styles.formGroup}>
             <TextInput
-              style={[styles.input, styles.textArea, { minHeight: 120 }]}
+              style={[styles.input, styles.textArea, { minHeight: 120 }, editedFields.keyNotes && styles.editedInput]}
               placeholder={language === 'ja' ? '特記事項を入力' : 'Enter key notes or important information'}
               placeholderTextColor={COLORS.text.disabled}
               value={keyNotes}
@@ -519,5 +531,11 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     marginLeft: SPACING.xs,
+  },
+  // Edited field decoration - yellow background with warning border
+  editedInput: {
+    backgroundColor: '#FFF9C4', // Light yellow
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.warning,
   },
 });
