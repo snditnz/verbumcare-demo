@@ -131,19 +131,21 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
       });
 
       // Update currentPatient with newly saved Barthel score
-      // This ensures the PatientInfo screen shows the latest data after submission
+      // This ensures the Barthel tile shows the latest data after submission
       if (sessionBarthelIndex) {
         const updatedPatient = {
           ...currentPatient,
           latest_barthel_index: sessionBarthelIndex.total_score,
           latest_barthel_date: new Date().toISOString().split('T')[0],
         };
-        // Update the patient in store before clearing session
+        // Update the patient in store
         useAssessmentStore.getState().setCurrentPatient(updatedPatient);
       }
 
-      // Clear this patient's session from local storage after successful DB submission
-      clearPatientSession(currentPatient.patient_id);
+      // DON'T clear session immediately - let time-based badge hiding handle it
+      // This allows vitals and other data tiles to still show the just-saved data
+      // After 4 hours, badges will automatically hide due to SESSION_CONFIG.BADGE_TIMEOUT_HOURS
+      // The session will be cleared when user navigates away from this patient
 
       Alert.alert(
         t['review.submitSuccess'] || 'Success',
