@@ -10,6 +10,7 @@ import { VoiceProcessingProgress } from '@models/api';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { DEMO_STAFF_ID } from '@constants/config';
+import { getTimeAgo } from '@utils/timeAgo';
 
 type RootStackParamList = {
   PatientList: undefined;
@@ -24,7 +25,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
   const {
     currentPatient,
     sessionVitals,
-    barthelIndex,
+    sessionBarthelIndex,
     adlRecordingId,
     adlProcessedData,
     setADLProcessedData,
@@ -123,7 +124,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
       // Submit all session data to backend
       await apiService.submitAllSessionData(currentPatient.patient_id, {
         vitals: sessionVitals ?? undefined,
-        barthelIndex: barthelIndex ?? undefined,
+        barthelIndex: sessionBarthelIndex ?? undefined,
         medications: sessionMedications,
         patientUpdates: sessionPatientUpdates ?? undefined,
         incidents: sessionIncidents,
@@ -232,9 +233,16 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
           <Card>
             <View style={styles.cardHeader}>
               <Ionicons name="heart" size={ICON_SIZES.lg} color={COLORS.primary} />
-              <Text style={styles.cardTitle}>
-                {language === 'ja' ? 'バイタルサイン' : 'Vital Signs'}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {language === 'ja' ? 'バイタルサイン' : 'Vital Signs'}
+                </Text>
+                {sessionVitals.measured_at && (
+                  <Text style={styles.timeAgo}>
+                    {getTimeAgo(sessionVitals.measured_at, language)}
+                  </Text>
+                )}
+              </View>
             </View>
             <View style={styles.vitalsGrid}>
               {sessionVitals.blood_pressure_systolic && sessionVitals.blood_pressure_diastolic && (
@@ -282,29 +290,36 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
         )}
 
         {/* Barthel Index / ADL Assessment Card */}
-        {(barthelIndex || adlRecordingId) && (
+        {(sessionBarthelIndex || adlRecordingId) && (
           <Card>
             <View style={styles.cardHeader}>
               <Ionicons name="clipboard" size={ICON_SIZES.lg} color={COLORS.primary} />
-              <Text style={styles.cardTitle}>
-                {language === 'ja' ? 'ADL評価' : 'ADL Assessment'}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {language === 'ja' ? 'ADL評価' : 'ADL Assessment'}
+                </Text>
+                {sessionBarthelIndex?.recorded_at && (
+                  <Text style={styles.timeAgo}>
+                    {getTimeAgo(sessionBarthelIndex.recorded_at, language)}
+                  </Text>
+                )}
+              </View>
             </View>
 
-            {barthelIndex && (
+            {sessionBarthelIndex && (
               <View style={styles.barthelContainer}>
                 <View style={styles.barthelHeader}>
                   <Text style={styles.barthelScore}>
                     {language === 'ja' ? 'バーセル指数: ' : 'Barthel Index: '}
-                    <Text style={styles.barthelScoreValue}>{barthelIndex.total_score}/100</Text>
+                    <Text style={styles.barthelScoreValue}>{sessionBarthelIndex.total_score}/100</Text>
                   </Text>
                 </View>
-                {barthelIndex.additional_notes && (
+                {sessionBarthelIndex.additional_notes && (
                   <View style={styles.notesSection}>
                     <Text style={styles.notesLabel}>
                       {language === 'ja' ? '追加メモ:' : 'Additional Notes:'}
                     </Text>
-                    <Text style={styles.notesText}>{barthelIndex.additional_notes}</Text>
+                    <Text style={styles.notesText}>{sessionBarthelIndex.additional_notes}</Text>
                   </View>
                 )}
               </View>
@@ -341,7 +356,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
               </>
             )}
 
-            {!barthelIndex && !adlRecordingId && (
+            {!sessionBarthelIndex && !adlRecordingId && (
               <View style={styles.noDataContainer}>
                 <Ionicons name="information-circle-outline" size={ICON_SIZES.lg} color={COLORS.text.disabled} />
                 <Text style={styles.noData}>{t['voice.noData']}</Text>
@@ -512,6 +527,12 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.xl,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text.primary,
+  },
+  timeAgo: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
   },
   patientInfo: {
     gap: SPACING.sm,
