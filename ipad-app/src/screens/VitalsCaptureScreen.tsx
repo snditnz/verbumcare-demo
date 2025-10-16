@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle, BLEIndicator } from '@components';
@@ -454,16 +453,25 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               placeholderTextColor={COLORS.text.disabled}
             />
             <Text style={styles.unitLabel}>{t['vitals.mgdl']}</Text>
-            <Picker
-              selectedValue={glucoseTestType}
-              onValueChange={(value) => setGlucoseTestType(value as GlucoseTestType)}
-              style={styles.picker}
-            >
-              <Picker.Item label={t['vitals.fasting']} value="fasting" />
-              <Picker.Item label={t['vitals.random']} value="random" />
-              <Picker.Item label={t['vitals.postprandial']} value="postprandial" />
-              <Picker.Item label={t['vitals.bedtime']} value="bedtime" />
-            </Picker>
+            <View style={styles.testTypeButtons}>
+              {(['fasting', 'random', 'postprandial', 'bedtime'] as GlucoseTestType[]).map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.testTypeButton,
+                    glucoseTestType === type && styles.testTypeButtonSelected,
+                  ]}
+                  onPress={() => setGlucoseTestType(type)}
+                >
+                  <Text style={[
+                    styles.testTypeButtonText,
+                    glucoseTestType === type && styles.testTypeButtonTextSelected,
+                  ]}>
+                    {t[`vitals.${type}`]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </Card>
 
           {/* Weight & BMI */}
@@ -659,9 +667,35 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.border,
     gap: SPACING.lg,
   },
-  picker: {
+  testTypeButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
     marginTop: SPACING.sm,
-    height: 40,
+  },
+  testTypeButton: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flex: 1,
+    minWidth: 60,
+  },
+  testTypeButtonSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  testTypeButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.primary,
+    textAlign: 'center',
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  testTypeButtonTextSelected: {
+    color: COLORS.surface,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   bmiLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,
