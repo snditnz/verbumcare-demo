@@ -3,6 +3,9 @@ export type WorkflowStep =
   | 'patient-scan'
   | 'vitals-capture'
   | 'adl-voice'
+  | 'pain-assessment'
+  | 'fall-risk-assessment'
+  | 'kihon-checklist'
   | 'incident-report'
   | 'review-confirm';
 
@@ -55,7 +58,29 @@ export interface VitalSigns {
   heart_rate?: number;
   oxygen_saturation?: number;
   respiratory_rate?: number;
+  blood_glucose?: BloodGlucoseReading;
+  weight?: WeightMeasurement;
+  consciousness?: ConsciousnessAssessment;
   measured_at: Date;
+}
+
+export interface BloodGlucoseReading {
+  value: number; // mg/dL (primary unit in Japan)
+  unit: 'mg/dL' | 'mmol/L';
+  test_type: 'fasting' | 'random' | 'postprandial' | 'bedtime';
+}
+
+export interface WeightMeasurement {
+  weight_kg: number;
+  previous_weight_kg?: number;
+  percentage_change?: number;
+  bmi?: number; // Auto-calculated if height available
+}
+
+export interface ConsciousnessAssessment {
+  jcs_level: 0 | 1 | 2 | 3 | 10 | 20 | 30 | 100 | 200 | 300; // Japan Coma Scale
+  jcs_category: 'alert' | 'awake' | 'arousable' | 'coma';
+  notes?: string;
 }
 
 export interface IncidentPhoto {
@@ -114,6 +139,70 @@ export interface BarthelIndex {
   total_score: number; // 0-100
   scores: Record<string, number>; // Individual category scores
   additional_notes?: string;
+  recorded_at: Date;
+}
+
+// Pain Assessment - "6th Vital Sign"
+export interface PainAssessment {
+  pain_score: number; // 0-10 NRS scale
+  location?: string; // Body location
+  pain_type?: 'rest' | 'movement' | 'both';
+  notes?: string;
+  previous_score?: number; // For trend comparison
+  recorded_at: Date;
+}
+
+// Kihon Checklist - MHLW 25-item frailty assessment
+export interface KihonChecklist {
+  // 7 Domain scores
+  iadl_score: number; // Instrumental ADL (0-5)
+  physical_score: number; // Physical strength (0-5)
+  nutrition_score: number; // Nutrition (0-2)
+  oral_score: number; // Oral function (0-3)
+  housebound_score: number; // Social isolation (0-2)
+  cognitive_score: number; // Cognition (0-3)
+  depressive_score: number; // Mood (0-5)
+
+  // Individual question responses (25 questions, true = at risk)
+  questions: Record<string, boolean>;
+
+  // Calculated totals
+  total_score: number; // 0-25
+  frailty_status: 'robust' | 'prefrail' | 'frail'; // <4, 4-7, >=8
+
+  // Risk flags per domain
+  iadl_risk: boolean; // >=3
+  physical_risk: boolean; // >=3
+  nutrition_risk: boolean; // >=2
+  oral_risk: boolean; // >=2
+  housebound_risk: boolean; // >=1
+  cognitive_risk: boolean; // >=1
+  depressive_risk: boolean; // >=2
+
+  notes?: string;
+  recorded_at: Date;
+}
+
+// Fall Risk Assessment
+export interface FallRiskAssessment {
+  // Risk factors (1 point each)
+  history_of_falls: boolean;
+  uses_assistive_device: boolean;
+  unsteady_gait: boolean;
+  cognitive_impairment: boolean;
+  high_risk_medications: boolean;
+
+  // Optional additional factors
+  vision_problems?: boolean;
+  environmental_hazards?: boolean;
+  urinary_incontinence?: boolean;
+
+  // Calculated
+  risk_score: number; // 0-5+
+  risk_level: 'low' | 'moderate' | 'high'; // 0-1, 2-3, 4-5
+
+  interventions_recommended: string[];
+  notes?: string;
   recorded_at: Date;
 }
 
