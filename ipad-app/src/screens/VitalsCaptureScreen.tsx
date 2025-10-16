@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle, BLEIndicator } from '@components';
@@ -9,7 +10,17 @@ import { bleService } from '@services';
 import { BLEConnectionStatus, BPReading } from '@models/ble';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
-import { assessVitalSigns, PatientDemographics, VitalSigns, getColorForStatus } from '@utils';
+import {
+  assessVitalSigns,
+  PatientDemographics,
+  VitalSigns,
+  getColorForStatus,
+  assessBloodGlucose,
+  assessWeight,
+  assessConsciousness,
+  GlucoseTestType,
+  JCSLevel
+} from '@utils';
 
 type RootStackParamList = {
   VitalsCapture: undefined;
@@ -26,13 +37,19 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   const [reading, setReading] = useState<BPReading | null>(null);
   const [isTransmitting, setIsTransmitting] = useState(false);
 
-  // Manual input state
+  // Manual input state - Original vitals
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
   const [pulse, setPulse] = useState('');
   const [temperature, setTemperature] = useState('');
   const [spo2, setSpo2] = useState('');
   const [respiratoryRate, setRespiratoryRate] = useState('');
+
+  // New extended vitals
+  const [bloodGlucose, setBloodGlucose] = useState('');
+  const [glucoseTestType, setGlucoseTestType] = useState<GlucoseTestType>('random');
+  const [weight, setWeight] = useState('');
+  const [jcsLevel, setJcsLevel] = useState<JCSLevel | null>(null);
 
   const t = translations[language];
 
@@ -52,8 +69,24 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
       if (sessionVitals.temperature_celsius) setTemperature(sessionVitals.temperature_celsius.toString());
       if (sessionVitals.oxygen_saturation) setSpo2(sessionVitals.oxygen_saturation.toString());
       if (sessionVitals.respiratory_rate) setRespiratoryRate(sessionVitals.respiratory_rate.toString());
+
+      // Load extended vitals
+      if (sessionVitals.blood_glucose) {
+        setBloodGlucose(sessionVitals.blood_glucose.value.toString());
+        setGlucoseTestType(sessionVitals.blood_glucose.test_type);
+      }
+      if (sessionVitals.weight) {
+        setWeight(sessionVitals.weight.weight_kg.toString());
+      }
+      if (sessionVitals.consciousness) {
+        setJcsLevel(sessionVitals.consciousness.jcs_level);
+      }
     } else {
       console.log('[VitalsCapture] No existing vitals found');
+      // Pre-fill weight from patient record if available
+      if (currentPatient?.weight) {
+        setWeight(currentPatient.weight.toString());
+      }
     }
 
     initializeBLE();
@@ -126,6 +159,30 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     return assessVitalSigns(patientDemographics, vitalsToAssess);
   }, [patientDemographics, systolic, pulse, temperature, spo2, respiratoryRate, currentPatient?.weight, currentPatient?.height]);
 
+  // Assess blood glucose
+  const glucoseAssessment = useMemo(() => {
+    if (!bloodGlucose) return null;
+    const value = parseFloat(bloodGlucose);
+    if (isNaN(value)) return null;
+    return assessBloodGlucose(value, 'mg/dL', glucoseTestType);
+  }, [bloodGlucose, glucoseTestType]);
+
+  // Assess weight and BMI
+  const weightAssessment = useMemo(() => {
+    if (!weight) return null;
+    const weightKg = parseFloat(weight);
+    if (isNaN(weightKg)) return null;
+
+    const previousWeight = sessionVitals?.weight?.weight_kg;
+    return assessWeight(weightKg, currentPatient?.height, previousWeight);
+  }, [weight, currentPatient?.height, sessionVitals?.weight?.weight_kg]);
+
+  // Assess consciousness (JCS)
+  const consciousnessAssessment = useMemo(() => {
+    if (jcsLevel === null) return null;
+    return assessConsciousness(jcsLevel);
+  }, [jcsLevel]);
+
   // Helper to get color for a specific vital
   const getVitalColor = (vitalKey: 'bloodPressure' | 'heartRate' | 'temperature' | 'spO2' | 'respiratoryRate' | 'bmi'): string => {
     if (!vitalAssessment || !vitalAssessment[vitalKey]) {
@@ -137,7 +194,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   };
 
   const handleContinue = () => {
-    const hasData = systolic || diastolic || pulse || temperature || spo2 || respiratoryRate;
+    const hasData = systolic || diastolic || pulse || temperature || spo2 || respiratoryRate || bloodGlucose || weight || jcsLevel !== null;
 
     if (hasData) {
       // Show confirmation dialog with summary of entered vitals
@@ -147,6 +204,9 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
         temperature ? `${language === 'ja' ? '体温' : 'Temp'}: ${temperature}°C` : null,
         spo2 ? `SpO₂: ${spo2}%` : null,
         respiratoryRate ? `${language === 'ja' ? '呼吸数' : 'RR'}: ${respiratoryRate}/min` : null,
+        bloodGlucose ? `${t['vitals.bloodGlucose']}: ${bloodGlucose} mg/dL (${t[`vitals.${glucoseTestType}`]})` : null,
+        weight ? `${t['vitals.weight']}: ${weight} kg` : null,
+        jcsLevel !== null ? `${t['vitals.consciousness']}: JCS ${jcsLevel}` : null,
       ].filter(Boolean).join('\n');
 
       Alert.alert(
@@ -160,7 +220,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           {
             text: t['common.save'],
             onPress: async () => {
-              setVitals({
+              const vitalsData: any = {
                 blood_pressure_systolic: parseInt(systolic) || undefined,
                 blood_pressure_diastolic: parseInt(diastolic) || undefined,
                 heart_rate: parseInt(pulse) || undefined,
@@ -168,7 +228,48 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
                 oxygen_saturation: parseInt(spo2) || undefined,
                 respiratory_rate: parseInt(respiratoryRate) || undefined,
                 measured_at: new Date(),
-              });
+              };
+
+              // Add blood glucose if entered
+              if (bloodGlucose) {
+                vitalsData.blood_glucose = {
+                  value: parseFloat(bloodGlucose),
+                  unit: 'mg/dL' as const,
+                  test_type: glucoseTestType,
+                };
+              }
+
+              // Add weight if entered
+              if (weight) {
+                const weightKg = parseFloat(weight);
+                const previousWeight = sessionVitals?.weight?.weight_kg;
+                vitalsData.weight = {
+                  weight_kg: weightKg,
+                  previous_weight_kg: previousWeight,
+                  percentage_change: previousWeight
+                    ? ((weightKg - previousWeight) / previousWeight) * 100
+                    : undefined,
+                  bmi: currentPatient?.height
+                    ? weightKg / Math.pow(currentPatient.height / 100, 2)
+                    : undefined,
+                };
+              }
+
+              // Add consciousness if entered
+              if (jcsLevel !== null) {
+                let jcsCategory: 'alert' | 'awake' | 'arousable' | 'coma';
+                if (jcsLevel === 0) jcsCategory = 'alert';
+                else if (jcsLevel >= 1 && jcsLevel <= 3) jcsCategory = 'awake';
+                else if (jcsLevel >= 10 && jcsLevel <= 30) jcsCategory = 'arousable';
+                else jcsCategory = 'coma';
+
+                vitalsData.consciousness = {
+                  jcs_level: jcsLevel,
+                  jcs_category: jcsCategory,
+                };
+              }
+
+              setVitals(vitalsData);
 
               // Wait a moment for persist middleware to write to AsyncStorage
               await new Promise(resolve => setTimeout(resolve, 100));
@@ -199,7 +300,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     );
   };
 
-  const hasData = systolic || diastolic || pulse || temperature || spo2 || respiratoryRate;
+  const hasData = systolic || diastolic || pulse || temperature || spo2 || respiratoryRate || bloodGlucose || weight || jcsLevel !== null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -332,6 +433,108 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
             />
             <Text style={styles.unitLabel}>/min</Text>
           </Card>
+
+          {/* Blood Glucose */}
+          <Card
+            statusColor={glucoseAssessment ? getColorForStatus(glucoseAssessment.status) : COLORS.status.neutral}
+            style={styles.dashboardCard3}
+          >
+            <View style={styles.cardHeader}>
+              <Ionicons name="water-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.cardLabel}>
+                {t['vitals.bloodGlucose']}
+              </Text>
+            </View>
+            <TextInput
+              keyboardType="numeric"
+              placeholder="100"
+              value={bloodGlucose}
+              onChangeText={setBloodGlucose}
+              style={styles.vitalInput}
+              placeholderTextColor={COLORS.text.disabled}
+            />
+            <Text style={styles.unitLabel}>{t['vitals.mgdl']}</Text>
+            <Picker
+              selectedValue={glucoseTestType}
+              onValueChange={(value) => setGlucoseTestType(value as GlucoseTestType)}
+              style={styles.picker}
+            >
+              <Picker.Item label={t['vitals.fasting']} value="fasting" />
+              <Picker.Item label={t['vitals.random']} value="random" />
+              <Picker.Item label={t['vitals.postprandial']} value="postprandial" />
+              <Picker.Item label={t['vitals.bedtime']} value="bedtime" />
+            </Picker>
+          </Card>
+
+          {/* Weight & BMI */}
+          <Card
+            statusColor={weightAssessment?.bmiStatus ? getColorForStatus(weightAssessment.bmiStatus) : COLORS.status.neutral}
+            style={styles.dashboardCard3}
+          >
+            <View style={styles.cardHeader}>
+              <Ionicons name="scale-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.cardLabel}>
+                {t['vitals.weight']}
+              </Text>
+            </View>
+            <TextInput
+              keyboardType="numeric"
+              placeholder="65"
+              value={weight}
+              onChangeText={setWeight}
+              style={styles.vitalInput}
+              placeholderTextColor={COLORS.text.disabled}
+            />
+            <Text style={styles.unitLabel}>{t['vitals.kg']}</Text>
+            {weightAssessment?.bmi && (
+              <Text style={styles.bmiLabel}>
+                BMI: {weightAssessment.bmi.toFixed(1)} ({weightAssessment.bmiLabel})
+              </Text>
+            )}
+            {weightAssessment?.weightChange && (
+              <Text style={[styles.changeLabel, { color: getColorForStatus(weightAssessment.weightChange.status) }]}>
+                {weightAssessment.weightChange.percentage > 0 ? '↑' : '↓'}
+                {Math.abs(weightAssessment.weightChange.percentage).toFixed(1)}%
+              </Text>
+            )}
+          </Card>
+
+          {/* Consciousness (JCS) */}
+          <Card
+            statusColor={consciousnessAssessment ? getColorForStatus(consciousnessAssessment.status) : COLORS.status.neutral}
+            style={styles.dashboardCard3}
+          >
+            <View style={styles.cardHeader}>
+              <Ionicons name="eye-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.cardLabel}>
+                {t['vitals.consciousness']}
+              </Text>
+            </View>
+            <View style={styles.jcsButtons}>
+              {[0, 1, 2, 3, 10, 20, 30, 100, 200, 300].map((level) => (
+                <TouchableOpacity
+                  key={level}
+                  style={[
+                    styles.jcsButton,
+                    jcsLevel === level && styles.jcsButtonSelected,
+                  ]}
+                  onPress={() => setJcsLevel(level as JCSLevel)}
+                >
+                  <Text style={[
+                    styles.jcsButtonText,
+                    jcsLevel === level && styles.jcsButtonTextSelected,
+                  ]}>
+                    {level}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {consciousnessAssessment && (
+              <Text style={styles.jcsLabel}>
+                {language === 'ja' ? consciousnessAssessment.statusLabelJa : consciousnessAssessment.statusLabel}
+              </Text>
+            )}
+          </Card>
         </View>
       </View>
 
@@ -455,5 +658,57 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     gap: SPACING.lg,
+  },
+  picker: {
+    marginTop: SPACING.sm,
+    height: 40,
+  },
+  bmiLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginTop: SPACING.xs,
+  },
+  changeLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    textAlign: 'center',
+    marginTop: SPACING.xs,
+  },
+  jcsButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  jcsButton: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minWidth: 40,
+  },
+  jcsButtonSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  jcsButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.primary,
+    textAlign: 'center',
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  jcsButtonTextSelected: {
+    color: COLORS.surface,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  jcsLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginTop: SPACING.xs,
   },
 });
