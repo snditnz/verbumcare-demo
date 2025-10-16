@@ -10,6 +10,8 @@ import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, ICON_SIZES, SHADOWS } from '@constants/theme';
 import { debugStorage } from '../utils/debugStorage';
 
+const logoMark = require('../../VerbumCare-Logo-Mark.png');
+
 type RootStackParamList = {
   PatientList: undefined;
   PatientScan: undefined;
@@ -86,10 +88,13 @@ export default function PatientListScreen({ navigation }: Props) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.logo}>VerbumCare</Text>
+        <View style={styles.logoContainer}>
+          <Image source={logoMark} style={styles.logoImage} resizeMode="contain" />
+          <Text style={styles.logo}>VerbumCare</Text>
+        </View>
         <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
           <TouchableOpacity onPress={() => debugStorage()}>
-            <Ionicons name="bug-outline" size={24} color={COLORS.accent} />
+            <Ionicons name="bug-outline" size={24} color={COLORS.white} />
           </TouchableOpacity>
           <LanguageToggle />
         </View>
@@ -184,7 +189,7 @@ export default function PatientListScreen({ navigation }: Props) {
         onPress={handleBarcodePress}
         accessibilityLabel={t['scan.scanBarcode'] || 'Scan barcode'}
       >
-        <Ionicons name="barcode-outline" size={ICON_SIZES.lg} color={COLORS.accent} />
+        <Ionicons name="barcode-outline" size={ICON_SIZES.lg} color={COLORS.white} />
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -204,10 +209,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     ...SHADOWS.sm,
   },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  logoImage: {
+    width: 40,
+    height: 40,
+  },
   logo: {
     fontSize: TYPOGRAPHY.fontSize.xl,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.accent,
+    color: COLORS.white,
   },
   searchSection: {
     paddingHorizontal: SPACING.lg,
@@ -254,7 +268,7 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
   },
   roomChipTextActive: {
-    color: COLORS.accent,
+    color: COLORS.white,
   },
   content: {
     flex: 1,
@@ -300,6 +314,6 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.accent,
+    color: COLORS.white,
   },
 });

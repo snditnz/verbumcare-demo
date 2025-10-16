@@ -65,6 +65,7 @@ export const translations: Translations = {
     // BLE
     'ble.connected': '接続済み',
     'ble.connecting': '接続中',
+    'ble.pairing': 'ペアリング中... PIN: 0000 を入力',
     'ble.scanning': '検索中',
     'ble.disconnected': '未接続',
     'ble.error': 'エラー',
@@ -293,6 +294,7 @@ export const translations: Translations = {
     // BLE
     'ble.connected': 'Connected',
     'ble.connecting': 'Connecting',
+    'ble.pairing': 'Pairing... Enter PIN: 0000',
     'ble.scanning': 'Scanning',
     'ble.disconnected': 'Disconnected',
     'ble.error': 'Error',

@@ -47,7 +47,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
           <Ionicons
             name={displayIcon}
             size={size === 'large' ? ICON_SIZES.md : ICON_SIZES.sm}
-            color={COLORS.accent}
+            color={COLORS.white}
           />
         </View>
         <View style={styles.textContainer}>

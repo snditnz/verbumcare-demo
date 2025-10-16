@@ -15,10 +15,12 @@ export type BLEConnectionStatus =
   | 'disconnected'
   | 'scanning'
   | 'connecting'
+  | 'pairing'
   | 'connected'
   | 'error';
 
-// A&D UA-656BLE Blood Pressure Monitor UUIDs
-export const AD_BP_SERVICE_UUID = '233BF000-5A34-1B6D-975C-000D5690ABE4';
-export const AD_BP_CHARACTERISTIC_UUID = '233BF001-5A34-1B6D-975C-000D5690ABE4';
-export const AD_DEVICE_NAME = 'UA-656BLE';
+// Standard Bluetooth Blood Pressure Profile (for A&D UA-651BLE and compatible devices)
+// The UA-651BLE uses the standard Bluetooth SIG Blood Pressure Profile
+export const AD_BP_SERVICE_UUID = '00001810-0000-1000-8000-00805F9B34FB'; // Blood Pressure Service
+export const AD_BP_CHARACTERISTIC_UUID = '00002A35-0000-1000-8000-00805F9B34FB'; // Blood Pressure Measurement
+export const AD_DEVICE_NAME = 'UA-651BLE'; // Supports UA-651BLE-Plus

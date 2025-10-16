@@ -3,31 +3,39 @@
 
 export const COLORS = {
   // Brand Colors (from VerbumCare logo)
-  primary: '#1B3A52',        // Navy Blue (from logo)
-  secondary: '#5B9AAA',      // Warm Teal
-  accent: '#FFFFFF',         // Medical Cross White
+  primary: '#3D5A6C',        // Navy/Slate (from logo left swoosh)
+  primaryDark: '#2A3F4F',    // Navy Dark (active states, emphasis)
+  primaryLight: '#5A7A8C',   // Navy Light (secondary elements, borders)
+
+  secondary: '#5B8558',      // Healthcare Green (from logo middle swoosh)
+  accent: '#8BBF69',         // Fresh Lime (from logo right swoosh)
+  accentLight: '#E8F4E3',    // Mint Tint (success backgrounds)
+
+  white: '#FFFFFF',          // Medical Cross White
 
   // Backgrounds
   background: '#F8F6F3',     // Soft Cream
   surface: '#FFFFFF',        // Card backgrounds
+  surfaceNavy: '#F5F7F8',    // Navy 5% tint for subtle sections
 
   // Semantic Colors
-  success: '#7CB342',        // Soft Green
-  warning: '#FFA726',        // Warm Amber
-  error: '#E57373',          // Medical Red
-  info: '#5B9AAA',          // Warm Teal
+  success: '#5B8558',        // Healthcare Green - confirmed actions, normal vitals
+  successLight: '#8BBF69',   // Fresh Lime - positive feedback, accents
+  warning: '#FFA726',        // Warm Amber - attention needed, drafts
+  error: '#E57373',          // Medical Red - critical alerts
+  info: '#5A7A8C',          // Navy Light - informational states
 
   // Text Colors
   text: {
     primary: '#2C3E50',      // Dark Gray
-    secondary: '#95A5A6',    // Light Gray
+    secondary: '#6B7280',    // Warmer Gray
     disabled: '#BDC3C7',
     inverse: '#FFFFFF',
   },
 
   // Status Colors (for vitals, alerts)
   status: {
-    normal: '#7CB342',       // Green - within normal range
+    normal: '#5B8558',       // Healthcare Green - within normal range
     warning: '#FFA726',      // Amber - attention needed
     critical: '#E57373',     // Red - urgent attention
     neutral: '#95A5A6',      // Gray - no data/inactive
@@ -38,7 +46,7 @@ export const COLORS = {
   divider: '#F0F0F0',
 
   // Overlays
-  overlay: 'rgba(27, 58, 82, 0.6)',  // Navy with transparency
+  overlay: 'rgba(61, 90, 108, 0.6)',  // Navy with transparency
   backdrop: 'rgba(0, 0, 0, 0.4)',
 } as const;
 

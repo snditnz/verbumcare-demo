@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle } from '@components';
+import { LanguageToggle, BLEIndicator } from '@components';
 import { Button, Card, Input, StatusIndicator } from '@components/ui';
 import { bleService } from '@services';
 import { BLEConnectionStatus, BPReading } from '@models/ble';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { assessVitalSigns, PatientDemographics, VitalSigns, getColorForStatus } from '@utils';
 
 type RootStackParamList = {
   VitalsCapture: undefined;
@@ -23,6 +24,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   const { currentPatient, sessionVitals, setVitals, setCurrentStep, language } = useAssessmentStore();
   const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
   const [reading, setReading] = useState<BPReading | null>(null);
+  const [isTransmitting, setIsTransmitting] = useState(false);
 
   // Manual input state
   const [systolic, setSystolic] = useState('');
@@ -57,6 +59,8 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     initializeBLE();
 
     return () => {
+      console.log('[VitalsCapture] Screen unmounting, stopping BLE scan...');
+      bleService.stopScan();
       bleService.disconnect();
     };
   }, []);
@@ -67,6 +71,14 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
       setSystolic(reading.systolic.toString());
       setDiastolic(reading.diastolic.toString());
       setPulse(reading.pulse.toString());
+
+      // Flash the BLE indicator during data transmission
+      setIsTransmitting(true);
+      const timer = setTimeout(() => {
+        setIsTransmitting(false);
+      }, 2000); // Flash for 2 seconds
+
+      return () => clearTimeout(timer);
     }
   }, [reading]);
 
@@ -82,17 +94,46 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     }
   };
 
-  const handleRetry = async () => {
-    setBleStatus('disconnected');
-    await bleService.startScan();
-  };
+  // Create patient demographics for assessment
+  const patientDemographics: PatientDemographics | null = useMemo(() => {
+    if (!currentPatient) return null;
 
-  const getVitalStatus = (value: string, normalRange: [number, number]) => {
-    const num = parseFloat(value);
-    if (!value || isNaN(num)) return COLORS.status.neutral;
-    if (num < normalRange[0] * 0.85 || num > normalRange[1] * 1.15) return COLORS.status.critical;
-    if (num < normalRange[0] || num > normalRange[1]) return COLORS.status.warning;
-    return COLORS.status.normal;
+    // Default demographics if age/gender not available
+    return {
+      age: currentPatient.age || 40, // Default to 40 if age not available
+      gender: currentPatient.gender === 'other' ? 'male' : currentPatient.gender,
+      // Add optional flags here if needed:
+      // isAthlete: false,
+      // hasCOPD: false,
+      // personalBaselineTemp: undefined,
+    };
+  }, [currentPatient]);
+
+  // Assess all vitals using the new system
+  const vitalAssessment = useMemo(() => {
+    if (!patientDemographics) return null;
+
+    const vitalsToAssess: VitalSigns = {
+      systolicBP: systolic ? parseInt(systolic) : undefined,
+      heartRate: pulse ? parseInt(pulse) : undefined,
+      temperature: temperature ? parseFloat(temperature) : undefined,
+      spO2: spo2 ? parseInt(spo2) : undefined,
+      respiratoryRate: respiratoryRate ? parseInt(respiratoryRate) : undefined,
+      weight: currentPatient?.weight,
+      height: currentPatient?.height,
+    };
+
+    return assessVitalSigns(patientDemographics, vitalsToAssess);
+  }, [patientDemographics, systolic, pulse, temperature, spo2, respiratoryRate, currentPatient?.weight, currentPatient?.height]);
+
+  // Helper to get color for a specific vital
+  const getVitalColor = (vitalKey: 'bloodPressure' | 'heartRate' | 'temperature' | 'spO2' | 'respiratoryRate' | 'bmi'): string => {
+    if (!vitalAssessment || !vitalAssessment[vitalKey]) {
+      return COLORS.status.neutral;
+    }
+    const vital = vitalAssessment[vitalKey];
+    if (!vital) return COLORS.status.neutral;
+    return getColorForStatus(vital.status);
   };
 
   const handleContinue = () => {
@@ -180,35 +221,16 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <BLEIndicator status={bleStatus} isTransmitting={isTransmitting} />
           <LanguageToggle />
         </View>
       </View>
 
       <View style={styles.content}>
-        {/* BLE Status - Compact Top Banner */}
-        <View style={styles.bleStatusBanner}>
-          {bleStatus === 'connected' ? (
-            <View style={styles.bleStatusContent}>
-              <Ionicons name="bluetooth" size={ICON_SIZES.md} color={COLORS.success} />
-              <Text style={styles.bleStatusText}>{t['ble.connected']}</Text>
-            </View>
-          ) : (
-            <View style={styles.bleStatusContent}>
-              <Ionicons name="bluetooth-outline" size={ICON_SIZES.md} color={COLORS.text.secondary} />
-              <Text style={styles.bleStatusText}>{t['ble.disconnected']} - {t['vitals.manualInput']}</Text>
-            </View>
-          )}
-          {bleStatus === 'error' && (
-            <Button variant="outline" onPress={handleRetry} size="small">
-              {t['common.retry']}
-            </Button>
-          )}
-        </View>
-
         {/* Vitals Dashboard Grid - 3/2 layout */}
         <View style={styles.dashboardGrid}>
           {/* Blood Pressure Card */}
-          <Card statusColor={getVitalStatus(systolic, [90, 140])} style={styles.dashboardCard3}>
+          <Card statusColor={getVitalColor('bloodPressure')} style={styles.dashboardCard3}>
             <View style={styles.cardHeader}>
               <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.cardLabel}>
@@ -238,7 +260,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           </Card>
 
           {/* Pulse */}
-          <Card statusColor={getVitalStatus(pulse, [60, 100])} style={styles.dashboardCard3}>
+          <Card statusColor={getVitalColor('heartRate')} style={styles.dashboardCard3}>
             <View style={styles.cardHeader}>
               <Ionicons name="pulse" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.cardLabel}>
@@ -257,7 +279,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           </Card>
 
           {/* Temperature */}
-          <Card statusColor={getVitalStatus(temperature, [36.0, 37.5])} style={styles.dashboardCard3}>
+          <Card statusColor={getVitalColor('temperature')} style={styles.dashboardCard3}>
             <View style={styles.cardHeader}>
               <Ionicons name="thermometer" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.cardLabel}>
@@ -276,7 +298,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           </Card>
 
           {/* SpO2 */}
-          <Card statusColor={getVitalStatus(spo2, [95, 100])} style={styles.dashboardCard2}>
+          <Card statusColor={getVitalColor('spO2')} style={styles.dashboardCard2}>
             <View style={styles.cardHeader}>
               <Ionicons name="water" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.cardLabel}>SpO₂</Text>
@@ -293,7 +315,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           </Card>
 
           {/* Respiratory Rate */}
-          <Card statusColor={getVitalStatus(respiratoryRate, [12, 20])} style={styles.dashboardCard2}>
+          <Card statusColor={getVitalColor('respiratoryRate')} style={styles.dashboardCard2}>
             <View style={styles.cardHeader}>
               <Ionicons name="fitness" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.cardLabel}>
@@ -354,7 +376,9 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     flex: 1,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   patientName: {
     fontSize: TYPOGRAPHY.fontSize.lg,
@@ -369,24 +393,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: SPACING.xl,
-  },
-  bleStatusBanner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.xl,
-  },
-  bleStatusContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  bleStatusText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text.primary,
   },
   dashboardGrid: {
     flexDirection: 'row',

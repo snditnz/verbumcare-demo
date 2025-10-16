@@ -5,7 +5,7 @@ import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, ANIMATION } from '@constant
 interface ButtonProps {
   onPress: () => void;
   children: ReactNode;
-  variant?: 'primary' | 'secondary' | 'outline' | 'text';
+  variant?: 'primary' | 'secondary' | 'success' | 'accent' | 'outline' | 'text';
   size?: 'small' | 'medium' | 'large';
   disabled?: boolean;
   loading?: boolean;
@@ -38,18 +38,31 @@ export const Button: React.FC<ButtonProps> = ({
     styles[`text_${size}`],
   ].filter(Boolean) as TextStyle[];
 
+  const getLoadingColor = () => {
+    switch (variant) {
+      case 'primary':
+      case 'secondary':
+      case 'success':
+        return COLORS.white;
+      case 'accent':
+        return COLORS.primary;
+      default:
+        return COLORS.primary;
+    }
+  };
+
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
       style={buttonStyles}
-      activeOpacity={0.7}
+      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityState={{ disabled: disabled || loading }}
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? COLORS.accent : COLORS.primary}
+          color={getLoadingColor()}
           size="small"
         />
       ) : typeof children === 'string' ? (
@@ -75,6 +88,12 @@ const styles = StyleSheet.create({
   },
   secondary: {
     backgroundColor: COLORS.secondary,
+  },
+  success: {
+    backgroundColor: COLORS.success,
+  },
+  accent: {
+    backgroundColor: COLORS.accent,
   },
   outline: {
     backgroundColor: 'transparent',
@@ -115,6 +134,14 @@ const styles = StyleSheet.create({
   },
   text_secondary: {
     color: COLORS.text.inverse,
+    fontSize: TYPOGRAPHY.fontSize.base,
+  },
+  text_success: {
+    color: COLORS.text.inverse,
+    fontSize: TYPOGRAPHY.fontSize.base,
+  },
+  text_accent: {
+    color: COLORS.primary,
     fontSize: TYPOGRAPHY.fontSize.base,
   },
   text_outline: {

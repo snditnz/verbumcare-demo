@@ -29,6 +29,13 @@ export const BLEStatusIndicator: React.FC<BLEStatusIndicatorProps> = ({ status }
           text: t['ble.connecting'],
           showSpinner: true,
         };
+      case 'pairing':
+        return {
+          color: UI_COLORS.warning,
+          icon: '○',
+          text: t['ble.pairing'] || 'Pairing... Enter PIN: 0000',
+          showSpinner: true,
+        };
       case 'scanning':
         return {
           color: UI_COLORS.primary,

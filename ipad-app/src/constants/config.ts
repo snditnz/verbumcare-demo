@@ -23,7 +23,7 @@ export const VOICE_CONFIG = {
 
 // BLE configuration
 export const BLE_CONFIG = {
-  SCAN_TIMEOUT: 10000, // 10 seconds
+  SCAN_TIMEOUT: 60000, // 60 seconds - long enough to take a BP reading
   CONNECT_TIMEOUT: 5000, // 5 seconds
   RETRY_DELAY: 2000, // 2 seconds
   MAX_RETRIES: 3,
@@ -41,13 +41,14 @@ export const UI_CONFIG = {
     xl: 32,
   },
   COLORS: {
-    primary: '#667eea',
-    secondary: '#764ba2',
-    success: '#4CAF50',
-    warning: '#FFA726',
-    error: '#EF5350',
+    primary: '#3D5A6C',        // Navy/Slate (from logo)
+    secondary: '#5B8558',      // Healthcare Green (from logo)
+    success: '#5B8558',        // Healthcare Green
+    successLight: '#8BBF69',   // Fresh Lime
+    warning: '#FFA726',        // Warm Amber
+    error: '#EF5350',          // Medical Red
     errorLight: '#FFEBEE',
-    info: '#29B6F6',
+    info: '#5A7A8C',          // Navy Light
     background: '#F5F5F5',
     surface: '#FFFFFF',
     text: '#212121',
@@ -55,9 +56,9 @@ export const UI_CONFIG = {
     border: '#E0E0E0',
   },
   STATUS_COLORS: {
-    green: '#4CAF50',
-    yellow: '#FFA726',
-    red: '#EF5350',
+    green: '#5B8558',         // Healthcare Green
+    yellow: '#FFA726',        // Warm Amber
+    red: '#EF5350',          // Medical Red
   },
 };
 

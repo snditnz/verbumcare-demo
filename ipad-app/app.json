@@ -4,14 +4,14 @@
     "slug": "verbumcare-ipad",
     "version": "1.0.0",
     "orientation": "landscape",
-    "icon": "./assets/icon.png",
+    "icon": "./VerbumCare-Logo-Mark.png",
     "userInterfaceStyle": "light",
     "scheme": "verbumcare",
     "newArchEnabled": false,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./VerbumCare-Logo-Mark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#667eea"
+      "backgroundColor": "#3D5A6C"
     },
     "ios": {
       "supportsTablet": true,
@@ -31,8 +31,8 @@
     "android": {
       "package": "com.verbumcare.ipad",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#667eea"
+        "foregroundImage": "./VerbumCare-Logo-Mark.png",
+        "backgroundColor": "#3D5A6C"
       },
       "permissions": [
         "CAMERA",

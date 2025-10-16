@@ -168,11 +168,11 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: UI_COLORS.error,
+    backgroundColor: UI_COLORS.successLight,
   },
   recordingText: {
     fontSize: 14,
-    color: UI_COLORS.error,
+    color: UI_COLORS.successLight,
     fontWeight: '600',
   },
   duration: {
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: '100%',
-    backgroundColor: UI_COLORS.primary,
+    backgroundColor: UI_COLORS.successLight,
   },
   button: {
     width: 120,
