@@ -26,9 +26,6 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
   const [height, setHeight] = useState(
     sessionPatientUpdates?.height?.toString() || currentPatient?.height?.toString() || ''
   );
-  const [weight, setWeight] = useState(
-    sessionPatientUpdates?.weight?.toString() || currentPatient?.weight?.toString() || ''
-  );
   const [allergies, setAllergies] = useState(
     sessionPatientUpdates?.allergies || currentPatient?.allergies || ''
   );
@@ -61,7 +58,6 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
   useEffect(() => {
     // Priority: session draft > current patient data
     setHeight(sessionPatientUpdates?.height?.toString() || currentPatient?.height?.toString() || '');
-    setWeight(sessionPatientUpdates?.weight?.toString() || currentPatient?.weight?.toString() || '');
     setAllergies(sessionPatientUpdates?.allergies || currentPatient?.allergies || '');
     setMedications(sessionPatientUpdates?.medications || currentPatient?.medications || '');
     setKeyNotes(sessionPatientUpdates?.keyNotes || currentPatient?.key_notes || '');
@@ -71,13 +67,12 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
     // Check if form has changes from original patient data
     const changed =
       height !== (currentPatient?.height?.toString() || '') ||
-      weight !== (currentPatient?.weight?.toString() || '') ||
       allergies !== (currentPatient?.allergies || '') ||
       medications !== (currentPatient?.medications || '') ||
       keyNotes !== (currentPatient?.key_notes || '');
 
     setHasChanges(changed);
-  }, [height, weight, allergies, medications, keyNotes, currentPatient]);
+  }, [height, allergies, medications, keyNotes, currentPatient]);
 
   const handleSaveDraft = () => {
     if (!hasChanges) {
@@ -90,7 +85,6 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
 
     const draft: PatientUpdateDraft = {
       height: height ? parseFloat(height) : undefined,
-      weight: weight ? parseFloat(weight) : undefined,
       allergies: allergies || undefined,
       medications: medications || undefined,
       keyNotes: keyNotes || undefined,
@@ -125,9 +119,6 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
       height && height !== (currentPatient?.height?.toString() || '')
         ? `${language === 'ja' ? '身長' : 'Height'}: ${height} cm`
         : null,
-      weight && weight !== (currentPatient?.weight?.toString() || '')
-        ? `${language === 'ja' ? '体重' : 'Weight'}: ${weight} kg`
-        : null,
       allergies && allergies !== (currentPatient?.allergies || '')
         ? `${language === 'ja' ? 'アレルギー' : 'Allergies'}: ${allergies}`
         : null,
@@ -149,7 +140,6 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
           onPress: () => {
             const update: PatientUpdateDraft = {
               height: height ? parseFloat(height) : undefined,
-              weight: weight ? parseFloat(weight) : undefined,
               allergies: allergies || undefined,
               medications: medications || undefined,
               keyNotes: keyNotes || undefined,
@@ -194,19 +184,6 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
       ]
     );
   };
-
-  const calculateBMI = () => {
-    const h = parseFloat(height);
-    const w = parseFloat(weight);
-    if (h && w && h > 0) {
-      const heightInMeters = h / 100;
-      const bmi = w / (heightInMeters * heightInMeters);
-      return bmi.toFixed(1);
-    }
-    return null;
-  };
-
-  const bmi = calculateBMI();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -260,50 +237,25 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
             </Text>
           </View>
 
-          <View style={styles.formRow}>
-            <View style={[styles.formGroup, { flex: 1 }]}>
-              <Text style={styles.label}>
-                {language === 'ja' ? '身長 (cm)' : 'Height (cm)'}
-              </Text>
-              <TextInput
-                style={[styles.input, editedFields.height && styles.editedInput]}
-                placeholder="165"
-                placeholderTextColor={COLORS.text.disabled}
-                value={height}
-                onChangeText={setHeight}
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            <View style={[styles.formGroup, { flex: 1 }]}>
-              <Text style={styles.label}>
-                {language === 'ja' ? '体重 (kg)' : 'Weight (kg)'}
-              </Text>
-              <TextInput
-                style={[styles.input, editedFields.weight && styles.editedInput]}
-                placeholder="60"
-                placeholderTextColor={COLORS.text.disabled}
-                value={weight}
-                onChangeText={setWeight}
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            {bmi && (
-              <View style={[styles.formGroup, { flex: 1 }]}>
-                <Text style={styles.label}>BMI</Text>
-                <View style={styles.bmiDisplay}>
-                  <Text style={styles.bmiValue}>{bmi}</Text>
-                  <Text style={styles.bmiLabel}>
-                    {parseFloat(bmi) < 18.5 ? (language === 'ja' ? '低体重' : 'Underweight') :
-                     parseFloat(bmi) < 25 ? (language === 'ja' ? '標準' : 'Normal') :
-                     parseFloat(bmi) < 30 ? (language === 'ja' ? '肥満(1度)' : 'Overweight') :
-                     (language === 'ja' ? '肥満(2度以上)' : 'Obese')}
-                  </Text>
-                </View>
-              </View>
-            )}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>
+              {language === 'ja' ? '身長 (cm)' : 'Height (cm)'}
+            </Text>
+            <TextInput
+              style={[styles.input, editedFields.height && styles.editedInput]}
+              placeholder="165"
+              placeholderTextColor={COLORS.text.disabled}
+              value={height}
+              onChangeText={setHeight}
+              keyboardType="decimal-pad"
+            />
           </View>
+
+          <Text style={styles.helperText}>
+            {language === 'ja'
+              ? '※ 体重は「バイタル測定」画面で記録されます'
+              : '※ Weight is recorded in the Vitals Capture screen'}
+          </Text>
         </Card>
 
         {/* Medical Information */}
@@ -474,11 +426,6 @@ const styles = StyleSheet.create({
   formGroup: {
     marginBottom: SPACING.lg,
   },
-  formRow: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    alignItems: 'flex-start',
-  },
   label: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
@@ -498,24 +445,10 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
   },
-  bmiDisplay: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: SPACING.touchTarget.comfortable,
-  },
-  bmiValue: {
-    fontSize: TYPOGRAPHY.fontSize['2xl'],
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.primary,
-  },
-  bmiLabel: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
+  helperText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.text.secondary,
+    fontStyle: 'italic',
     marginTop: SPACING.xs,
   },
   bottomActions: {
