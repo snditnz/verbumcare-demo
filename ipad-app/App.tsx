@@ -13,6 +13,7 @@ import UpdatePatientInfoScreen from './src/screens/UpdatePatientInfoScreen';
 import IncidentReportScreen from './src/screens/IncidentReportScreen';
 import ReviewConfirmScreen from './src/screens/ReviewConfirmScreen';
 import PainAssessmentScreen from './src/screens/PainAssessmentScreen';
+import FallRiskAssessmentScreen from './src/screens/FallRiskAssessmentScreen';
 
 export type RootStackParamList = {
   PatientList: undefined;
@@ -24,6 +25,7 @@ export type RootStackParamList = {
   UpdatePatientInfo: undefined;
   IncidentReport: undefined;
   PainAssessment: undefined;
+  FallRiskAssessment: undefined;
   ReviewConfirm: undefined;
 };
 
@@ -96,6 +98,11 @@ export default function App() {
             name="PainAssessment"
             component={PainAssessmentScreen}
             options={{ title: 'Pain Assessment' }}
+          />
+          <Stack.Screen
+            name="FallRiskAssessment"
+            component={FallRiskAssessmentScreen}
+            options={{ title: 'Fall Risk Assessment' }}
           />
           <Stack.Screen
             name="ReviewConfirm"

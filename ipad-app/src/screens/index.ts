@@ -2,5 +2,7 @@ export { default as PatientListScreen } from './PatientListScreen';
 export { default as PatientScanScreen } from './PatientScanScreen';
 export { default as VitalsCaptureScreen } from './VitalsCaptureScreen';
 export { default as ADLVoiceScreen } from './ADLVoiceScreen';
+export { default as PainAssessmentScreen } from './PainAssessmentScreen';
+export { default as FallRiskAssessmentScreen } from './FallRiskAssessmentScreen';
 export { default as IncidentReportScreen } from './IncidentReportScreen';
 export { default as ReviewConfirmScreen } from './ReviewConfirmScreen';

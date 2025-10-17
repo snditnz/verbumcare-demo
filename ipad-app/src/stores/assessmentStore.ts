@@ -12,7 +12,8 @@ import {
   PatientUpdateDraft,
   IncidentReport,
   BarthelIndex,
-  PainAssessment
+  PainAssessment,
+  FallRiskAssessment
 } from '@models';
 
 // Per-patient session data
@@ -23,6 +24,7 @@ interface PatientSessionData {
   incidents: IncidentReport[];
   barthelIndex: BarthelIndex | null;
   painAssessment: PainAssessment | null;
+  fallRiskAssessment: FallRiskAssessment | null;
 }
 
 interface AssessmentStore extends AssessmentSession {
@@ -44,6 +46,7 @@ interface AssessmentStore extends AssessmentSession {
   sessionIncidents: IncidentReport[];
   sessionBarthelIndex: BarthelIndex | null;
   sessionPainAssessment: PainAssessment | null;
+  sessionFallRiskAssessment: FallRiskAssessment | null;
 
   // Actions
   setLanguage: (language: Language) => void;
@@ -61,6 +64,7 @@ interface AssessmentStore extends AssessmentSession {
   addIncident: (incident: IncidentReport) => void;
   setBarthelIndex: (barthel: BarthelIndex) => void;
   setPainAssessment: (pain: PainAssessment) => void;
+  setFallRiskAssessment: (fallRisk: FallRiskAssessment) => void;
 
   // Helper to get original patient data
   getOriginalPatient: (patientId: string) => Patient | null;
@@ -83,7 +87,7 @@ const WORKFLOW_ORDER: WorkflowStep[] = [
 
 const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData => {
   if (!state.currentPatient) {
-    return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null };
+    return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null };
   }
 
   return state.patientSessions[state.currentPatient.patient_id] || {
@@ -93,6 +97,7 @@ const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData =>
     incidents: [],
     barthelIndex: null,
     painAssessment: null,
+    fallRiskAssessment: null,
   };
 };
 
@@ -129,6 +134,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
   sessionIncidents: [],
   sessionBarthelIndex: null,
   sessionPainAssessment: null,
+  sessionFallRiskAssessment: null,
 
   // Actions
   setLanguage: (language) => set((state) => ({ ...state, language })),
@@ -164,14 +170,47 @@ export const useAssessmentStore = create<AssessmentStore>()(
             incidents: [],
             barthelIndex: null,
             painAssessment: null,
+            fallRiskAssessment: null,
           })
-        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null };
+        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null };
 
       console.log('[Store] Computed sessionData for patient:', patient?.patient_id, sessionData);
 
+      // Apply session updates to patient object if they exist
+      let updatedPatient = patient;
+      if (patient && (sessionData.patientUpdates || sessionData.barthelIndex || sessionData.painAssessment || sessionData.fallRiskAssessment)) {
+        updatedPatient = { ...patient };
+
+        // Apply patient info updates
+        if (sessionData.patientUpdates) {
+          if (sessionData.patientUpdates.height !== undefined) updatedPatient.height = sessionData.patientUpdates.height;
+          if (sessionData.patientUpdates.weight !== undefined) updatedPatient.weight = sessionData.patientUpdates.weight;
+          if (sessionData.patientUpdates.allergies !== undefined) updatedPatient.allergies = sessionData.patientUpdates.allergies;
+          if (sessionData.patientUpdates.medications !== undefined) updatedPatient.medications = sessionData.patientUpdates.medications;
+          if (sessionData.patientUpdates.keyNotes !== undefined) updatedPatient.key_notes = sessionData.patientUpdates.keyNotes;
+        }
+
+        // Apply latest assessment data to patient
+        if (sessionData.barthelIndex) {
+          updatedPatient.latest_barthel_index = sessionData.barthelIndex.total_score;
+          updatedPatient.latest_barthel_date = new Date(sessionData.barthelIndex.recorded_at).toISOString().split('T')[0];
+        }
+        if (sessionData.painAssessment) {
+          updatedPatient.latest_pain_score = sessionData.painAssessment.pain_score;
+          updatedPatient.latest_pain_date = new Date(sessionData.painAssessment.recorded_at).toISOString().split('T')[0];
+        }
+        if (sessionData.fallRiskAssessment) {
+          updatedPatient.latest_fall_risk_score = sessionData.fallRiskAssessment.risk_score;
+          updatedPatient.latest_fall_risk_level = sessionData.fallRiskAssessment.risk_level;
+          updatedPatient.latest_fall_risk_date = new Date(sessionData.fallRiskAssessment.recorded_at).toISOString().split('T')[0];
+        }
+
+        console.log('[Store] 🔄 Applied session updates to patient data');
+      }
+
       return {
         ...state,
-        currentPatient: patient,
+        currentPatient: updatedPatient,
         startedAt: patient ? new Date() : null,
         patientSessions: preservedSessions,  // Use preserved sessions
         originalPatientData: newOriginalPatientData,
@@ -182,6 +221,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         sessionIncidents: sessionData.incidents,
         sessionBarthelIndex: sessionData.barthelIndex,
         sessionPainAssessment: sessionData.painAssessment,
+        sessionFallRiskAssessment: sessionData.fallRiskAssessment,
       };
     });
   },
@@ -199,6 +239,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         incidents: [],
         barthelIndex: null,
         painAssessment: null,
+        fallRiskAssessment: null,
       };
 
       const newSession = {
@@ -225,6 +266,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         sessionIncidents: newSession.incidents,
         sessionBarthelIndex: newSession.barthelIndex,
         sessionPainAssessment: newSession.painAssessment,
+        sessionFallRiskAssessment: newSession.fallRiskAssessment,
       };
     });
   },
@@ -257,6 +299,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         incidents: [],
         barthelIndex: null,
         painAssessment: null,
+        fallRiskAssessment: null,
       };
 
       const newSession = {
@@ -287,6 +330,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         incidents: [],
         barthelIndex: null,
         painAssessment: null,
+        fallRiskAssessment: null,
       };
 
       // Also immediately update currentPatient so UI reflects changes
@@ -329,6 +373,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         incidents: [],
         barthelIndex: null,
         painAssessment: null,
+        fallRiskAssessment: null,
       };
 
       const newSession = {
@@ -359,6 +404,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         incidents: [],
         barthelIndex: null,
         painAssessment: null,
+        fallRiskAssessment: null,
       };
 
       // Also immediately update currentPatient's Barthel Index
@@ -395,6 +441,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         incidents: [],
         barthelIndex: null,
         painAssessment: null,
+        fallRiskAssessment: null,
       };
 
       // Also immediately update currentPatient's pain score
@@ -416,6 +463,44 @@ export const useAssessmentStore = create<AssessmentStore>()(
         },
         // Update computed properties
         sessionPainAssessment: newSession.painAssessment,
+      };
+    });
+  },
+
+  setFallRiskAssessment: (fallRisk) => {
+    set((state) => {
+      if (!state.currentPatient) return state;
+      const patientId = state.currentPatient.patient_id;
+      const currentSession = state.patientSessions[patientId] || {
+        vitals: null,
+        medications: [],
+        patientUpdates: null,
+        incidents: [],
+        barthelIndex: null,
+        painAssessment: null,
+        fallRiskAssessment: null,
+      };
+
+      // Also immediately update currentPatient's fall risk data
+      const updatedPatient = { ...state.currentPatient };
+      updatedPatient.latest_fall_risk_score = fallRisk.risk_score;
+      updatedPatient.latest_fall_risk_level = fallRisk.risk_level;
+      updatedPatient.latest_fall_risk_date = new Date().toISOString().split('T')[0]; // Today's date
+
+      const newSession = {
+        ...currentSession,
+        fallRiskAssessment: fallRisk,
+      };
+
+      return {
+        ...state, // ← CRITICAL: preserve all other state
+        currentPatient: updatedPatient,
+        patientSessions: {
+          ...state.patientSessions,
+          [patientId]: newSession,
+        },
+        // Update computed properties
+        sessionFallRiskAssessment: newSession.fallRiskAssessment,
       };
     });
   },
@@ -443,6 +528,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
           sessionIncidents: [],
           sessionBarthelIndex: null,
           sessionPainAssessment: null,
+          sessionFallRiskAssessment: null,
         }),
       };
     });

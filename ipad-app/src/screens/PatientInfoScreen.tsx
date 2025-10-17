@@ -18,6 +18,7 @@ type RootStackParamList = {
   UpdatePatientInfo: undefined;
   IncidentReport: undefined;
   PainAssessment: undefined;
+  FallRiskAssessment: undefined;
   ReviewConfirm: undefined;
 };
 
@@ -32,6 +33,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     sessionVitals,
     sessionBarthelIndex,
     sessionPainAssessment,
+    sessionFallRiskAssessment,
     adlRecordingId,
     adlProcessedData,
     sessionMedications,
@@ -108,6 +110,14 @@ export default function PatientInfoScreen({ navigation }: Props) {
           borderColor: hasRecentPain ? COLORS.success : COLORS.border,
         };
 
+      case 'fallRisk':
+        const hasRecentFallRisk = sessionFallRiskAssessment && isDataRecent(sessionFallRiskAssessment.recorded_at);
+        return {
+          completed: hasRecentFallRisk,
+          count: hasRecentFallRisk ? 1 : 0,
+          borderColor: hasRecentFallRisk ? COLORS.success : COLORS.border,
+        };
+
       case 'incident':
         const recentIncidents = sessionIncidents.filter(inc => isDataRecent(inc.timestamp));
         return {
@@ -120,6 +130,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
         const hasRecentVitalsForReview = sessionVitals && isDataRecent(sessionVitals.measured_at);
         const hasRecentBarthelForReview = sessionBarthelIndex && isDataRecent(sessionBarthelIndex.recorded_at);
         const hasRecentPainForReview = sessionPainAssessment && isDataRecent(sessionPainAssessment.recorded_at);
+        const hasRecentFallRiskForReview = sessionFallRiskAssessment && isDataRecent(sessionFallRiskAssessment.recorded_at);
         const recentMedsForReview = sessionMedications.filter(med => isDataRecent(med.timestamp));
         const hasRecentUpdatesForReview = sessionPatientUpdates && isDataRecent(sessionPatientUpdates.updatedAt);
         const recentIncidentsForReview = sessionIncidents.filter(inc => isDataRecent(inc.timestamp));
@@ -128,6 +139,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
           (hasRecentVitalsForReview ? 1 : 0) +
           (hasRecentBarthelForReview ? 1 : 0) +
           (hasRecentPainForReview ? 1 : 0) +
+          (hasRecentFallRiskForReview ? 1 : 0) +
           recentMedsForReview.length +
           (hasRecentUpdatesForReview ? 1 : 0) +
           recentIncidentsForReview.length;
@@ -280,6 +292,39 @@ export default function PatientInfoScreen({ navigation }: Props) {
               <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
             )}
           </Card>
+
+          {/* Tile 5: Fall Risk */}
+          <Card style={styles.compactTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="body" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['action.fallRisk']}</Text>
+            </View>
+            {sessionFallRiskAssessment || currentPatient.latest_fall_risk_score !== undefined ? (
+              <>
+                <Text style={styles.tileValue}>
+                  {sessionFallRiskAssessment?.risk_score ?? currentPatient.latest_fall_risk_score}/8
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {language === 'ja'
+                    ? (sessionFallRiskAssessment?.risk_level === 'low' ? '低リスク' :
+                       sessionFallRiskAssessment?.risk_level === 'moderate' ? '中等度リスク' :
+                       sessionFallRiskAssessment?.risk_level === 'high' ? '高リスク' :
+                       currentPatient.latest_fall_risk_level === 'low' ? '低リスク' :
+                       currentPatient.latest_fall_risk_level === 'moderate' ? '中等度リスク' : '高リスク')
+                    : (sessionFallRiskAssessment?.risk_level ?? currentPatient.latest_fall_risk_level ?? 'N/A')
+                  }
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {sessionFallRiskAssessment
+                    ? new Date(sessionFallRiskAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                    : currentPatient.latest_fall_risk_date || 'N/A'
+                  }
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
         </View>
 
         {/* Second Row: Vitals + Allergies + Key Notes */}
@@ -405,6 +450,15 @@ export default function PatientInfoScreen({ navigation }: Props) {
             sublabel="Pain Assessment"
             onPress={() => navigation.navigate('PainAssessment')}
             status={getActionStatus('pain')}
+          />
+
+          {/* Fall Risk Assessment */}
+          <ActionButton
+            icon="body"
+            label={t['action.fallRisk']}
+            sublabel="Fall Risk"
+            onPress={() => navigation.navigate('FallRiskAssessment')}
+            status={getActionStatus('fallRisk')}
           />
 
           {/* Incident Report */}

@@ -27,6 +27,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
     sessionVitals,
     sessionBarthelIndex,
     sessionPainAssessment,
+    sessionFallRiskAssessment,
     adlRecordingId,
     adlProcessedData,
     setADLProcessedData,
@@ -127,6 +128,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
         vitals: sessionVitals ?? undefined,
         barthelIndex: sessionBarthelIndex ?? undefined,
         painAssessment: sessionPainAssessment ?? undefined,
+        fallRiskAssessment: sessionFallRiskAssessment ?? undefined,
         medications: sessionMedications,
         patientUpdates: sessionPatientUpdates ?? undefined,
         incidents: sessionIncidents,
@@ -360,6 +362,62 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
                     {language === 'ja' ? 'メモ:' : 'Notes:'}
                   </Text>
                   <Text style={styles.notesText}>{sessionPainAssessment.notes}</Text>
+                </View>
+              )}
+            </View>
+          </Card>
+        )}
+
+        {/* Fall Risk Assessment Card */}
+        {sessionFallRiskAssessment && (
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="body" size={ICON_SIZES.lg} color={COLORS.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {language === 'ja' ? '転倒リスク評価' : 'Fall Risk Assessment'}
+                </Text>
+                {sessionFallRiskAssessment.recorded_at && (
+                  <Text style={styles.timeAgo}>
+                    {getTimeAgo(sessionFallRiskAssessment.recorded_at, language)}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.painContainer}>
+              <View style={styles.painScoreRow}>
+                <Text style={styles.painLabel}>
+                  {language === 'ja' ? 'リスクレベル:' : 'Risk Level:'}
+                </Text>
+                <Text style={[styles.painScore, {
+                  color: sessionFallRiskAssessment.risk_level === 'high' ? COLORS.status.critical :
+                         sessionFallRiskAssessment.risk_level === 'moderate' ? COLORS.status.warning :
+                         COLORS.status.normal
+                }]}>
+                  {sessionFallRiskAssessment.risk_level === 'high' ? (language === 'ja' ? '高リスク' : 'High Risk') :
+                   sessionFallRiskAssessment.risk_level === 'moderate' ? (language === 'ja' ? '中等度リスク' : 'Moderate Risk') :
+                   (language === 'ja' ? '低リスク' : 'Low Risk')}
+                </Text>
+              </View>
+              <Text style={styles.painDetail}>
+                {language === 'ja' ? 'リスクスコア: ' : 'Risk Score: '}{sessionFallRiskAssessment.risk_score}/8
+              </Text>
+              {sessionFallRiskAssessment.interventions_recommended && sessionFallRiskAssessment.interventions_recommended.length > 0 && (
+                <View style={styles.notesSection}>
+                  <Text style={styles.notesLabel}>
+                    {language === 'ja' ? 'エビデンスに基づく検討事項:' : 'Evidence-Based Considerations:'}
+                  </Text>
+                  {sessionFallRiskAssessment.interventions_recommended.map((intervention, index) => (
+                    <Text key={index} style={styles.painDetail}>• {intervention}</Text>
+                  ))}
+                </View>
+              )}
+              {sessionFallRiskAssessment.notes && (
+                <View style={styles.notesSection}>
+                  <Text style={styles.notesLabel}>
+                    {language === 'ja' ? 'メモ:' : 'Notes:'}
+                  </Text>
+                  <Text style={styles.notesText}>{sessionFallRiskAssessment.notes}</Text>
                 </View>
               )}
             </View>

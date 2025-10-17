@@ -411,10 +411,17 @@ export interface FallRiskAssessmentResult {
 
 /**
  * Assess fall risk using multi-factorial assessment
+ * Based on Japanese Fall Prevention Guidelines and WHO framework
+ * References:
+ * - 高齢者の転倒予防ガイドライン (2012)
+ * - 日本転倒予防学会
+ * - 健康長寿ネット - 転倒・骨折予防の取り組み
+ *
  * @param factors - Risk factor checklist
  */
 export function assessFallRisk(factors: FallRiskFactors): FallRiskAssessmentResult {
   // Calculate score (1 point per factor)
+  // Falls Risk Index (FRI): Score of 7+ indicates elevated risk
   let score = 0;
   if (factors.historyOfFalls) score++;
   if (factors.usesAssistiveDevice) score++;
@@ -425,13 +432,12 @@ export function assessFallRisk(factors: FallRiskFactors): FallRiskAssessmentResu
   if (factors.environmentalHazards) score++;
   if (factors.urinaryIncontinence) score++;
 
+  // Determine risk level based on total score
   let riskLevel: 'low' | 'moderate' | 'high';
   let status: 'green' | 'yellow' | 'red';
   let statusLabel: string;
   let statusLabelJa: string;
   let emoji: string;
-  let interventions: string[];
-  let interventionsJa: string[];
 
   if (score <= 1) {
     riskLevel = 'low';
@@ -439,48 +445,92 @@ export function assessFallRisk(factors: FallRiskFactors): FallRiskAssessmentResu
     statusLabel = 'Low Risk';
     statusLabelJa = '低リスク';
     emoji = '🟢';
-    interventions = ['Standard fall precautions', 'Annual reassessment'];
-    interventionsJa = ['標準的な転倒予防対策', '年1回の再評価'];
   } else if (score >= 2 && score <= 3) {
     riskLevel = 'moderate';
     status = 'yellow';
     statusLabel = 'Moderate Risk';
     statusLabelJa = '中等度リスク';
     emoji = '🟡';
-    interventions = [
-      'Environmental modifications',
-      'Assistive devices as needed',
-      'Exercise/balance training',
-      'Quarterly reassessment',
-    ];
-    interventionsJa = [
-      '環境改善',
-      '必要に応じて補助具使用',
-      '運動・バランス訓練',
-      '3ヶ月ごとの再評価',
-    ];
   } else {
     riskLevel = 'high';
     status = 'red';
     statusLabel = 'High Risk';
     statusLabelJa = '高リスク';
     emoji = '🔴';
-    interventions = [
-      'Comprehensive fall prevention program',
-      'Close monitoring/supervision',
-      'Medication review with physician',
-      'Physical therapy consultation',
-      'Consider bed/chair alarms',
-      'Monthly reassessment',
-    ];
-    interventionsJa = [
-      '包括的転倒予防プログラム',
-      '継続的監視・見守り',
-      '服薬内容の見直し',
-      '理学療法士への相談',
-      'ベッド・椅子センサーの検討',
-      '月1回の再評価',
-    ];
+  }
+
+  // Build personalized interventions based on specific risk factors
+  const interventions: string[] = [];
+  const interventionsJa: string[] = [];
+
+  // Always recommend baseline interventions
+  if (score > 0) {
+    interventions.push('Multi-element group exercise program (29% reduction)');
+    interventionsJa.push('多要素運動プログラム（29%減少効果）');
+  }
+
+  // Factor-specific interventions
+  if (factors.historyOfFalls) {
+    interventions.push('Home-based individual exercise program (32% reduction)');
+    interventionsJa.push('在宅個別運動療法（32%減少効果）');
+  }
+
+  if (factors.usesAssistiveDevice || factors.unsteadyGait) {
+    interventions.push('Balance and gait training with physical therapist');
+    interventionsJa.push('バランス・歩行訓練（理学療法士）');
+    interventions.push('Assistive device review and proper fitting');
+    interventionsJa.push('補助具の適合評価と調整');
+  }
+
+  if (factors.cognitiveImpairment) {
+    interventions.push('Cognitive assessment and supervision planning');
+    interventionsJa.push('認知機能評価と見守り体制の整備');
+  }
+
+  if (factors.highRiskMedications) {
+    interventions.push('Medication review - especially psychotropics (66% reduction)');
+    interventionsJa.push('服薬見直し・向精神薬評価（66%減少効果）');
+  }
+
+  if (factors.visionProblems) {
+    interventions.push('Vision assessment and cataract evaluation (34% reduction)');
+    interventionsJa.push('視力評価・白内障検査（34%減少効果）');
+  }
+
+  if (factors.environmentalHazards) {
+    interventions.push('Home safety assessment and modifications (19% reduction)');
+    interventionsJa.push('住環境評価と改善（19%減少効果）');
+    interventions.push('Anti-slip footwear and flooring measures (58% reduction)');
+    interventionsJa.push('滑り止め履物・床対策（58%減少効果）');
+  }
+
+  if (factors.urinaryIncontinence) {
+    interventions.push('Toileting schedule and continence management');
+    interventionsJa.push('排泄スケジュール・失禁管理');
+  }
+
+  // Add reassessment schedule based on risk level
+  if (riskLevel === 'high') {
+    interventions.push('Close monitoring and monthly reassessment');
+    interventionsJa.push('継続的観察・月1回の再評価');
+  } else if (riskLevel === 'moderate') {
+    interventions.push('Quarterly fall risk reassessment');
+    interventionsJa.push('3ヶ月ごとの転倒リスク再評価');
+  } else {
+    interventions.push('Annual fall risk reassessment');
+    interventionsJa.push('年1回の転倒リスク再評価');
+  }
+
+  // If no factors selected, provide basic prevention
+  if (score === 0) {
+    interventions.length = 0;
+    interventionsJa.length = 0;
+    interventions.push('Continue regular physical activity');
+    interventions.push('Maintain home safety awareness');
+    interventions.push('Annual fall risk reassessment');
+    interventionsJa.push('定期的な身体活動の継続');
+    interventionsJa.push('住環境の安全意識の維持');
+    interventionsJa.push('年1回の転倒リスク再評価');
   }
 
   return {

@@ -48,6 +48,9 @@ export interface Patient {
   latest_barthel_date?: string;
   latest_pain_score?: number; // 0-10 NRS
   latest_pain_date?: string;
+  latest_fall_risk_score?: number; // 0-8
+  latest_fall_risk_level?: 'low' | 'moderate' | 'high';
+  latest_fall_risk_date?: string;
 
   // Vital signs history
   latest_vitals_date?: string;
