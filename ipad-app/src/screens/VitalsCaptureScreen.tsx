@@ -31,7 +31,7 @@ type Props = {
 };
 
 export default function VitalsCaptureScreen({ navigation }: Props) {
-  const { currentPatient, sessionVitals, setVitals, setCurrentStep, language } = useAssessmentStore();
+  const { currentPatient, sessionVitals, sessionPatientUpdates, setVitals, setCurrentStep, language } = useAssessmentStore();
   const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
   const [reading, setReading] = useState<BPReading | null>(null);
   const [isTransmitting, setIsTransmitting] = useState(false);
@@ -51,6 +51,9 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   const [jcsLevel, setJcsLevel] = useState<JCSLevel | null>(null);
 
   const t = translations[language];
+
+  // Get latest height (from patient updates if available, otherwise from patient record)
+  const latestHeight = sessionPatientUpdates?.height ?? currentPatient?.height;
 
   useEffect(() => {
     console.log('[VitalsCapture] Screen mounted');
@@ -152,11 +155,11 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
       spO2: spo2 ? parseInt(spo2) : undefined,
       respiratoryRate: respiratoryRate ? parseInt(respiratoryRate) : undefined,
       weight: currentPatient?.weight,
-      height: currentPatient?.height,
+      height: latestHeight,
     };
 
     return assessVitalSigns(patientDemographics, vitalsToAssess);
-  }, [patientDemographics, systolic, pulse, temperature, spo2, respiratoryRate, currentPatient?.weight, currentPatient?.height]);
+  }, [patientDemographics, systolic, pulse, temperature, spo2, respiratoryRate, currentPatient?.weight, latestHeight]);
 
   // Assess blood glucose
   const glucoseAssessment = useMemo(() => {
@@ -173,8 +176,8 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     if (isNaN(weightKg)) return null;
 
     const previousWeight = sessionVitals?.weight?.weight_kg;
-    return assessWeight(weightKg, currentPatient?.height, previousWeight);
-  }, [weight, currentPatient?.height, sessionVitals?.weight?.weight_kg]);
+    return assessWeight(weightKg, latestHeight, previousWeight);
+  }, [weight, latestHeight, sessionVitals?.weight?.weight_kg]);
 
   // Assess consciousness (JCS)
   const consciousnessAssessment = useMemo(() => {
@@ -248,8 +251,8 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
                   percentage_change: previousWeight
                     ? ((weightKg - previousWeight) / previousWeight) * 100
                     : undefined,
-                  bmi: currentPatient?.height
-                    ? weightKg / Math.pow(currentPatient.height / 100, 2)
+                  bmi: latestHeight
+                    ? weightKg / Math.pow(latestHeight / 100, 2)
                     : undefined,
                 };
               }
