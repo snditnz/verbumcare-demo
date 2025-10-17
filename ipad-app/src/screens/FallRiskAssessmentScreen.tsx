@@ -141,11 +141,13 @@ export default function FallRiskAssessmentScreen({ navigation }: Props) {
   const RiskFactorCheckbox = ({
     label,
     value,
-    onToggle
+    onToggle,
+    example
   }: {
     label: string;
     value: boolean;
     onToggle: () => void;
+    example?: string;
   }) => (
     <TouchableOpacity
       style={[styles.checkboxItem, value && styles.checkboxItemSelected]}
@@ -154,7 +156,12 @@ export default function FallRiskAssessmentScreen({ navigation }: Props) {
       <View style={[styles.checkbox, value && styles.checkboxChecked]}>
         {value && <Ionicons name="checkmark" size={ICON_SIZES.md} color={COLORS.accent} />}
       </View>
-      <Text style={[styles.checkboxLabel, value && styles.checkboxLabelSelected]}>{label}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.checkboxLabel, value && styles.checkboxLabelSelected]}>{label}</Text>
+        {example && (
+          <Text style={styles.checkboxExample}>{example}</Text>
+        )}
+      </View>
     </TouchableOpacity>
   );
 
@@ -208,68 +215,56 @@ export default function FallRiskAssessmentScreen({ navigation }: Props) {
             <Text style={styles.cardTitle}>{t['fallRisk.riskFactors']}</Text>
           </View>
 
-          <View style={styles.checkboxList}>
-            <RiskFactorCheckbox
-              label={t['fallRisk.historyOfFalls']}
-              value={historyOfFalls}
-              onToggle={() => setHistoryOfFalls(!historyOfFalls)}
-            />
-            <RiskFactorCheckbox
-              label={t['fallRisk.assistiveDevice']}
-              value={usesAssistiveDevice}
-              onToggle={() => setUsesAssistiveDevice(!usesAssistiveDevice)}
-            />
-            <RiskFactorCheckbox
-              label={t['fallRisk.unsteadyGait']}
-              value={unsteadyGait}
-              onToggle={() => setUnsteadyGait(!unsteadyGait)}
-            />
-            <RiskFactorCheckbox
-              label={t['fallRisk.cognitiveImpairment']}
-              value={cognitiveImpairment}
-              onToggle={() => setCognitiveImpairment(!cognitiveImpairment)}
-            />
-            <RiskFactorCheckbox
-              label={t['fallRisk.highRiskMeds']}
-              value={highRiskMedications}
-              onToggle={() => setHighRiskMedications(!highRiskMedications)}
-            />
-            <RiskFactorCheckbox
-              label={t['fallRisk.visionProblems']}
-              value={visionProblems}
-              onToggle={() => setVisionProblems(!visionProblems)}
-            />
-            <RiskFactorCheckbox
-              label={t['fallRisk.environmentalHazards']}
-              value={environmentalHazards}
-              onToggle={() => setEnvironmentalHazards(!environmentalHazards)}
-            />
-            <RiskFactorCheckbox
-              label={t['fallRisk.urinaryIncontinence']}
-              value={urinaryIncontinence}
-              onToggle={() => setUrinaryIncontinence(!urinaryIncontinence)}
-            />
+          <View style={styles.checkboxGrid}>
+            <View style={styles.checkboxColumn}>
+              <RiskFactorCheckbox
+                label={t['fallRisk.historyOfFalls']}
+                value={historyOfFalls}
+                onToggle={() => setHistoryOfFalls(!historyOfFalls)}
+              />
+              <RiskFactorCheckbox
+                label={t['fallRisk.assistiveDevice']}
+                value={usesAssistiveDevice}
+                onToggle={() => setUsesAssistiveDevice(!usesAssistiveDevice)}
+              />
+              <RiskFactorCheckbox
+                label={t['fallRisk.unsteadyGait']}
+                value={unsteadyGait}
+                onToggle={() => setUnsteadyGait(!unsteadyGait)}
+              />
+              <RiskFactorCheckbox
+                label={t['fallRisk.cognitiveImpairment']}
+                value={cognitiveImpairment}
+                onToggle={() => setCognitiveImpairment(!cognitiveImpairment)}
+              />
+            </View>
+
+            <View style={styles.checkboxColumn}>
+              <RiskFactorCheckbox
+                label={t['fallRisk.highRiskMeds']}
+                value={highRiskMedications}
+                onToggle={() => setHighRiskMedications(!highRiskMedications)}
+                example={language === 'ja' ? '例：睡眠薬、抗不安薬、降圧剤' : 'e.g., Sedatives, anxiolytics, antihypertensives'}
+              />
+              <RiskFactorCheckbox
+                label={t['fallRisk.visionProblems']}
+                value={visionProblems}
+                onToggle={() => setVisionProblems(!visionProblems)}
+              />
+              <RiskFactorCheckbox
+                label={t['fallRisk.environmentalHazards']}
+                value={environmentalHazards}
+                onToggle={() => setEnvironmentalHazards(!environmentalHazards)}
+                example={language === 'ja' ? '例：段差、滑りやすい床、照明不足' : 'e.g., Steps, slippery floors, poor lighting'}
+              />
+              <RiskFactorCheckbox
+                label={t['fallRisk.urinaryIncontinence']}
+                value={urinaryIncontinence}
+                onToggle={() => setUrinaryIncontinence(!urinaryIncontinence)}
+              />
+            </View>
           </View>
         </Card>
-
-        {/* Evidence-Based Considerations */}
-        {fallRiskResult.interventions.length > 0 && (
-          <Card>
-            <View style={styles.cardHeader}>
-              <Ionicons name="document-text" size={ICON_SIZES.lg} color={COLORS.primary} />
-              <Text style={styles.cardTitle}>{t['fallRisk.interventions']}</Text>
-            </View>
-
-            <View style={styles.interventionsList}>
-              {(language === 'ja' ? fallRiskResult.interventionsJa : fallRiskResult.interventions).map((intervention, index) => (
-                <View key={index} style={styles.interventionItem}>
-                  <Ionicons name="checkmark-circle" size={ICON_SIZES.sm} color={COLORS.primary} />
-                  <Text style={styles.interventionText}>{intervention}</Text>
-                </View>
-              ))}
-            </View>
-          </Card>
-        )}
 
         {/* Additional Notes */}
         <Card>
@@ -395,12 +390,20 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text.primary,
   },
+  checkboxGrid: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  checkboxColumn: {
+    flex: 1,
+    gap: SPACING.md,
+  },
   checkboxList: {
     gap: SPACING.md,
   },
   checkboxItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     padding: SPACING.md,
     backgroundColor: COLORS.surface,
     borderWidth: 2,
@@ -435,6 +438,12 @@ const styles = StyleSheet.create({
   checkboxLabelSelected: {
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.primary,
+  },
+  checkboxExample: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
+    fontStyle: 'italic',
+    marginTop: SPACING.xs,
   },
   interventionsList: {
     flexDirection: 'row',
