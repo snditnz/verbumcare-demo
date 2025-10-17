@@ -17,6 +17,7 @@ type RootStackParamList = {
   MedicineAdmin: undefined;
   UpdatePatientInfo: undefined;
   IncidentReport: undefined;
+  PainAssessment: undefined;
   ReviewConfirm: undefined;
 };
 
@@ -30,6 +31,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     language,
     sessionVitals,
     sessionBarthelIndex,
+    sessionPainAssessment,
     adlRecordingId,
     adlProcessedData,
     sessionMedications,
@@ -98,6 +100,14 @@ export default function PatientInfoScreen({ navigation }: Props) {
           borderColor: isDraft ? COLORS.warning : isConfirmed ? COLORS.success : COLORS.border,
         };
 
+      case 'pain':
+        const hasRecentPain = sessionPainAssessment && isDataRecent(sessionPainAssessment.recorded_at);
+        return {
+          completed: hasRecentPain,
+          count: hasRecentPain ? 1 : 0,
+          borderColor: hasRecentPain ? COLORS.success : COLORS.border,
+        };
+
       case 'incident':
         const recentIncidents = sessionIncidents.filter(inc => isDataRecent(inc.timestamp));
         return {
@@ -109,6 +119,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
       case 'review':
         const hasRecentVitalsForReview = sessionVitals && isDataRecent(sessionVitals.measured_at);
         const hasRecentBarthelForReview = sessionBarthelIndex && isDataRecent(sessionBarthelIndex.recorded_at);
+        const hasRecentPainForReview = sessionPainAssessment && isDataRecent(sessionPainAssessment.recorded_at);
         const recentMedsForReview = sessionMedications.filter(med => isDataRecent(med.timestamp));
         const hasRecentUpdatesForReview = sessionPatientUpdates && isDataRecent(sessionPatientUpdates.updatedAt);
         const recentIncidentsForReview = sessionIncidents.filter(inc => isDataRecent(inc.timestamp));
@@ -116,6 +127,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
         const totalActions =
           (hasRecentVitalsForReview ? 1 : 0) +
           (hasRecentBarthelForReview ? 1 : 0) +
+          (hasRecentPainForReview ? 1 : 0) +
           recentMedsForReview.length +
           (hasRecentUpdatesForReview ? 1 : 0) +
           recentIncidentsForReview.length;
@@ -209,10 +221,17 @@ export default function PatientInfoScreen({ navigation }: Props) {
               <Ionicons name="clipboard" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.tileTitle}>{t['patientInfo.latestBarthel']}</Text>
             </View>
-            {currentPatient.latest_barthel_index !== undefined ? (
+            {sessionBarthelIndex || currentPatient.latest_barthel_index !== undefined ? (
               <>
-                <Text style={styles.tileValue}>{currentPatient.latest_barthel_index}/100</Text>
-                <Text style={styles.tileSubtext}>{currentPatient.latest_barthel_date || 'N/A'}</Text>
+                <Text style={styles.tileValue}>
+                  {sessionBarthelIndex?.total_score ?? currentPatient.latest_barthel_index}/100
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {sessionBarthelIndex
+                    ? new Date(sessionBarthelIndex.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                    : currentPatient.latest_barthel_date || 'N/A'
+                  }
+                </Text>
               </>
             ) : (
               <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
@@ -234,6 +253,29 @@ export default function PatientInfoScreen({ navigation }: Props) {
                   </View>
                 ))}
               </ScrollView>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
+
+          {/* Tile 4: Pain Score */}
+          <Card style={styles.compactTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="pulse" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['action.painAssessment']}</Text>
+            </View>
+            {sessionPainAssessment || currentPatient.latest_pain_score !== undefined ? (
+              <>
+                <Text style={styles.tileValue}>
+                  {sessionPainAssessment?.pain_score ?? currentPatient.latest_pain_score}/10
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {sessionPainAssessment
+                    ? new Date(sessionPainAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                    : currentPatient.latest_pain_date || 'N/A'
+                  }
+                </Text>
+              </>
             ) : (
               <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
             )}
@@ -354,6 +396,15 @@ export default function PatientInfoScreen({ navigation }: Props) {
             sublabel="Update Info"
             onPress={() => navigation.navigate('UpdatePatientInfo')}
             status={getActionStatus('patientInfo')}
+          />
+
+          {/* Pain Assessment */}
+          <ActionButton
+            icon="pulse"
+            label={t['action.painAssessment']}
+            sublabel="Pain Assessment"
+            onPress={() => navigation.navigate('PainAssessment')}
+            status={getActionStatus('pain')}
           />
 
           {/* Incident Report */}

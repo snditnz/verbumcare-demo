@@ -46,6 +46,8 @@ export interface Patient {
   // Latest assessments
   latest_barthel_index?: number; // 0-100
   latest_barthel_date?: string;
+  latest_pain_score?: number; // 0-10 NRS
+  latest_pain_date?: string;
 
   // Vital signs history
   latest_vitals_date?: string;

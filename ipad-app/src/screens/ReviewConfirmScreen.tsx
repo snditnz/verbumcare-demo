@@ -26,6 +26,7 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
     currentPatient,
     sessionVitals,
     sessionBarthelIndex,
+    sessionPainAssessment,
     adlRecordingId,
     adlProcessedData,
     setADLProcessedData,
@@ -125,22 +126,28 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
       await apiService.submitAllSessionData(currentPatient.patient_id, {
         vitals: sessionVitals ?? undefined,
         barthelIndex: sessionBarthelIndex ?? undefined,
+        painAssessment: sessionPainAssessment ?? undefined,
         medications: sessionMedications,
         patientUpdates: sessionPatientUpdates ?? undefined,
         incidents: sessionIncidents,
       });
 
-      // Update currentPatient with newly saved Barthel score
-      // This ensures the Barthel tile shows the latest data after submission
+      // Update currentPatient with newly saved Barthel score and Pain score
+      // This ensures the tiles show the latest data after submission
+      let updatedPatient = { ...currentPatient };
+
       if (sessionBarthelIndex) {
-        const updatedPatient = {
-          ...currentPatient,
-          latest_barthel_index: sessionBarthelIndex.total_score,
-          latest_barthel_date: new Date().toISOString().split('T')[0],
-        };
-        // Update the patient in store
-        useAssessmentStore.getState().setCurrentPatient(updatedPatient);
+        updatedPatient.latest_barthel_index = sessionBarthelIndex.total_score;
+        updatedPatient.latest_barthel_date = new Date().toISOString().split('T')[0];
       }
+
+      if (sessionPainAssessment) {
+        updatedPatient.latest_pain_score = sessionPainAssessment.pain_score;
+        updatedPatient.latest_pain_date = new Date().toISOString().split('T')[0];
+      }
+
+      // Update the patient in store
+      useAssessmentStore.getState().setCurrentPatient(updatedPatient);
 
       // DON'T clear session immediately - let time-based badge hiding handle it
       // This allows vitals and other data tiles to still show the just-saved data
@@ -298,6 +305,61 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
                   <Text style={styles.vitalLabel}>{language === 'ja' ? '呼吸数' : 'RR'}</Text>
                   <Text style={styles.vitalValue}>{sessionVitals.respiratory_rate}</Text>
                   <Text style={styles.vitalUnit}>/min</Text>
+                </View>
+              )}
+            </View>
+          </Card>
+        )}
+
+        {/* Pain Assessment Card */}
+        {sessionPainAssessment && (
+          <Card>
+            <View style={styles.cardHeader}>
+              <Ionicons name="pulse" size={ICON_SIZES.lg} color={COLORS.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {language === 'ja' ? '痛みの評価' : 'Pain Assessment'}
+                </Text>
+                {sessionPainAssessment.recorded_at && (
+                  <Text style={styles.timeAgo}>
+                    {getTimeAgo(sessionPainAssessment.recorded_at, language)}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.painContainer}>
+              <View style={styles.painScoreRow}>
+                <Text style={styles.painLabel}>
+                  {language === 'ja' ? '痛みスコア:' : 'Pain Score:'}
+                </Text>
+                <Text style={[styles.painScore, {
+                  color: sessionPainAssessment.pain_score >= 7 ? COLORS.status.critical :
+                         sessionPainAssessment.pain_score >= 4 ? COLORS.status.warning :
+                         COLORS.status.normal
+                }]}>
+                  {sessionPainAssessment.pain_score}/10
+                </Text>
+              </View>
+              {sessionPainAssessment.location && (
+                <Text style={styles.painDetail}>
+                  {language === 'ja' ? '部位: ' : 'Location: '}{sessionPainAssessment.location}
+                </Text>
+              )}
+              {sessionPainAssessment.pain_type && (
+                <Text style={styles.painDetail}>
+                  {language === 'ja' ? '性質: ' : 'Type: '}{
+                    sessionPainAssessment.pain_type === 'rest' ? (language === 'ja' ? '安静時' : 'At Rest') :
+                    sessionPainAssessment.pain_type === 'movement' ? (language === 'ja' ? '動作時' : 'During Movement') :
+                    (language === 'ja' ? '両方' : 'Both')
+                  }
+                </Text>
+              )}
+              {sessionPainAssessment.notes && (
+                <View style={styles.notesSection}>
+                  <Text style={styles.notesLabel}>
+                    {language === 'ja' ? 'メモ:' : 'Notes:'}
+                  </Text>
+                  <Text style={styles.notesText}>{sessionPainAssessment.notes}</Text>
                 </View>
               )}
             </View>
@@ -741,5 +803,28 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     color: COLORS.text.primary,
     lineHeight: TYPOGRAPHY.fontSize.base * TYPOGRAPHY.lineHeight.relaxed,
+  },
+  painContainer: {
+    gap: SPACING.md,
+  },
+  painScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.sm,
+  },
+  painLabel: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: COLORS.text.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  painScore: {
+    fontSize: TYPOGRAPHY.fontSize['3xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  painDetail: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+    paddingVertical: SPACING.xs,
   },
 });

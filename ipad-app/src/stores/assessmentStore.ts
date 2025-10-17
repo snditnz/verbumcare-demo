@@ -11,7 +11,8 @@ import {
   MedicationAdmin,
   PatientUpdateDraft,
   IncidentReport,
-  BarthelIndex
+  BarthelIndex,
+  PainAssessment
 } from '@models';
 
 // Per-patient session data
@@ -21,6 +22,7 @@ interface PatientSessionData {
   patientUpdates: PatientUpdateDraft | null;
   incidents: IncidentReport[];
   barthelIndex: BarthelIndex | null;
+  painAssessment: PainAssessment | null;
 }
 
 interface AssessmentStore extends AssessmentSession {
@@ -41,6 +43,7 @@ interface AssessmentStore extends AssessmentSession {
   sessionPatientUpdates: PatientUpdateDraft | null;
   sessionIncidents: IncidentReport[];
   sessionBarthelIndex: BarthelIndex | null;
+  sessionPainAssessment: PainAssessment | null;
 
   // Actions
   setLanguage: (language: Language) => void;
@@ -57,6 +60,7 @@ interface AssessmentStore extends AssessmentSession {
   setPatientUpdates: (updates: PatientUpdateDraft) => void;
   addIncident: (incident: IncidentReport) => void;
   setBarthelIndex: (barthel: BarthelIndex) => void;
+  setPainAssessment: (pain: PainAssessment) => void;
 
   // Helper to get original patient data
   getOriginalPatient: (patientId: string) => Patient | null;
@@ -79,7 +83,7 @@ const WORKFLOW_ORDER: WorkflowStep[] = [
 
 const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData => {
   if (!state.currentPatient) {
-    return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null };
+    return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null };
   }
 
   return state.patientSessions[state.currentPatient.patient_id] || {
@@ -88,6 +92,7 @@ const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData =>
     patientUpdates: null,
     incidents: [],
     barthelIndex: null,
+    painAssessment: null,
   };
 };
 
@@ -123,6 +128,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
   sessionPatientUpdates: null,
   sessionIncidents: [],
   sessionBarthelIndex: null,
+  sessionPainAssessment: null,
 
   // Actions
   setLanguage: (language) => set((state) => ({ ...state, language })),
@@ -157,8 +163,9 @@ export const useAssessmentStore = create<AssessmentStore>()(
             patientUpdates: null,
             incidents: [],
             barthelIndex: null,
+            painAssessment: null,
           })
-        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null };
+        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null };
 
       console.log('[Store] Computed sessionData for patient:', patient?.patient_id, sessionData);
 
@@ -174,6 +181,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         sessionPatientUpdates: sessionData.patientUpdates,
         sessionIncidents: sessionData.incidents,
         sessionBarthelIndex: sessionData.barthelIndex,
+        sessionPainAssessment: sessionData.painAssessment,
       };
     });
   },
@@ -190,6 +198,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         patientUpdates: null,
         incidents: [],
         barthelIndex: null,
+        painAssessment: null,
       };
 
       const newSession = {
@@ -215,6 +224,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         sessionPatientUpdates: newSession.patientUpdates,
         sessionIncidents: newSession.incidents,
         sessionBarthelIndex: newSession.barthelIndex,
+        sessionPainAssessment: newSession.painAssessment,
       };
     });
   },
@@ -246,6 +256,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         patientUpdates: null,
         incidents: [],
         barthelIndex: null,
+        painAssessment: null,
       };
 
       const newSession = {
@@ -275,6 +286,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         patientUpdates: null,
         incidents: [],
         barthelIndex: null,
+        painAssessment: null,
       };
 
       // Also immediately update currentPatient so UI reflects changes
@@ -316,6 +328,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         patientUpdates: null,
         incidents: [],
         barthelIndex: null,
+        painAssessment: null,
       };
 
       const newSession = {
@@ -345,6 +358,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         patientUpdates: null,
         incidents: [],
         barthelIndex: null,
+        painAssessment: null,
       };
 
       // Also immediately update currentPatient's Barthel Index
@@ -366,6 +380,42 @@ export const useAssessmentStore = create<AssessmentStore>()(
         },
         // Update computed properties
         sessionBarthelIndex: newSession.barthelIndex,
+      };
+    });
+  },
+
+  setPainAssessment: (pain) => {
+    set((state) => {
+      if (!state.currentPatient) return state;
+      const patientId = state.currentPatient.patient_id;
+      const currentSession = state.patientSessions[patientId] || {
+        vitals: null,
+        medications: [],
+        patientUpdates: null,
+        incidents: [],
+        barthelIndex: null,
+        painAssessment: null,
+      };
+
+      // Also immediately update currentPatient's pain score
+      const updatedPatient = { ...state.currentPatient };
+      updatedPatient.latest_pain_score = pain.pain_score;
+      updatedPatient.latest_pain_date = new Date().toISOString().split('T')[0]; // Today's date
+
+      const newSession = {
+        ...currentSession,
+        painAssessment: pain,
+      };
+
+      return {
+        ...state, // ← CRITICAL: preserve all other state
+        currentPatient: updatedPatient,
+        patientSessions: {
+          ...state.patientSessions,
+          [patientId]: newSession,
+        },
+        // Update computed properties
+        sessionPainAssessment: newSession.painAssessment,
       };
     });
   },
@@ -392,6 +442,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
           sessionPatientUpdates: null,
           sessionIncidents: [],
           sessionBarthelIndex: null,
+          sessionPainAssessment: null,
         }),
       };
     });
