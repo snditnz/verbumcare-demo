@@ -15,6 +15,7 @@ import ReviewConfirmScreen from './src/screens/ReviewConfirmScreen';
 import PainAssessmentScreen from './src/screens/PainAssessmentScreen';
 import FallRiskAssessmentScreen from './src/screens/FallRiskAssessmentScreen';
 import KihonChecklistScreen from './src/screens/KihonChecklistScreen';
+import ComingSoonScreen from './src/screens/ComingSoonScreen';
 
 export type RootStackParamList = {
   PatientList: undefined;
@@ -29,6 +30,7 @@ export type RootStackParamList = {
   FallRiskAssessment: undefined;
   KihonChecklist: undefined;
   ReviewConfirm: undefined;
+  ComingSoon: { feature: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -118,6 +120,11 @@ export default function App() {
               title: 'Review & Confirm',
               gestureEnabled: false,
             }}
+          />
+          <Stack.Screen
+            name="ComingSoon"
+            component={ComingSoonScreen}
+            options={{ title: 'Coming Soon' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

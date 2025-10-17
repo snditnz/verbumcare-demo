@@ -178,6 +178,27 @@ export const translations: Translations = {
     'action.updatePatientInfo': '患者情報更新',
     'action.reportIncident': 'インシデント報告',
     'action.saveAndReview': '保存・確認',
+    'action.roundComplete': '回診完了',
+    'action.completed': '完了済み',
+
+    // Barthel Index Status
+    'barthel.independent': '自立',
+    'barthel.minimallyDependent': '軽度依存',
+    'barthel.partiallyDependent': '中等度依存',
+    'barthel.veryDependent': '重度依存',
+    'barthel.totallyDependent': '完全依存',
+
+    // Weight Trend
+    'weight.trend': '体重推移',
+    'weight.stable': '安定',
+    'weight.increased': '増加',
+    'weight.decreased': '減少',
+    'weight.concerningLoss': '体重減少 - 栄養評価推奨',
+    'weight.criticalLoss': '顕著な体重減少 - 緊急栄養介入必要',
+    'weight.concerningGain': '体重増加 - 浮腫評価推奨',
+    'weight.criticalGain': '顕著な体重増加 - 心不全/浮腫評価必要',
+    'weight.weeksAgo': '週間前',
+    'weight.monthAgo': 'ヶ月前',
 
     // Medicine Admin
     'medicine.title': '服薬管理',
@@ -599,6 +620,27 @@ export const translations: Translations = {
     'action.updatePatientInfo': 'Update Patient Info',
     'action.reportIncident': 'Report Incident',
     'action.saveAndReview': 'Save & Review',
+    'action.roundComplete': 'Round Complete',
+    'action.completed': 'Completed',
+
+    // Barthel Index Status
+    'barthel.independent': 'Independent',
+    'barthel.minimallyDependent': 'Minimally Dependent',
+    'barthel.partiallyDependent': 'Partially Dependent',
+    'barthel.veryDependent': 'Very Dependent',
+    'barthel.totallyDependent': 'Totally Dependent',
+
+    // Weight Trend
+    'weight.trend': 'Weight Trend',
+    'weight.stable': 'Stable',
+    'weight.increased': 'Increased',
+    'weight.decreased': 'Decreased',
+    'weight.concerningLoss': 'Weight Loss - Nutritional Assessment Recommended',
+    'weight.criticalLoss': 'Critical Weight Loss - Urgent Nutritional Intervention Required',
+    'weight.concerningGain': 'Weight Gain - Assess for Edema',
+    'weight.criticalGain': 'Significant Weight Gain - Assess for Heart Failure/Edema',
+    'weight.weeksAgo': ' weeks ago',
+    'weight.monthAgo': ' month ago',
 
     // Medicine Admin
     'medicine.title': 'Medicine Administration',

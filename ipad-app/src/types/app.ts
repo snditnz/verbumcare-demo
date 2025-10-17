@@ -30,7 +30,9 @@ export interface Patient {
   room?: string;
   bed?: string;
   age?: number;
+  date_of_birth?: string; // ISO date string (YYYY-MM-DD)
   gender: 'male' | 'female' | 'other';
+  blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'O+' | 'O-' | 'AB+' | 'AB-';
   status?: 'green' | 'yellow' | 'red';
   risk_factors?: string[];
 
@@ -39,7 +41,7 @@ export interface Patient {
   weight?: number; // kg
 
   // Medical information
-  allergies?: string;
+  allergies?: string[]; // Array of individual allergies
   medications?: string;
   key_notes?: string;
 
@@ -121,7 +123,7 @@ export interface MedicationAdmin {
 export interface PatientUpdateDraft {
   height?: number;
   weight?: number;
-  allergies?: string;
+  allergies?: string[]; // Array of individual allergies
   medications?: string;
   keyNotes?: string;
   confirmed?: boolean;
@@ -148,11 +150,17 @@ export interface BarthelIndex {
 }
 
 // Pain Assessment - "6th Vital Sign"
-export interface PainAssessment {
-  pain_score: number; // 0-10 NRS scale
-  location?: string; // Body location
+export interface PainLocation {
+  location: string; // Body location (head, neck, shoulder, etc.)
+  intensity: number; // 0-10 NRS scale for this specific location
   pain_type?: 'rest' | 'movement' | 'both';
-  notes?: string;
+  notes?: string; // Context-specific notes for this location
+}
+
+export interface PainAssessment {
+  pain_score: number; // Highest pain score across all locations (0-10 NRS scale)
+  locations: PainLocation[]; // Multiple pain locations with individual intensities
+  general_notes?: string; // Overall assessment notes
   previous_score?: number; // For trend comparison
   recorded_at: Date;
 }

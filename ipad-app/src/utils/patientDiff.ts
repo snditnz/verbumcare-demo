@@ -44,11 +44,16 @@ export function getEditedFields(
     }
   }
 
-  // Check allergies
+  // Check allergies (array comparison)
   if (sessionUpdates.allergies !== undefined) {
-    const originalAllergies = originalPatient.allergies || '';
-    const newAllergies = sessionUpdates.allergies || '';
-    if (originalAllergies.trim() !== newAllergies.trim()) {
+    // Convert arrays to sorted, trimmed, comma-separated strings for comparison
+    const originalAllergies = Array.isArray(originalPatient.allergies)
+      ? originalPatient.allergies.map(a => a.trim()).sort().join(',')
+      : (originalPatient.allergies || '').toString().trim();
+    const newAllergies = Array.isArray(sessionUpdates.allergies)
+      ? sessionUpdates.allergies.map(a => a.trim()).sort().join(',')
+      : (sessionUpdates.allergies || '').toString().trim();
+    if (originalAllergies !== newAllergies) {
       edited.allergies = true;
     }
   }

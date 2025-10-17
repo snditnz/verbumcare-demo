@@ -255,6 +255,83 @@ export function assessWeight(
 }
 
 // ============================================================================
+// BARTHEL INDEX ASSESSMENT (ADL)
+// ============================================================================
+
+export interface BarthelIndexAssessmentResult extends AssessmentResult {
+  score: number;
+  dependencyLevel: 'independent' | 'minimally_dependent' | 'partially_dependent' | 'very_dependent' | 'totally_dependent';
+}
+
+/**
+ * Assess functional independence using Barthel Index (0-100)
+ * @param score - Total Barthel Index score from 0 (totally dependent) to 100 (independent)
+ */
+export function assessBarthelIndex(score: number): BarthelIndexAssessmentResult {
+  let status: 'green' | 'yellow' | 'orange' | 'red';
+  let dependencyLevel: 'independent' | 'minimally_dependent' | 'partially_dependent' | 'very_dependent' | 'totally_dependent';
+  let statusLabel: string;
+  let statusLabelJa: string;
+  let emoji: string;
+  let clinicalNote: string | undefined;
+  let clinicalNoteJa: string | undefined;
+
+  if (score >= 90) {
+    status = 'green';
+    dependencyLevel = 'independent';
+    statusLabel = 'Independent';
+    statusLabelJa = '自立';
+    emoji = '🟢';
+    clinicalNote = 'Patient is functionally independent';
+    clinicalNoteJa = '患者は機能的に自立しています';
+  } else if (score >= 60) {
+    status = 'yellow';
+    dependencyLevel = 'minimally_dependent';
+    statusLabel = 'Minimally Dependent';
+    statusLabelJa = '軽度依存';
+    emoji = '🟡';
+    clinicalNote = 'Minimal assistance required for ADL';
+    clinicalNoteJa = 'ADLに軽度の介助が必要';
+  } else if (score >= 40) {
+    status = 'orange';
+    dependencyLevel = 'partially_dependent';
+    statusLabel = 'Partially Dependent';
+    statusLabelJa = '中等度依存';
+    emoji = '🟠';
+    clinicalNote = 'Moderate assistance required for ADL';
+    clinicalNoteJa = 'ADLに中等度の介助が必要';
+  } else if (score >= 20) {
+    status = 'red';
+    dependencyLevel = 'very_dependent';
+    statusLabel = 'Very Dependent';
+    statusLabelJa = '重度依存';
+    emoji = '🔴';
+    clinicalNote = 'Significant assistance required for most ADL';
+    clinicalNoteJa = 'ほとんどのADLに重度の介助が必要';
+  } else {
+    status = 'red';
+    dependencyLevel = 'totally_dependent';
+    statusLabel = 'Totally Dependent';
+    statusLabelJa = '完全依存';
+    emoji = '🔴';
+    clinicalNote = 'Total assistance required for all ADL';
+    clinicalNoteJa = 'すべてのADLに完全な介助が必要';
+  }
+
+  return {
+    value: score,
+    score,
+    dependencyLevel,
+    status,
+    statusLabel,
+    statusLabelJa,
+    emoji,
+    clinicalNote,
+    clinicalNoteJa,
+  };
+}
+
+// ============================================================================
 // PAIN ASSESSMENT (NRS 0-10)
 // ============================================================================
 

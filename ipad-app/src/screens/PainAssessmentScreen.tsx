@@ -8,7 +8,7 @@ import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { assessPain } from '@utils/healthcareAssessments';
-import { PainAssessment } from '@models/app';
+import { PainAssessment, PainLocation } from '@models/app';
 
 type RootStackParamList = {
   PainAssessment: undefined;
@@ -19,10 +19,10 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PainAssessment'>;
 };
 
-type PainLocation = 'head' | 'neck' | 'shoulder' | 'back' | 'chest' | 'abdomen' | 'hip' | 'leg' | 'arm' | 'multiple';
+type PainLocationType = 'head' | 'neck' | 'shoulder' | 'back' | 'chest' | 'abdomen' | 'hip' | 'leg' | 'arm' | 'multiple';
 type PainType = 'rest' | 'movement' | 'both';
 
-const PAIN_LOCATIONS: { key: PainLocation; ja: string; en: string; icon: string }[] = [
+const PAIN_LOCATIONS: { key: PainLocationType; ja: string; en: string; icon: string }[] = [
   { key: 'head', ja: '頭部・顔面', en: 'Head/Face', icon: 'body' },
   { key: 'neck', ja: '首', en: 'Neck', icon: 'body' },
   { key: 'shoulder', ja: '肩', en: 'Shoulder', icon: 'body' },
@@ -32,7 +32,7 @@ const PAIN_LOCATIONS: { key: PainLocation; ja: string; en: string; icon: string 
   { key: 'hip', ja: '腰・臀部', en: 'Hip/Lower Back', icon: 'body' },
   { key: 'leg', ja: '下肢', en: 'Leg', icon: 'walk' },
   { key: 'arm', ja: '上肢', en: 'Arm', icon: 'hand-left' },
-  { key: 'multiple', ja: '複数箇所', en: 'Multiple Areas', icon: 'location' },
+  { key: 'multiple', ja: 'その他', en: 'Other', icon: 'ellipsis-horizontal-circle' },
 ];
 
 const PAIN_TYPES: { key: PainType; ja: string; en: string }[] = [
@@ -41,13 +41,20 @@ const PAIN_TYPES: { key: PainType; ja: string; en: string }[] = [
   { key: 'both', ja: '両方', en: 'Both' },
 ];
 
+interface LocationPainData {
+  location: PainLocationType;
+  intensity: number | null;
+  painType: PainType | null;
+  notes: string;
+}
+
 export default function PainAssessmentScreen({ navigation }: Props) {
   const { currentPatient, setPainAssessment, setCurrentStep, language } = useAssessmentStore();
 
-  const [painScore, setPainScore] = useState<number | null>(null);
-  const [location, setLocation] = useState<PainLocation | null>(null);
-  const [painType, setPainType] = useState<PainType | null>(null);
-  const [notes, setNotes] = useState('');
+  // Multi-location pain tracking
+  const [selectedLocations, setSelectedLocations] = useState<PainLocationType[]>([]);
+  const [locationPainData, setLocationPainData] = useState<Record<PainLocationType, LocationPainData>>({} as any);
+  const [generalNotes, setGeneralNotes] = useState('');
 
   const t = translations[language];
 
@@ -58,24 +65,64 @@ export default function PainAssessmentScreen({ navigation }: Props) {
   // Get previous pain score for trend analysis
   const previousPainScore = currentPatient?.latest_pain_score;
 
-  // Calculate pain assessment
+  // Calculate highest pain score across all locations
+  const highestPainScore = useMemo(() => {
+    const scores = selectedLocations
+      .map(loc => locationPainData[loc]?.intensity)
+      .filter((score): score is number => score !== null && score !== undefined);
+    return scores.length > 0 ? Math.max(...scores) : null;
+  }, [selectedLocations, locationPainData]);
+
+  // Calculate pain assessment for highest score
   const painAssessment = useMemo(() => {
-    if (painScore === null) return null;
-    return assessPain(painScore);
-  }, [painScore]);
+    if (highestPainScore === null) return null;
+    return assessPain(highestPainScore);
+  }, [highestPainScore]);
 
   // Calculate trend
   const trend = useMemo(() => {
-    if (painScore === null || previousPainScore === undefined) return null;
+    if (highestPainScore === null || previousPainScore === undefined) return null;
 
-    if (painScore < previousPainScore) {
+    if (highestPainScore < previousPainScore) {
       return { direction: 'improved' as const, label: t['pain.improved'], color: COLORS.success };
-    } else if (painScore > previousPainScore) {
+    } else if (highestPainScore > previousPainScore) {
       return { direction: 'worsened' as const, label: t['pain.worsened'], color: COLORS.error };
     } else {
       return { direction: 'unchanged' as const, label: t['pain.unchanged'], color: COLORS.text.secondary };
     }
-  }, [painScore, previousPainScore, t]);
+  }, [highestPainScore, previousPainScore, t]);
+
+  const toggleLocation = (location: PainLocationType) => {
+    if (selectedLocations.includes(location)) {
+      // Remove location
+      setSelectedLocations(selectedLocations.filter(loc => loc !== location));
+      const newData = { ...locationPainData };
+      delete newData[location];
+      setLocationPainData(newData);
+    } else {
+      // Add location
+      setSelectedLocations([...selectedLocations, location]);
+      setLocationPainData({
+        ...locationPainData,
+        [location]: {
+          location,
+          intensity: null,
+          painType: null,
+          notes: '',
+        },
+      });
+    }
+  };
+
+  const updateLocationData = (location: PainLocationType, field: keyof LocationPainData, value: any) => {
+    setLocationPainData({
+      ...locationPainData,
+      [location]: {
+        ...locationPainData[location],
+        [field]: value,
+      },
+    });
+  };
 
   const getColorForStatus = (status: string): string => {
     switch (status) {
@@ -91,30 +138,58 @@ export default function PainAssessmentScreen({ navigation }: Props) {
   };
 
   const handleSave = () => {
-    if (painScore === null) {
+    if (selectedLocations.length === 0) {
       Alert.alert(
         t['common.error'],
-        language === 'ja' ? '痛みのスコアを選択してください' : 'Please select a pain score'
+        language === 'ja' ? '少なくとも1つの痛みの場所を選択してください' : 'Please select at least one pain location'
       );
       return;
     }
 
+    // Validate that all selected locations have intensity scores
+    const missingIntensity = selectedLocations.filter(loc => locationPainData[loc]?.intensity === null);
+    if (missingIntensity.length > 0) {
+      Alert.alert(
+        t['common.error'],
+        language === 'ja' ? 'すべての選択された場所に痛みの強さを入力してください' : 'Please set pain intensity for all selected locations'
+      );
+      return;
+    }
+
+    // Convert to PainLocation array
+    const locations: PainLocation[] = selectedLocations.map(loc => {
+      const data = locationPainData[loc];
+      const locationLabel = language === 'ja'
+        ? PAIN_LOCATIONS.find(l => l.key === loc)?.ja
+        : PAIN_LOCATIONS.find(l => l.key === loc)?.en;
+
+      return {
+        location: locationLabel || loc,
+        intensity: data.intensity!,
+        pain_type: data.painType || undefined,
+        notes: data.notes || undefined,
+      };
+    });
+
     const assessment: PainAssessment = {
-      pain_score: painScore,
-      location: location ? t[`pain.${location}`] : undefined,
-      pain_type: painType || undefined,
-      notes: notes || undefined,
+      pain_score: highestPainScore!,
+      locations,
+      general_notes: generalNotes || undefined,
       previous_score: previousPainScore,
       recorded_at: new Date(),
     };
 
     // Show confirmation with summary
+    const locationsSummary = locations
+      .map(loc => `${loc.location}: ${loc.intensity}/10`)
+      .join('\n');
+
     const summary = [
-      `${t['pain.score']}: ${painScore}/10`,
+      `${t['pain.score']} (${language === 'ja' ? '最高' : 'Highest'}): ${highestPainScore}/10`,
       painAssessment ? `${language === 'ja' ? painAssessment.statusLabelJa : painAssessment.statusLabel}` : '',
-      location ? `${t['pain.location']}: ${language === 'ja' ? PAIN_LOCATIONS.find(l => l.key === location)?.ja : PAIN_LOCATIONS.find(l => l.key === location)?.en}` : '',
-      painType ? `${t['pain.type']}: ${language === 'ja' ? PAIN_TYPES.find(p => p.key === painType)?.ja : PAIN_TYPES.find(p => p.key === painType)?.en}` : '',
-      trend ? `${t['pain.trend']}: ${trend.label}` : '',
+      `\n${language === 'ja' ? '痛みの場所' : 'Pain Locations'}:`,
+      locationsSummary,
+      trend ? `\n${t['pain.trend']}: ${trend.label}` : '',
     ].filter(Boolean).join('\n');
 
     Alert.alert(
@@ -145,7 +220,7 @@ export default function PainAssessmentScreen({ navigation }: Props) {
   };
 
   const handleCancel = () => {
-    if (painScore !== null || location || painType || notes) {
+    if (selectedLocations.length > 0 || generalNotes) {
       Alert.alert(
         t['dialog.discardChanges'],
         language === 'ja' ? '変更を破棄しますか？' : 'Discard this assessment?',
@@ -204,69 +279,35 @@ export default function PainAssessmentScreen({ navigation }: Props) {
           </Card>
         )}
 
-        {/* Pain Score (NRS 0-10) */}
-        <Card
-          statusColor={painAssessment ? getColorForStatus(painAssessment.status) : COLORS.status.neutral}
-        >
-          <View style={styles.cardHeader}>
-            <Ionicons name="pulse" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>{t['pain.nrsScale']} *</Text>
-          </View>
+        {/* Highest Pain Score Display */}
+        {highestPainScore !== null && (
+          <Card statusColor={painAssessment ? getColorForStatus(painAssessment.status) : COLORS.status.neutral}>
+            <View style={styles.scoreHeader}>
+              <Ionicons name="pulse" size={ICON_SIZES.lg} color={getColorForStatus(painAssessment?.status || 'green')} />
+              <Text style={styles.scoreTitle}>{language === 'ja' ? '最高痛みスコア' : 'Highest Pain Score'}</Text>
+              <Text style={[styles.scoreValue, { color: getColorForStatus(painAssessment?.status || 'green') }]}>
+                {highestPainScore}/10
+              </Text>
+            </View>
 
-          <View style={styles.nrsScale}>
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
-              <TouchableOpacity
-                key={score}
-                style={[
-                  styles.nrsButton,
-                  painScore === score && styles.nrsButtonSelected,
-                  score === 0 && styles.nrsButtonGreen,
-                  score >= 1 && score <= 3 && styles.nrsButtonGreen,
-                  score >= 4 && score <= 6 && styles.nrsButtonYellow,
-                  score >= 7 && styles.nrsButtonRed,
-                  painScore === score && score >= 7 && { borderColor: COLORS.status.critical },
-                ]}
-                onPress={() => setPainScore(score)}
-              >
-                <Text style={[
-                  styles.nrsButtonText,
-                  painScore === score && styles.nrsButtonTextSelected,
-                ]}>
-                  {score}
+            {painAssessment && (
+              <View style={[styles.assessmentBadge, { backgroundColor: `${getColorForStatus(painAssessment.status)}20` }]}>
+                <Text style={styles.assessmentEmoji}>{painAssessment.emoji}</Text>
+                <Text style={[styles.assessmentLabel, { color: getColorForStatus(painAssessment.status) }]}>
+                  {language === 'ja' ? painAssessment.statusLabelJa : painAssessment.statusLabel}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              </View>
+            )}
+          </Card>
+        )}
 
-          <View style={styles.nrsLabels}>
-            <Text style={styles.nrsLabelLeft}>{t['pain.noPain']}</Text>
-            <Text style={styles.nrsLabelRight}>{t['pain.severePain']}</Text>
-          </View>
-
-          {painAssessment && (
-            <View style={[styles.assessmentBadge, { backgroundColor: `${getColorForStatus(painAssessment.status)}20` }]}>
-              <Text style={styles.assessmentEmoji}>{painAssessment.emoji}</Text>
-              <Text style={[styles.assessmentLabel, { color: getColorForStatus(painAssessment.status) }]}>
-                {language === 'ja' ? painAssessment.statusLabelJa : painAssessment.statusLabel}
-              </Text>
-            </View>
-          )}
-
-          {painAssessment?.clinicalNote && (
-            <View style={styles.clinicalNote}>
-              <Ionicons name="alert-circle" size={ICON_SIZES.sm} color={getColorForStatus(painAssessment.status)} />
-              <Text style={[styles.clinicalNoteText, { color: getColorForStatus(painAssessment.status) }]}>
-                {language === 'ja' ? painAssessment.clinicalNoteJa : painAssessment.clinicalNote}
-              </Text>
-            </View>
-          )}
-        </Card>
-
-        {/* Pain Location */}
+        {/* Pain Locations (Multi-select) */}
         <Card>
           <View style={styles.cardHeader}>
             <Ionicons name="body" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>{t['pain.location']}</Text>
+            <Text style={styles.cardTitle}>
+              {language === 'ja' ? '痛みの場所 (複数選択可)' : 'Pain Locations (Select Multiple)'} *
+            </Text>
           </View>
 
           <View style={styles.locationGrid}>
@@ -275,71 +316,144 @@ export default function PainAssessmentScreen({ navigation }: Props) {
                 key={loc.key}
                 style={[
                   styles.locationCard,
-                  location === loc.key && styles.locationCardSelected,
+                  selectedLocations.includes(loc.key) && styles.locationCardSelected,
                 ]}
-                onPress={() => setLocation(loc.key)}
+                onPress={() => toggleLocation(loc.key)}
               >
                 <Ionicons
                   name={loc.icon as any}
                   size={ICON_SIZES.md}
-                  color={location === loc.key ? COLORS.accent : COLORS.primary}
+                  color={selectedLocations.includes(loc.key) ? COLORS.accent : COLORS.primary}
                 />
                 <Text style={[
                   styles.locationLabel,
-                  location === loc.key && styles.locationLabelSelected,
+                  selectedLocations.includes(loc.key) && styles.locationLabelSelected,
                 ]}>
                   {language === 'ja' ? loc.ja : loc.en}
                 </Text>
+                {selectedLocations.includes(loc.key) && locationPainData[loc.key]?.intensity !== null && (
+                  <View style={styles.intensityBadge}>
+                    <Text style={styles.intensityBadgeText}>{locationPainData[loc.key].intensity}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             ))}
           </View>
         </Card>
 
-        {/* Pain Type */}
-        <Card>
-          <View style={styles.cardHeader}>
-            <Ionicons name="time" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>{t['pain.type']}</Text>
-          </View>
+        {/* Individual Location Details */}
+        {selectedLocations.map((locKey) => {
+          const loc = PAIN_LOCATIONS.find(l => l.key === locKey);
+          const data = locationPainData[locKey];
+          const locAssessment = data?.intensity !== null ? assessPain(data.intensity) : null;
 
-          <View style={styles.painTypeButtons}>
-            {PAIN_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type.key}
-                style={[
-                  styles.painTypeButton,
-                  painType === type.key && styles.painTypeButtonSelected,
-                ]}
-                onPress={() => setPainType(type.key)}
-              >
-                <Text style={[
-                  styles.painTypeText,
-                  painType === type.key && styles.painTypeTextSelected,
-                ]}>
-                  {language === 'ja' ? type.ja : type.en}
+          return (
+            <Card key={locKey} statusColor={locAssessment ? getColorForStatus(locAssessment.status) : undefined}>
+              <View style={styles.locationDetailHeader}>
+                <Ionicons name={loc?.icon as any} size={ICON_SIZES.lg} color={COLORS.primary} />
+                <Text style={styles.locationDetailTitle}>
+                  {language === 'ja' ? loc?.ja : loc?.en}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Card>
+                <TouchableOpacity
+                  style={styles.removeButton}
+                  onPress={() => toggleLocation(locKey)}
+                >
+                  <Ionicons name="close-circle" size={ICON_SIZES.md} color={COLORS.error} />
+                </TouchableOpacity>
+              </View>
 
-        {/* Additional Notes */}
+              {/* Pain Intensity for this location */}
+              <Text style={styles.sectionLabel}>
+                {language === 'ja' ? '痛みの強さ' : 'Pain Intensity'} *
+              </Text>
+              <View style={styles.nrsScale}>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
+                  <TouchableOpacity
+                    key={score}
+                    style={[
+                      styles.nrsButton,
+                      data?.intensity === score && styles.nrsButtonSelected,
+                      score === 0 && styles.nrsButtonGreen,
+                      score >= 1 && score <= 3 && styles.nrsButtonGreen,
+                      score >= 4 && score <= 6 && styles.nrsButtonYellow,
+                      score >= 7 && styles.nrsButtonRed,
+                      data?.intensity === score && score >= 7 && { borderColor: COLORS.status.critical },
+                    ]}
+                    onPress={() => updateLocationData(locKey, 'intensity', score)}
+                  >
+                    <Text style={[
+                      styles.nrsButtonText,
+                      data?.intensity === score && styles.nrsButtonTextSelected,
+                    ]}>
+                      {score}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Pain Type */}
+              <Text style={styles.sectionLabel}>{t['pain.type']}</Text>
+              <View style={styles.painTypeButtons}>
+                {PAIN_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type.key}
+                    style={[
+                      styles.painTypeButton,
+                      data?.painType === type.key && styles.painTypeButtonSelected,
+                    ]}
+                    onPress={() => updateLocationData(locKey, 'painType', type.key)}
+                  >
+                    <Text style={[
+                      styles.painTypeText,
+                      data?.painType === type.key && styles.painTypeTextSelected,
+                    ]}>
+                      {language === 'ja' ? type.ja : type.en}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Location-specific Notes */}
+              <Text style={styles.sectionLabel}>
+                {language === 'ja' ? 'メモ (この場所の詳細)' : 'Notes (Details for this location)'}
+              </Text>
+              <TextInput
+                style={styles.locationNotesInput}
+                placeholder={
+                  language === 'ja'
+                    ? '痛みの特徴、誘因などを記録...'
+                    : 'Record pain characteristics, triggers, etc...'
+                }
+                placeholderTextColor={COLORS.text.disabled}
+                value={data?.notes || ''}
+                onChangeText={(text) => updateLocationData(locKey, 'notes', text)}
+                multiline
+                numberOfLines={2}
+                textAlignVertical="top"
+              />
+            </Card>
+          );
+        })}
+
+        {/* General Notes */}
         <Card>
           <View style={styles.cardHeader}>
             <Ionicons name="document-text" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>{t['pain.notes']}</Text>
+            <Text style={styles.cardTitle}>
+              {language === 'ja' ? '全体メモ' : 'General Notes'}
+            </Text>
           </View>
 
           <TextInput
             style={styles.notesInput}
             placeholder={
               language === 'ja'
-                ? '痛みの詳細、特徴、誘因などを記録...'
-                : 'Record pain characteristics, triggers, etc...'
+                ? '全体的な痛みの状況、その他の観察事項...'
+                : 'Overall pain situation, other observations...'
             }
             placeholderTextColor={COLORS.text.disabled}
-            value={notes}
-            onChangeText={setNotes}
+            value={generalNotes}
+            onChangeText={setGeneralNotes}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -355,7 +469,7 @@ export default function PainAssessmentScreen({ navigation }: Props) {
         <Button
           variant="primary"
           onPress={handleSave}
-          disabled={painScore === null}
+          disabled={selectedLocations.length === 0}
         >
           <Ionicons name="checkmark-circle" size={ICON_SIZES.sm} color={COLORS.accent} />
           <Text style={[styles.buttonText, { color: COLORS.accent }]}>
@@ -434,6 +548,21 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
+  scoreHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  scoreTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+  },
+  scoreValue: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginLeft: 'auto',
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -445,11 +574,80 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text.primary,
   },
+  locationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.md,
+  },
+  locationCard: {
+    width: '30%',
+    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    gap: SPACING.xs,
+    minHeight: SPACING.touchTarget.comfortable,
+    position: 'relative',
+  },
+  locationCardSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  locationLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+    textAlign: 'center',
+  },
+  locationLabelSelected: {
+    color: COLORS.accent,
+  },
+  intensityBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: COLORS.accent,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  intensityBadgeText: {
+    color: COLORS.primary,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  locationDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  locationDetailTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+    flex: 1,
+  },
+  removeButton: {
+    padding: SPACING.xs,
+  },
+  sectionLabel: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.md,
+  },
   nrsScale: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: SPACING.xs,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   nrsButton: {
     flex: 1,
@@ -474,28 +672,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.status.critical,
   },
   nrsButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text.primary,
   },
   nrsButtonTextSelected: {
     color: COLORS.primary,
-  },
-  nrsLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: SPACING.xs,
-    marginBottom: SPACING.md,
-  },
-  nrsLabelLeft: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.success,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-  },
-  nrsLabelRight: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.error,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   assessmentBadge: {
     flexDirection: 'row',
@@ -512,62 +694,19 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
-  clinicalNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginTop: SPACING.sm,
-    padding: SPACING.sm,
-    backgroundColor: `${COLORS.error}10`,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  clinicalNoteText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-  },
-  locationGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
-  },
-  locationCard: {
-    width: '30%',
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.md,
-    alignItems: 'center',
-    gap: SPACING.xs,
-    minHeight: SPACING.touchTarget.comfortable,
-  },
-  locationCardSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  locationLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text.primary,
-    textAlign: 'center',
-  },
-  locationLabelSelected: {
-    color: COLORS.accent,
-  },
   painTypeButtons: {
     flexDirection: 'row',
-    gap: SPACING.md,
+    gap: SPACING.sm,
   },
   painTypeButton: {
     flex: 1,
-    padding: SPACING.md,
+    padding: SPACING.sm,
     backgroundColor: COLORS.surface,
     borderWidth: 2,
     borderColor: COLORS.border,
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
-    minHeight: SPACING.touchTarget.comfortable,
+    minHeight: 44,
     justifyContent: 'center',
   },
   painTypeButtonSelected: {
@@ -575,12 +714,22 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   painTypeText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.primary,
   },
   painTypeTextSelected: {
     color: COLORS.accent,
+  },
+  locationNotesInput: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.primary,
+    minHeight: 60,
   },
   notesInput: {
     backgroundColor: COLORS.surface,

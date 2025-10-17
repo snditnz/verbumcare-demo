@@ -177,8 +177,9 @@ export const useAssessmentStore = create<AssessmentStore>()(
             barthelIndex: null,
             painAssessment: null,
             fallRiskAssessment: null,
+            kihonChecklist: null,
           })
-        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null };
+        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null, kihonChecklist: null };
 
       console.log('[Store] Computed sessionData for patient:', patient?.patient_id, sessionData);
 
@@ -228,6 +229,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         sessionBarthelIndex: sessionData.barthelIndex,
         sessionPainAssessment: sessionData.painAssessment,
         sessionFallRiskAssessment: sessionData.fallRiskAssessment,
+        sessionKihonChecklist: sessionData.kihonChecklist,
       };
     });
   },
@@ -246,6 +248,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         barthelIndex: null,
         painAssessment: null,
         fallRiskAssessment: null,
+        kihonChecklist: null,
       };
 
       const newSession = {
@@ -273,6 +276,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         sessionBarthelIndex: newSession.barthelIndex,
         sessionPainAssessment: newSession.painAssessment,
         sessionFallRiskAssessment: newSession.fallRiskAssessment,
+        sessionKihonChecklist: newSession.kihonChecklist,
       };
     });
   },
@@ -306,6 +310,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         barthelIndex: null,
         painAssessment: null,
         fallRiskAssessment: null,
+        kihonChecklist: null,
       };
 
       const newSession = {
@@ -337,6 +342,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         barthelIndex: null,
         painAssessment: null,
         fallRiskAssessment: null,
+        kihonChecklist: null,
       };
 
       // Also immediately update currentPatient so UI reflects changes
@@ -380,6 +386,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         barthelIndex: null,
         painAssessment: null,
         fallRiskAssessment: null,
+        kihonChecklist: null,
       };
 
       const newSession = {
@@ -411,6 +418,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         barthelIndex: null,
         painAssessment: null,
         fallRiskAssessment: null,
+        kihonChecklist: null,
       };
 
       // Also immediately update currentPatient's Barthel Index
@@ -448,6 +456,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         barthelIndex: null,
         painAssessment: null,
         fallRiskAssessment: null,
+        kihonChecklist: null,
       };
 
       // Also immediately update currentPatient's pain score
@@ -485,6 +494,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
         barthelIndex: null,
         painAssessment: null,
         fallRiskAssessment: null,
+        kihonChecklist: null,
       };
 
       // Also immediately update currentPatient's fall risk data
@@ -567,6 +577,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
           sessionBarthelIndex: null,
           sessionPainAssessment: null,
           sessionFallRiskAssessment: null,
+          sessionKihonChecklist: null,
         }),
       };
     });
