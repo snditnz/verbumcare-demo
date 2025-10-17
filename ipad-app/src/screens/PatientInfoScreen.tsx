@@ -169,11 +169,14 @@ export default function PatientInfoScreen({ navigation }: Props) {
     ? `${currentPatient.family_name} ${currentPatient.given_name}`
     : `${currentPatient.family_name_en || currentPatient.family_name} ${currentPatient.given_name_en || currentPatient.given_name}`;
 
-  // Calculate BMI from patient data
+  // Get latest weight (from vitals if available, otherwise from patient record)
+  const latestWeight = sessionVitals?.weight?.weight_kg ?? currentPatient.weight;
+
+  // Calculate BMI from latest weight
   const calculateBMI = () => {
-    if (currentPatient.height && currentPatient.weight) {
+    if (currentPatient.height && latestWeight) {
       const heightInMeters = currentPatient.height / 100;
-      return (currentPatient.weight / (heightInMeters ** 2)).toFixed(1);
+      return (latestWeight / (heightInMeters ** 2)).toFixed(1);
     }
     return null;
   };
@@ -227,9 +230,9 @@ export default function PatientInfoScreen({ navigation }: Props) {
                 {currentPatient.room && (
                   <Text style={styles.demographicsText}>{t['patient.room']} {currentPatient.room}</Text>
                 )}
-                {currentPatient.height && currentPatient.weight && (
+                {currentPatient.height && latestWeight && (
                   <>
-                    <Text style={styles.demographicsText}>{currentPatient.height}cm • {currentPatient.weight}kg</Text>
+                    <Text style={styles.demographicsText}>{currentPatient.height}cm • {latestWeight}kg</Text>
                     <Text style={styles.demographicsText}>BMI: {calculateBMI()}</Text>
                   </>
                 )}
