@@ -4,5 +4,6 @@ export { default as VitalsCaptureScreen } from './VitalsCaptureScreen';
 export { default as ADLVoiceScreen } from './ADLVoiceScreen';
 export { default as PainAssessmentScreen } from './PainAssessmentScreen';
 export { default as FallRiskAssessmentScreen } from './FallRiskAssessmentScreen';
+export { default as KihonChecklistScreen } from './KihonChecklistScreen';
 export { default as IncidentReportScreen } from './IncidentReportScreen';
 export { default as ReviewConfirmScreen } from './ReviewConfirmScreen';

@@ -8,7 +8,13 @@
  * - Pain: NRS (Numeric Rating Scale) 0-10
  * - Consciousness: JCS (Japan Coma Scale)
  * - Fall Risk: Multi-factorial assessment
- * - Kihon Checklist: MHLW (Ministry of Health, Labour and Welfare) standards
+ * - Kihon Checklist: MHLW (Ministry of Health, Labour and Welfare) official standards
+ *
+ * PMDA Compliance:
+ * - All recommendations use non-prescriptive language ("consider consultation")
+ * - Frailty thresholds follow official MHLW criteria (≥10 for frailty risk)
+ * - LTCI recommendations suggest formal assessment, do not determine eligibility
+ * - This tool provides screening results, not medical diagnoses
  */
 
 export interface AssessmentResult {
@@ -595,7 +601,8 @@ export function assessKihonChecklist(scores: KihonChecklistScores): KihonCheckli
     scores.cognitive +
     scores.depressive;
 
-  // Determine frailty status (MHLW criteria)
+  // Determine frailty status (MHLW official criteria)
+  // Reference: MHLW Kihon Checklist - Total score ≥10 indicates frailty risk
   let frailtyStatus: 'robust' | 'prefrail' | 'frail';
   let frailtyLabel: string;
   let frailtyLabelJa: string;
@@ -608,13 +615,14 @@ export function assessKihonChecklist(scores: KihonChecklistScores): KihonCheckli
     frailtyLabelJa = '健常';
     status = 'green';
     emoji = '🟢';
-  } else if (totalScore >= 4 && totalScore <= 7) {
+  } else if (totalScore >= 4 && totalScore <= 9) {
     frailtyStatus = 'prefrail';
     frailtyLabel = 'Pre-frail';
     frailtyLabelJa = 'プレフレイル';
     status = 'yellow';
     emoji = '🟡';
   } else {
+    // totalScore >= 10 (MHLW official threshold)
     frailtyStatus = 'frail';
     frailtyLabel = 'Frail';
     frailtyLabelJa = 'フレイル';
@@ -634,45 +642,47 @@ export function assessKihonChecklist(scores: KihonChecklistScores): KihonCheckli
   };
 
   // Generate recommendations based on risk flags
+  // PMDA-compliant: Use non-prescriptive language suggesting consultation
   const recommendations: string[] = [];
   const recommendationsJa: string[] = [];
 
   if (riskFlags.iadl) {
-    recommendations.push('IADL support services recommended');
-    recommendationsJa.push('IADL支援サービス推奨');
+    recommendations.push('Consider consultation regarding IADL support');
+    recommendationsJa.push('IADL支援について専門家への相談を検討');
   }
   if (riskFlags.physical) {
-    recommendations.push('Physical rehabilitation program');
-    recommendationsJa.push('運動器リハビリテーション');
+    recommendations.push('Consider physical rehabilitation consultation');
+    recommendationsJa.push('運動器リハビリについて相談を検討');
   }
   if (riskFlags.nutrition) {
-    recommendations.push('Nutritional intervention required');
-    recommendationsJa.push('栄養改善プログラム必要');
+    recommendations.push('Consider nutritional consultation');
+    recommendationsJa.push('栄養改善について専門家への相談を検討');
   }
   if (riskFlags.oral) {
-    recommendations.push('Oral care and dental consultation');
-    recommendationsJa.push('口腔ケアと歯科受診');
+    recommendations.push('Consider oral care and dental consultation');
+    recommendationsJa.push('口腔ケアと歯科受診を検討');
   }
   if (riskFlags.housebound) {
-    recommendations.push('Social engagement programs');
-    recommendationsJa.push('社会参加プログラム');
+    recommendations.push('Consider social engagement programs');
+    recommendationsJa.push('社会参加プログラムへの参加を検討');
   }
   if (riskFlags.cognitive) {
-    recommendations.push('Cognitive assessment recommended');
-    recommendationsJa.push('認知機能精密検査推奨');
+    recommendations.push('Consider cognitive function assessment');
+    recommendationsJa.push('認知機能の精密検査を検討');
   }
   if (riskFlags.depressive) {
-    recommendations.push('Mental health support services');
-    recommendationsJa.push('精神的支援サービス');
+    recommendations.push('Consider mental health consultation');
+    recommendationsJa.push('精神的健康について専門家への相談を検討');
   }
 
-  // LTCI (Long-Term Care Insurance) eligibility
-  // Frail status or multiple domain risks indicate potential eligibility
-  const ltciEligible = frailtyStatus === 'frail' || totalScore >= 8;
+  // LTCI (Long-Term Care Insurance) - Recommend formal assessment only
+  // MHLW criteria: Total score ≥10 suggests potential need for LTCI assessment
+  // Do NOT determine eligibility - only recommend formal evaluation
+  const ltciEligible = totalScore >= 10;
 
   if (ltciEligible) {
-    recommendations.push('Eligible for Long-Term Care Insurance certification');
-    recommendationsJa.push('介護保険申請対象');
+    recommendations.push('Consider consultation for Long-Term Care Insurance assessment');
+    recommendationsJa.push('介護保険認定について地域包括支援センターへの相談を検討');
   }
 
   return {

@@ -19,6 +19,7 @@ type RootStackParamList = {
   IncidentReport: undefined;
   PainAssessment: undefined;
   FallRiskAssessment: undefined;
+  KihonChecklist: undefined;
   ReviewConfirm: undefined;
 };
 
@@ -34,6 +35,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     sessionBarthelIndex,
     sessionPainAssessment,
     sessionFallRiskAssessment,
+    sessionKihonChecklist,
     adlRecordingId,
     adlProcessedData,
     sessionMedications,
@@ -116,6 +118,14 @@ export default function PatientInfoScreen({ navigation }: Props) {
           completed: hasRecentFallRisk,
           count: hasRecentFallRisk ? 1 : 0,
           borderColor: hasRecentFallRisk ? COLORS.success : COLORS.border,
+        };
+
+      case 'kihon':
+        const hasRecentKihon = sessionKihonChecklist && isDataRecent(sessionKihonChecklist.recorded_at);
+        return {
+          completed: hasRecentKihon,
+          count: hasRecentKihon ? 1 : 0,
+          borderColor: hasRecentKihon ? COLORS.success : COLORS.border,
         };
 
       case 'incident':
@@ -327,7 +337,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </Card>
         </View>
 
-        {/* Second Row: Vitals + Allergies + Key Notes */}
+        {/* Second Row: Vitals + Allergies + Key Notes + Kihon Checklist */}
         <View style={styles.infoRow}>
           {/* Vitals */}
           <Card style={styles.infoTile}>
@@ -403,6 +413,44 @@ export default function PatientInfoScreen({ navigation }: Props) {
               <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
             )}
           </Card>
+
+          {/* Kihon Checklist (Frailty) */}
+          <Card style={styles.infoTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="speedometer" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['action.kihonChecklist']}</Text>
+            </View>
+            {sessionKihonChecklist ? (
+              <>
+                <Text style={styles.infoText}>
+                  {language === 'ja' ? 'スコア' : 'Score'}: {sessionKihonChecklist.total_score}/25
+                </Text>
+                <Text style={[
+                  styles.infoText,
+                  {
+                    color: sessionKihonChecklist.frailty_status === 'robust'
+                      ? COLORS.success
+                      : sessionKihonChecklist.frailty_status === 'prefrail'
+                      ? COLORS.warning
+                      : COLORS.error,
+                    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+                  }
+                ]}>
+                  {language === 'ja'
+                    ? (sessionKihonChecklist.frailty_status === 'robust' ? '健常' :
+                       sessionKihonChecklist.frailty_status === 'prefrail' ? 'プレフレイル' : 'フレイル')
+                    : (sessionKihonChecklist.frailty_status === 'robust' ? 'Robust' :
+                       sessionKihonChecklist.frailty_status === 'prefrail' ? 'Pre-frail' : 'Frail')
+                  }
+                </Text>
+                <Text style={styles.tileTimestamp}>
+                  {new Date(sessionKihonChecklist.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
         </View>
 
         {/* Action Buttons Grid */}
@@ -459,6 +507,15 @@ export default function PatientInfoScreen({ navigation }: Props) {
             sublabel="Fall Risk"
             onPress={() => navigation.navigate('FallRiskAssessment')}
             status={getActionStatus('fallRisk')}
+          />
+
+          {/* Kihon Checklist */}
+          <ActionButton
+            icon="fitness"
+            label={t['action.kihonChecklist']}
+            sublabel="Frailty"
+            onPress={() => navigation.navigate('KihonChecklist')}
+            status={getActionStatus('kihon')}
           />
 
           {/* Incident Report */}

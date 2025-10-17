@@ -13,7 +13,8 @@ import {
   IncidentReport,
   BarthelIndex,
   PainAssessment,
-  FallRiskAssessment
+  FallRiskAssessment,
+  KihonChecklist
 } from '@models';
 
 // Per-patient session data
@@ -25,6 +26,7 @@ interface PatientSessionData {
   barthelIndex: BarthelIndex | null;
   painAssessment: PainAssessment | null;
   fallRiskAssessment: FallRiskAssessment | null;
+  kihonChecklist: KihonChecklist | null;
 }
 
 interface AssessmentStore extends AssessmentSession {
@@ -47,6 +49,7 @@ interface AssessmentStore extends AssessmentSession {
   sessionBarthelIndex: BarthelIndex | null;
   sessionPainAssessment: PainAssessment | null;
   sessionFallRiskAssessment: FallRiskAssessment | null;
+  sessionKihonChecklist: KihonChecklist | null;
 
   // Actions
   setLanguage: (language: Language) => void;
@@ -65,6 +68,7 @@ interface AssessmentStore extends AssessmentSession {
   setBarthelIndex: (barthel: BarthelIndex) => void;
   setPainAssessment: (pain: PainAssessment) => void;
   setFallRiskAssessment: (fallRisk: FallRiskAssessment) => void;
+  setKihonChecklist: (kihon: KihonChecklist) => void;
 
   // Helper to get original patient data
   getOriginalPatient: (patientId: string) => Patient | null;
@@ -87,7 +91,7 @@ const WORKFLOW_ORDER: WorkflowStep[] = [
 
 const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData => {
   if (!state.currentPatient) {
-    return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null };
+    return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null, kihonChecklist: null };
   }
 
   return state.patientSessions[state.currentPatient.patient_id] || {
@@ -98,6 +102,7 @@ const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData =>
     barthelIndex: null,
     painAssessment: null,
     fallRiskAssessment: null,
+    kihonChecklist: null,
   };
 };
 
@@ -135,6 +140,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
   sessionBarthelIndex: null,
   sessionPainAssessment: null,
   sessionFallRiskAssessment: null,
+  sessionKihonChecklist: null,
 
   // Actions
   setLanguage: (language) => set((state) => ({ ...state, language })),
@@ -501,6 +507,38 @@ export const useAssessmentStore = create<AssessmentStore>()(
         },
         // Update computed properties
         sessionFallRiskAssessment: newSession.fallRiskAssessment,
+      };
+    });
+  },
+
+  setKihonChecklist: (kihon) => {
+    set((state) => {
+      if (!state.currentPatient) return state;
+      const patientId = state.currentPatient.patient_id;
+      const currentSession = state.patientSessions[patientId] || {
+        vitals: null,
+        medications: [],
+        patientUpdates: null,
+        incidents: [],
+        barthelIndex: null,
+        painAssessment: null,
+        fallRiskAssessment: null,
+        kihonChecklist: null,
+      };
+
+      const newSession = {
+        ...currentSession,
+        kihonChecklist: kihon,
+      };
+
+      return {
+        ...state, // ← CRITICAL: preserve all other state
+        patientSessions: {
+          ...state.patientSessions,
+          [patientId]: newSession,
+        },
+        // Update computed properties
+        sessionKihonChecklist: newSession.kihonChecklist,
       };
     });
   },

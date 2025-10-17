@@ -14,6 +14,7 @@ import IncidentReportScreen from './src/screens/IncidentReportScreen';
 import ReviewConfirmScreen from './src/screens/ReviewConfirmScreen';
 import PainAssessmentScreen from './src/screens/PainAssessmentScreen';
 import FallRiskAssessmentScreen from './src/screens/FallRiskAssessmentScreen';
+import KihonChecklistScreen from './src/screens/KihonChecklistScreen';
 
 export type RootStackParamList = {
   PatientList: undefined;
@@ -26,6 +27,7 @@ export type RootStackParamList = {
   IncidentReport: undefined;
   PainAssessment: undefined;
   FallRiskAssessment: undefined;
+  KihonChecklist: undefined;
   ReviewConfirm: undefined;
 };
 
@@ -103,6 +105,11 @@ export default function App() {
             name="FallRiskAssessment"
             component={FallRiskAssessmentScreen}
             options={{ title: 'Fall Risk Assessment' }}
+          />
+          <Stack.Screen
+            name="KihonChecklist"
+            component={KihonChecklistScreen}
+            options={{ title: 'Kihon Checklist' }}
           />
           <Stack.Screen
             name="ReviewConfirm"
