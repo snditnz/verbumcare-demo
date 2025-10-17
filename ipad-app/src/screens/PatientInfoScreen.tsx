@@ -1,16 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle } from '@components';
-import { Button } from '@components/ui';
+import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { SESSION_CONFIG } from '@constants/config';
-import { assessVitalSigns, getColorForStatus } from '@utils/vitalSignsAssessment';
-import { assessPain } from '@utils/healthcareAssessments';
-import type { VitalStatus } from '@utils/vitalSignsAssessment';
 
 type RootStackParamList = {
   PatientList: undefined;
@@ -24,6 +21,7 @@ type RootStackParamList = {
   FallRiskAssessment: undefined;
   KihonChecklist: undefined;
   ReviewConfirm: undefined;
+  ComingSoon: { feature: string };
 };
 
 type Props = {
@@ -67,74 +65,129 @@ export default function PatientInfoScreen({ navigation }: Props) {
     return hoursSince <= SESSION_CONFIG.BADGE_TIMEOUT_HOURS;
   };
 
+  // Calculate action statuses for visual indicators
+  const getActionStatus = (actionType: string) => {
+    switch (actionType) {
+      case 'vitals':
+        const hasRecentVitals = sessionVitals && isDataRecent(sessionVitals.measured_at);
+        const vitalCount = hasRecentVitals ? Object.keys(sessionVitals).filter(k => sessionVitals[k as keyof typeof sessionVitals]).length : 0;
+        return {
+          completed: vitalCount > 0,
+          count: vitalCount,
+          borderColor: vitalCount > 0 ? COLORS.success : COLORS.border,
+        };
+
+      case 'adl':
+        const hasRecentBarthel = sessionBarthelIndex && isDataRecent(sessionBarthelIndex.recorded_at);
+        const adlCompleted = hasRecentBarthel || adlRecordingId !== null || adlProcessedData !== null;
+        const adlCount = hasRecentBarthel ? 1 : (adlProcessedData?.categories?.length || (adlRecordingId ? 1 : 0));
+        return {
+          completed: adlCompleted,
+          count: adlCount,
+          borderColor: adlCompleted ? COLORS.success : COLORS.border,
+        };
+
+      case 'medicine':
+        const recentMeds = sessionMedications.filter(med => isDataRecent(med.timestamp));
+        return {
+          completed: recentMeds.length > 0,
+          count: recentMeds.length,
+          borderColor: recentMeds.length > 0 ? COLORS.success : COLORS.border,
+        };
+
+      case 'patientInfo':
+        const hasRecentUpdates = sessionPatientUpdates && isDataRecent(sessionPatientUpdates.updatedAt);
+        const isDraft = hasRecentUpdates && !sessionPatientUpdates.confirmed;
+        const isConfirmed = hasRecentUpdates && sessionPatientUpdates?.confirmed === true;
+        return {
+          completed: hasRecentUpdates,
+          badge: isDraft ? '✎' : isConfirmed ? '✓' : '',
+          borderColor: isDraft ? COLORS.warning : isConfirmed ? COLORS.success : COLORS.border,
+        };
+
+      case 'pain':
+        const hasRecentPain = sessionPainAssessment && isDataRecent(sessionPainAssessment.recorded_at);
+        return {
+          completed: hasRecentPain,
+          count: hasRecentPain ? 1 : 0,
+          borderColor: hasRecentPain ? COLORS.success : COLORS.border,
+        };
+
+      case 'fallRisk':
+        const hasRecentFallRisk = sessionFallRiskAssessment && isDataRecent(sessionFallRiskAssessment.recorded_at);
+        return {
+          completed: hasRecentFallRisk,
+          count: hasRecentFallRisk ? 1 : 0,
+          borderColor: hasRecentFallRisk ? COLORS.success : COLORS.border,
+        };
+
+      case 'kihon':
+        const hasRecentKihon = sessionKihonChecklist && isDataRecent(sessionKihonChecklist.recorded_at);
+        return {
+          completed: hasRecentKihon,
+          count: hasRecentKihon ? 1 : 0,
+          borderColor: hasRecentKihon ? COLORS.success : COLORS.border,
+        };
+
+      case 'review':
+        const hasRecentVitalsForReview = sessionVitals && isDataRecent(sessionVitals.measured_at);
+        const hasRecentBarthelForReview = sessionBarthelIndex && isDataRecent(sessionBarthelIndex.recorded_at);
+        const hasRecentPainForReview = sessionPainAssessment && isDataRecent(sessionPainAssessment.recorded_at);
+        const hasRecentFallRiskForReview = sessionFallRiskAssessment && isDataRecent(sessionFallRiskAssessment.recorded_at);
+        const recentMedsForReview = sessionMedications.filter(med => isDataRecent(med.timestamp));
+        const hasRecentUpdatesForReview = sessionPatientUpdates && isDataRecent(sessionPatientUpdates.updatedAt);
+        const recentIncidentsForReview = sessionIncidents.filter(inc => isDataRecent(inc.timestamp));
+
+        const totalActions =
+          (hasRecentVitalsForReview ? 1 : 0) +
+          (hasRecentBarthelForReview ? 1 : 0) +
+          (hasRecentPainForReview ? 1 : 0) +
+          (hasRecentFallRiskForReview ? 1 : 0) +
+          recentMedsForReview.length +
+          (hasRecentUpdatesForReview ? 1 : 0) +
+          recentIncidentsForReview.length;
+        return {
+          completed: totalActions > 0,
+          count: totalActions,
+          borderColor: COLORS.primary,
+        };
+
+      default:
+        return { completed: false, count: 0, borderColor: COLORS.border };
+    }
+  };
+
   // Display patient name with English version when language is 'en'
   const displayName = language === 'ja'
     ? `${currentPatient.family_name} ${currentPatient.given_name}`
     : `${currentPatient.family_name_en || currentPatient.family_name} ${currentPatient.given_name_en || currentPatient.given_name}`;
 
-  // Get latest height and weight
+  // Get latest height (from patient updates if available, otherwise from patient record)
   const latestHeight = sessionPatientUpdates?.height ?? currentPatient.height;
+
+  // Get latest weight (from vitals if available, otherwise from patient record)
   const latestWeight = sessionVitals?.weight?.weight_kg ?? currentPatient.weight;
 
-  // Assess current vitals with color coding (includes BMI)
-  const vitalAssessments = sessionVitals ? assessVitalSigns(
-    {
-      age: currentPatient.age,
-      gender: currentPatient.gender === 'male' ? 'male' : 'female',
-    },
-    {
-      systolicBP: sessionVitals.blood_pressure_systolic,
-      diastolicBP: sessionVitals.blood_pressure_diastolic,
-      heartRate: sessionVitals.heart_rate,
-      temperature: sessionVitals.temperature_celsius,
-      spO2: sessionVitals.oxygen_saturation,
-      respiratoryRate: sessionVitals.respiratory_rate,
-      weight: latestWeight,
-      height: latestHeight,
+  // Calculate BMI from latest height and weight
+  const calculateBMI = () => {
+    if (latestHeight && latestWeight) {
+      const heightInMeters = latestHeight / 100;
+      return (latestWeight / (heightInMeters ** 2)).toFixed(1);
     }
-  ) : null;
-
-  // BMI assessment from vitals (uses JASSO 2022 Japanese standards)
-  const bmiAssessment = vitalAssessments?.bmi;
-
-  // Assess pain score
-  const painAssessment = sessionPainAssessment || currentPatient.latest_pain_score !== undefined
-    ? assessPain(sessionPainAssessment?.pain_score ?? currentPatient.latest_pain_score ?? 0)
-    : null;
-
-  // Fall risk status
-  const fallRiskScore = sessionFallRiskAssessment?.risk_score ?? currentPatient.latest_fall_risk_score;
-  const fallRiskLevel = sessionFallRiskAssessment?.risk_level ?? currentPatient.latest_fall_risk_level;
-  const getFallRiskColor = (): string => {
-    if (fallRiskLevel === 'high') return getColorForStatus('red');
-    if (fallRiskLevel === 'moderate') return getColorForStatus('yellow');
-    return getColorForStatus('green');
+    return null;
   };
 
-  // Kihon Checklist status
-  const kihonStatus = sessionKihonChecklist?.frailty_status;
-  const getKihonColor = (): string => {
-    if (kihonStatus === 'frail') return getColorForStatus('red');
-    if (kihonStatus === 'prefrail') return getColorForStatus('yellow');
-    if (kihonStatus === 'robust') return getColorForStatus('green');
-    return COLORS.text.disabled;
-  };
-
-  // Parse medications
+  // Parse medications into array
   const getMedicationsList = () => {
     if (!currentPatient.medications) return [];
+    // Split on Japanese comma or regular comma
     return currentPatient.medications.split(/[、,]/).filter(m => m.trim().length > 0).map(m => m.trim());
   };
 
-  // Check if there are recent session actions
-  const hasRecentActions =
-    (sessionVitals && isDataRecent(sessionVitals.measured_at)) ||
-    (sessionBarthelIndex && isDataRecent(sessionBarthelIndex.recorded_at)) ||
-    (sessionPainAssessment && isDataRecent(sessionPainAssessment.recorded_at)) ||
-    (sessionFallRiskAssessment && isDataRecent(sessionFallRiskAssessment.recorded_at)) ||
-    sessionMedications.some(med => isDataRecent(med.timestamp)) ||
-    (sessionPatientUpdates && isDataRecent(sessionPatientUpdates.updatedAt)) ||
-    sessionIncidents.some(inc => isDataRecent(inc.timestamp));
+  // Check if vitals were captured today
+  const hasVitalsToday = sessionVitals && sessionVitals.measured_at
+    ? new Date(sessionVitals.measured_at).toDateString() === new Date().toDateString()
+    : false;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -153,358 +206,399 @@ export default function PatientInfoScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* ZONE 1: Patient Header - Prominent Identity */}
-        <View style={styles.patientHeader}>
-          <View style={styles.portraitContainer}>
-            <Image
-              source={require('../../assets/avatar-placeholder.png')}
-              style={styles.portrait}
-            />
-          </View>
-          <View style={styles.patientInfo}>
-            <Text style={styles.patientName}>{displayName}</Text>
-            <Text style={styles.patientDemographics}>
-              {currentPatient.age}{t['common.years']} • {currentPatient.gender === 'male' ? t['common.male'] : t['common.female']}
-              {currentPatient.room && ` • ${t['patient.room']} ${currentPatient.room}`}
-            </Text>
-            {latestHeight && latestWeight && (
-              <View style={styles.biometricsRow}>
-                <Text style={styles.biometricsText}>
-                  {latestHeight}cm • {latestWeight}kg
+      <ScrollView style={styles.content}>
+        {/* Top Row: Patient Identity + Barthel + Medications + Pain + Fall Risk */}
+        <View style={styles.topRow}>
+          {/* Tile 1: Patient Identity with Photo */}
+          <Card style={styles.identityTile}>
+            <View style={styles.identityContent}>
+              <View style={styles.portraitContainer}>
+                <Image
+                  source={require('../../assets/avatar-placeholder.png')}
+                  style={styles.portrait}
+                />
+              </View>
+              <View style={styles.identityInfo}>
+                <Text style={styles.patientName}>{displayName}</Text>
+                <Text style={styles.demographicsText}>
+                  {currentPatient.age}{t['common.years']} • {currentPatient.gender === 'male' ? t['common.male'] : t['common.female']}
                 </Text>
-                {bmiAssessment && (
-                  <View style={[styles.bmiBadge, { backgroundColor: getColorForStatus(bmiAssessment.status) }]}>
-                    <Text style={styles.bmiBadgeText}>
-                      BMI {bmiAssessment.value} • {language === 'ja' ? bmiAssessment.statusLabelJa : bmiAssessment.statusLabel}
-                    </Text>
-                  </View>
+                {currentPatient.room && (
+                  <Text style={styles.demographicsText}>{t['patient.room']} {currentPatient.room}</Text>
+                )}
+                {latestHeight && latestWeight && (
+                  <>
+                    <Text style={styles.demographicsText}>{latestHeight}cm • {latestWeight}kg</Text>
+                    <Text style={styles.demographicsText}>BMI: {calculateBMI()}</Text>
+                  </>
                 )}
               </View>
-            )}
-          </View>
-        </View>
-
-        {/* ZONE 2: Clinical Status Dashboard - Consolidated, Color-Coded */}
-        <View style={styles.statusDashboard}>
-          {/* Row 1: Vitals, Pain, Fall Risk, Barthel */}
-          <View style={styles.statusRow}>
-            {/* Vitals Card */}
-            <TouchableOpacity
-              style={styles.statusCard}
-              onPress={() => navigation.navigate('VitalsCapture')}
-            >
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
-                <Text style={styles.statusCardTitle}>{t['review.vitals']}</Text>
-              </View>
-              {sessionVitals && isDataRecent(sessionVitals.measured_at) ? (
-                <View style={styles.statusCardContent}>
-                  {vitalAssessments?.bloodPressure && (
-                    <View style={styles.vitalRow}>
-                      <View style={[styles.statusDot, { backgroundColor: getColorForStatus(vitalAssessments.bloodPressure.status) }]} />
-                      <Text style={styles.vitalText}>
-                        BP {sessionVitals.blood_pressure_systolic}/{sessionVitals.blood_pressure_diastolic}
-                      </Text>
-                    </View>
-                  )}
-                  {vitalAssessments?.heartRate && (
-                    <View style={styles.vitalRow}>
-                      <View style={[styles.statusDot, { backgroundColor: getColorForStatus(vitalAssessments.heartRate.status) }]} />
-                      <Text style={styles.vitalText}>
-                        HR {sessionVitals.heart_rate} bpm
-                      </Text>
-                    </View>
-                  )}
-                  <Text style={styles.statusTimestamp}>
-                    {new Date(sessionVitals.measured_at).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={styles.noDataText}>{t['patientInfo.noVitalsToday']}</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Pain Card */}
-            <TouchableOpacity
-              style={styles.statusCard}
-              onPress={() => navigation.navigate('PainAssessment')}
-            >
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="pulse" size={ICON_SIZES.md} color={COLORS.primary} />
-                <Text style={styles.statusCardTitle}>{t['action.painAssessment']}</Text>
-              </View>
-              {painAssessment ? (
-                <View style={styles.statusCardContent}>
-                  <View style={styles.scoreRow}>
-                    <Text style={styles.scoreValue}>{painAssessment.score}/10</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getColorForStatus(painAssessment.status) }]}>
-                      <Text style={styles.statusBadgeText}>
-                        {language === 'ja' ? painAssessment.statusLabelJa : painAssessment.statusLabel}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.statusTimestamp}>
-                    {sessionPainAssessment
-                      ? new Date(sessionPainAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
-                      : currentPatient.latest_pain_date || ''}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.actionPrompt}>
-                  <Ionicons name="add-circle-outline" size={ICON_SIZES.lg} color={COLORS.primary} />
-                  <Text style={styles.actionPromptText}>{t['action.painAssessment']}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Fall Risk Card */}
-            <TouchableOpacity
-              style={styles.statusCard}
-              onPress={() => navigation.navigate('FallRiskAssessment')}
-            >
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="body" size={ICON_SIZES.md} color={COLORS.primary} />
-                <Text style={styles.statusCardTitle}>{t['action.fallRisk']}</Text>
-              </View>
-              {fallRiskScore !== undefined && fallRiskLevel ? (
-                <View style={styles.statusCardContent}>
-                  <View style={styles.scoreRow}>
-                    <Text style={styles.scoreValue}>{fallRiskScore}/8</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getFallRiskColor() }]}>
-                      <Text style={styles.statusBadgeText}>
-                        {language === 'ja'
-                          ? (fallRiskLevel === 'low' ? '低リスク' : fallRiskLevel === 'moderate' ? '中等度' : '高リスク')
-                          : fallRiskLevel}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.statusTimestamp}>
-                    {sessionFallRiskAssessment
-                      ? new Date(sessionFallRiskAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
-                      : currentPatient.latest_fall_risk_date || ''}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.actionPrompt}>
-                  <Ionicons name="add-circle-outline" size={ICON_SIZES.lg} color={COLORS.primary} />
-                  <Text style={styles.actionPromptText}>{t['action.fallRisk']}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Barthel/ADL Card */}
-            <TouchableOpacity
-              style={styles.statusCard}
-              onPress={() => navigation.navigate('ADLVoice')}
-            >
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="clipboard" size={ICON_SIZES.md} color={COLORS.primary} />
-                <Text style={styles.statusCardTitle}>{t['patientInfo.latestBarthel']}</Text>
-              </View>
-              {sessionBarthelIndex || currentPatient.latest_barthel_index !== undefined ? (
-                <View style={styles.statusCardContent}>
-                  <Text style={styles.scoreValue}>
-                    {sessionBarthelIndex?.total_score ?? currentPatient.latest_barthel_index}/100
-                  </Text>
-                  <Text style={styles.statusTimestamp}>
-                    {sessionBarthelIndex
-                      ? new Date(sessionBarthelIndex.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
-                      : currentPatient.latest_barthel_date || ''}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.actionPrompt}>
-                  <Ionicons name="add-circle-outline" size={ICON_SIZES.lg} color={COLORS.primary} />
-                  <Text style={styles.actionPromptText}>{t['action.adlRecording']}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Row 2: Allergies, Kihon, Medications, Notes */}
-          <View style={styles.statusRow}>
-            {/* Allergies Card */}
-            <View style={styles.statusCard}>
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="alert-circle" size={ICON_SIZES.md} color={COLORS.error} />
-                <Text style={styles.statusCardTitle}>{t['patientInfo.allergies']}</Text>
-              </View>
-              {currentPatient.allergies ? (
-                <View style={styles.statusCardContent}>
-                  <Text style={styles.allergyText}>🚫 {currentPatient.allergies}</Text>
-                </View>
-              ) : (
-                <View style={styles.statusCardContent}>
-                  <View style={styles.nkdaBadge}>
-                    <Text style={styles.nkdaText}>✓ NKDA</Text>
-                  </View>
-                  <Text style={styles.nkdaSubtext}>
-                    {language === 'ja' ? '薬物アレルギーなし' : 'No Known Drug Allergies'}
-                  </Text>
-                </View>
-              )}
             </View>
-
-            {/* Kihon Checklist Card */}
+            {/* Incident Button - Top Right Corner */}
             <TouchableOpacity
-              style={styles.statusCard}
-              onPress={() => navigation.navigate('KihonChecklist')}
-            >
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="speedometer" size={ICON_SIZES.md} color={COLORS.primary} />
-                <Text style={styles.statusCardTitle}>{t['action.kihonChecklist']}</Text>
-              </View>
-              {sessionKihonChecklist ? (
-                <View style={styles.statusCardContent}>
-                  <View style={styles.scoreRow}>
-                    <Text style={styles.scoreValue}>{sessionKihonChecklist.total_score}/25</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getKihonColor() }]}>
-                      <Text style={styles.statusBadgeText}>
-                        {language === 'ja'
-                          ? (kihonStatus === 'robust' ? '健常' : kihonStatus === 'prefrail' ? 'プレフレイル' : 'フレイル')
-                          : (kihonStatus === 'robust' ? 'Robust' : kihonStatus === 'prefrail' ? 'Pre-frail' : 'Frail')}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.statusTimestamp}>
-                    {new Date(sessionKihonChecklist.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.actionPrompt}>
-                  <Ionicons name="add-circle-outline" size={ICON_SIZES.lg} color={COLORS.primary} />
-                  <Text style={styles.actionPromptText}>{language === 'ja' ? '開始' : 'Start'}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Medications Card */}
-            <View style={styles.statusCard}>
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="medical" size={ICON_SIZES.md} color={COLORS.primary} />
-                <Text style={styles.statusCardTitle}>{t['patientInfo.currentMeds']}</Text>
-              </View>
-              {currentPatient.medications ? (
-                <View style={styles.statusCardContent}>
-                  <Text style={styles.medCount}>
-                    {getMedicationsList().length} {language === 'ja' ? '種類' : 'meds'}
-                  </Text>
-                  <TouchableOpacity>
-                    <Text style={styles.viewLink}>{language === 'ja' ? '詳細表示 →' : 'View →'}</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.statusCardContent}>
-                  <Text style={styles.noMedsText}>
-                    {language === 'ja' ? '投薬なし' : 'No medications'}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Notes Card */}
-            <TouchableOpacity
-              style={styles.statusCard}
-              onPress={() => navigation.navigate('UpdatePatientInfo')}
-            >
-              <View style={styles.statusCardHeader}>
-                <Ionicons name="information-circle" size={ICON_SIZES.md} color={COLORS.info} />
-                <Text style={styles.statusCardTitle}>{t['patientInfo.keyNotes']}</Text>
-              </View>
-              {currentPatient.key_notes ? (
-                <View style={styles.statusCardContent}>
-                  <Text style={styles.notesText} numberOfLines={3}>
-                    {currentPatient.key_notes}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.actionPrompt}>
-                  <Ionicons name="add-circle-outline" size={ICON_SIZES.lg} color={COLORS.primary} />
-                  <Text style={styles.actionPromptText}>{language === 'ja' ? 'メモを追加' : 'Add Note'}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ZONE 3: Quick Actions - Large Touch Targets, Grouped by Workflow */}
-        <View style={styles.quickActions}>
-          <Text style={styles.sectionTitle}>{language === 'ja' ? 'クイックアクション' : 'Quick Actions'}</Text>
-
-          {/* Row 1: Care Delivery */}
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.quickActionButton}
-              onPress={() => navigation.navigate('VitalsCapture')}
-            >
-              <Ionicons name="fitness" size={ICON_SIZES.xl} color={COLORS.primary} />
-              <Text style={styles.quickActionLabel}>{t['action.vitalSigns']}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickActionButton}
-              onPress={() => navigation.navigate('MedicineAdmin')}
-            >
-              <Ionicons name="medical" size={ICON_SIZES.xl} color={COLORS.primary} />
-              <Text style={styles.quickActionLabel}>{t['action.medicineAdmin']}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickActionButton}
-              onPress={() => navigation.navigate('ADLVoice')}
-            >
-              <Ionicons name="clipboard" size={ICON_SIZES.xl} color={COLORS.primary} />
-              <Text style={styles.quickActionLabel}>{t['action.adlRecording']}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Row 2: Documentation & Review */}
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.quickActionButton}
-              onPress={() => navigation.navigate('UpdatePatientInfo')}
-            >
-              <Ionicons name="pencil" size={ICON_SIZES.xl} color={COLORS.primary} />
-              <Text style={styles.quickActionLabel}>{t['action.updatePatientInfo']}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickActionButton}
+              style={styles.incidentButtonSmall}
               onPress={() => navigation.navigate('IncidentReport')}
             >
-              <Ionicons name="warning" size={ICON_SIZES.xl} color={COLORS.error} />
-              <Text style={styles.quickActionLabel}>{t['action.reportIncident']}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.quickActionButton,
-                hasRecentActions && styles.quickActionButtonPrimary
-              ]}
-              onPress={() => navigation.navigate('ReviewConfirm')}
-            >
-              <Ionicons
-                name="checkmark-circle"
-                size={ICON_SIZES.xl}
-                color={hasRecentActions ? COLORS.white : COLORS.success}
-              />
-              <Text style={[
-                styles.quickActionLabel,
-                hasRecentActions && styles.quickActionLabelWhite
-              ]}>
-                {t['action.saveAndReview']}
+              <Ionicons name="warning-outline" size={18} color={COLORS.error} />
+              <Text style={styles.incidentButtonLabel}>
+                {language === 'ja' ? 'インシデント' : 'Incident'}
               </Text>
             </TouchableOpacity>
-          </View>
+          </Card>
+
+          {/* Tile 2: Barthel Index */}
+          <Card style={styles.compactTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="clipboard" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['patientInfo.latestBarthel']}</Text>
+            </View>
+            {sessionBarthelIndex || currentPatient.latest_barthel_index !== undefined ? (
+              <>
+                <Text style={styles.tileValue}>
+                  {sessionBarthelIndex?.total_score ?? currentPatient.latest_barthel_index}/100
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {sessionBarthelIndex
+                    ? new Date(sessionBarthelIndex.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                    : currentPatient.latest_barthel_date || 'N/A'
+                  }
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
+
+          {/* Tile 3: Current Medications */}
+          <Card style={styles.compactTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="medical" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['patientInfo.currentMeds']}</Text>
+            </View>
+            {currentPatient.medications ? (
+              <ScrollView style={styles.medScrollView} showsVerticalScrollIndicator={false}>
+                {getMedicationsList().map((med, index) => (
+                  <View key={index} style={styles.medItem}>
+                    <Text style={styles.medBullet}>•</Text>
+                    <Text style={styles.medText}>{med}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
+
+          {/* Tile 4: Pain Score */}
+          <Card style={styles.compactTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="pulse" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['action.painAssessment']}</Text>
+            </View>
+            {sessionPainAssessment || currentPatient.latest_pain_score !== undefined ? (
+              <>
+                <Text style={styles.tileValue}>
+                  {sessionPainAssessment?.pain_score ?? currentPatient.latest_pain_score}/10
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {sessionPainAssessment
+                    ? new Date(sessionPainAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                    : currentPatient.latest_pain_date || 'N/A'
+                  }
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
+
+          {/* Tile 5: Fall Risk */}
+          <Card style={styles.compactTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="body" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['action.fallRisk']}</Text>
+            </View>
+            {sessionFallRiskAssessment || currentPatient.latest_fall_risk_score !== undefined ? (
+              <>
+                <Text style={styles.tileValue}>
+                  {sessionFallRiskAssessment?.risk_score ?? currentPatient.latest_fall_risk_score}/8
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {language === 'ja'
+                    ? (sessionFallRiskAssessment?.risk_level === 'low' ? '低リスク' :
+                       sessionFallRiskAssessment?.risk_level === 'moderate' ? '中等度リスク' :
+                       sessionFallRiskAssessment?.risk_level === 'high' ? '高リスク' :
+                       currentPatient.latest_fall_risk_level === 'low' ? '低リスク' :
+                       currentPatient.latest_fall_risk_level === 'moderate' ? '中等度リスク' : '高リスク')
+                    : (sessionFallRiskAssessment?.risk_level ?? currentPatient.latest_fall_risk_level ?? 'N/A')
+                  }
+                </Text>
+                <Text style={styles.tileSubtext}>
+                  {sessionFallRiskAssessment
+                    ? new Date(sessionFallRiskAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                    : currentPatient.latest_fall_risk_date || 'N/A'
+                  }
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
         </View>
+
+        {/* Second Row: Vitals + Allergies + Key Notes + Kihon Checklist */}
+        <View style={styles.infoRow}>
+          {/* Vitals */}
+          <Card style={styles.infoTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['review.vitals']}</Text>
+            </View>
+            {hasVitalsToday && sessionVitals ? (
+              <>
+                {sessionVitals.blood_pressure_systolic && sessionVitals.blood_pressure_diastolic && (
+                  <Text style={styles.infoText}>
+                    BP: {sessionVitals.blood_pressure_systolic}/{sessionVitals.blood_pressure_diastolic} mmHg
+                  </Text>
+                )}
+                {sessionVitals.heart_rate && (
+                  <Text style={styles.infoText}>
+                    HR: {sessionVitals.heart_rate} bpm
+                  </Text>
+                )}
+                {sessionVitals.temperature_celsius && (
+                  <Text style={styles.infoText}>
+                    Temp: {sessionVitals.temperature_celsius}°C
+                  </Text>
+                )}
+                {sessionVitals.oxygen_saturation && (
+                  <Text style={styles.infoText}>
+                    SpO₂: {sessionVitals.oxygen_saturation}%
+                  </Text>
+                )}
+                {sessionVitals.respiratory_rate && (
+                  <Text style={styles.infoText}>
+                    RR: {sessionVitals.respiratory_rate}/min
+                  </Text>
+                )}
+                <Text style={styles.tileTimestamp}>
+                  {new Date(sessionVitals.measured_at).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.noDataText}>{t['patientInfo.noVitalsToday']}</Text>
+            )}
+          </Card>
+
+          {/* Allergies */}
+          <Card style={styles.infoTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="alert-circle" size={ICON_SIZES.md} color={COLORS.error} />
+              <Text style={styles.tileTitle}>{t['patientInfo.allergies']}</Text>
+            </View>
+            {currentPatient.allergies && currentPatient.allergies.length > 0 ? (
+              currentPatient.allergies.map((allergy, index) => (
+                <Text key={index} style={styles.infoText}>
+                  🚫 {allergy}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
+
+          {/* Key Notes */}
+          <Card style={styles.infoTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="information-circle" size={ICON_SIZES.md} color={COLORS.info} />
+              <Text style={styles.tileTitle}>{t['patientInfo.keyNotes']}</Text>
+            </View>
+            {currentPatient.key_notes ? (
+              <Text style={styles.infoText}>
+                {currentPatient.key_notes}
+              </Text>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
+
+          {/* Kihon Checklist (Frailty) */}
+          <Card style={styles.infoTile}>
+            <View style={styles.tileHeader}>
+              <Ionicons name="speedometer" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.tileTitle}>{t['action.kihonChecklist']}</Text>
+            </View>
+            {sessionKihonChecklist ? (
+              <>
+                <Text style={styles.infoText}>
+                  {language === 'ja' ? 'スコア' : 'Score'}: {sessionKihonChecklist.total_score}/25
+                </Text>
+                <Text style={[
+                  styles.infoText,
+                  {
+                    color: sessionKihonChecklist.frailty_status === 'robust'
+                      ? COLORS.success
+                      : sessionKihonChecklist.frailty_status === 'prefrail'
+                      ? COLORS.warning
+                      : COLORS.error,
+                    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+                  }
+                ]}>
+                  {language === 'ja'
+                    ? (sessionKihonChecklist.frailty_status === 'robust' ? '健常' :
+                       sessionKihonChecklist.frailty_status === 'prefrail' ? 'プレフレイル' : 'フレイル')
+                    : (sessionKihonChecklist.frailty_status === 'robust' ? 'Robust' :
+                       sessionKihonChecklist.frailty_status === 'prefrail' ? 'Pre-frail' : 'Frail')
+                  }
+                </Text>
+                <Text style={styles.tileTimestamp}>
+                  {new Date(sessionKihonChecklist.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+            )}
+          </Card>
+        </View>
+
+        {/* Action Buttons Grid - 3 columns, 4 rows */}
+        <View style={styles.actionsGrid}>
+          {/* Row 1 */}
+          <ActionButton
+            icon="fitness"
+            label={t['action.vitalSigns']}
+            onPress={() => navigation.navigate('VitalsCapture')}
+            status={getActionStatus('vitals')}
+          />
+
+          <ActionButton
+            icon="clipboard"
+            label={t['action.adlRecording']}
+            onPress={() => navigation.navigate('ADLVoice')}
+            status={getActionStatus('adl')}
+          />
+
+          <ActionButton
+            icon="medical"
+            label={t['action.medicineAdmin']}
+            onPress={() => navigation.navigate('MedicineAdmin')}
+            status={getActionStatus('medicine')}
+          />
+
+          {/* Row 2 */}
+          <ActionButton
+            icon="nutrition"
+            label={language === 'ja' ? '栄養記録' : 'Nutrition'}
+            onPress={() => navigation.navigate('ComingSoon', { feature: language === 'ja' ? '栄養記録' : 'Nutrition' })}
+            status={{ completed: false, borderColor: COLORS.border }}
+          />
+
+          <ActionButton
+            icon="document-text"
+            label={language === 'ja' ? 'ケアプラン' : 'Care Plan'}
+            onPress={() => navigation.navigate('ComingSoon', { feature: language === 'ja' ? 'ケアプラン' : 'Care Plan' })}
+            status={{ completed: false, borderColor: COLORS.border }}
+          />
+
+          <ActionButton
+            icon="pencil"
+            label={t['action.updatePatientInfo']}
+            onPress={() => navigation.navigate('UpdatePatientInfo')}
+            status={getActionStatus('patientInfo')}
+          />
+
+          {/* Row 3 */}
+          <ActionButton
+            icon="pulse"
+            label={t['action.painAssessment']}
+            onPress={() => navigation.navigate('PainAssessment')}
+            status={getActionStatus('pain')}
+          />
+
+          <ActionButton
+            icon="body"
+            label={t['action.fallRisk']}
+            onPress={() => navigation.navigate('FallRiskAssessment')}
+            status={getActionStatus('fallRisk')}
+          />
+
+          <ActionButton
+            icon="fitness"
+            label={t['action.kihonChecklist']}
+            onPress={() => navigation.navigate('KihonChecklist')}
+            status={getActionStatus('kihon')}
+          />
+        </View>
+
+        {/* Round Complete Button - Language Specific Text, Reduced Height */}
+        <TouchableOpacity
+          style={[
+            styles.roundCompleteButton,
+            getActionStatus('review').completed && styles.roundCompleteButtonActive
+          ]}
+          onPress={() => navigation.navigate('ReviewConfirm')}
+        >
+          <Text style={[
+            styles.roundCompleteButtonText,
+            getActionStatus('review').completed && styles.roundCompleteButtonTextActive
+          ]}>
+            {t['action.roundComplete']}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// Action Button Component with Status Indicators
+interface ActionButtonProps {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  status: {
+    completed: boolean;
+    count?: number;
+    badge?: string;
+    borderColor: string;
+  };
+}
+
+const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onPress, status }) => {
+  return (
+    <TouchableOpacity
+      style={[styles.actionButton, { borderLeftWidth: 4, borderLeftColor: status.borderColor }]}
+      onPress={onPress}
+    >
+      <Ionicons name={icon as any} size={ICON_SIZES.xl} color={COLORS.primary} />
+
+      {/* Checkmark overlay */}
+      {status.completed && (
+        <View style={styles.checkmarkBadge}>
+          <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+        </View>
+      )}
+
+      {/* Count badge */}
+      {status.count !== undefined && status.count > 0 && (
+        <View style={styles.countBadge}>
+          <Text style={styles.countBadgeText}>{status.count}</Text>
+        </View>
+      )}
+
+      {/* Special badge (for draft indicator) */}
+      {status.badge && (
+        <View style={styles.specialBadge}>
+          <Text style={styles.specialBadgeText}>{status.badge}</Text>
+        </View>
+      )}
+
+      <Text style={styles.actionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -515,7 +609,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.sm,
     backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -539,238 +633,238 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: SPACING.lg,
+    padding: SPACING.md,
   },
 
-  // ZONE 1: Patient Header
-  patientHeader: {
+  // Top Row Layout - Compressed
+  topRow: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-    gap: SPACING.lg,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+
+  // Identity Tile (larger, with photo) - Compressed
+  identityTile: {
+    flex: 2,
+    position: 'relative',
+  },
+  identityContent: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
   },
   portraitContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     overflow: 'hidden',
     backgroundColor: COLORS.border,
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: COLORS.primary,
   },
   portrait: {
     width: '100%',
     height: '100%',
   },
-  patientInfo: {
+  identityInfo: {
     flex: 1,
     justifyContent: 'center',
   },
   patientName: {
-    fontSize: TYPOGRAPHY.fontSize['2xl'],
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.text.primary,
-    marginBottom: SPACING.xs,
-  },
-  patientDemographics: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text.secondary,
-    marginBottom: SPACING.sm,
-  },
-  biometricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    flexWrap: 'wrap',
-  },
-  biometricsText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text.secondary,
-  },
-  bmiBadge: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  bmiBadgeText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.white,
-  },
-
-  // ZONE 2: Clinical Status Dashboard
-  statusDashboard: {
-    marginBottom: SPACING.lg,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  statusCard: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    minHeight: 120,
-  },
-  statusCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.sm,
-  },
-  statusCardTitle: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text.secondary,
-  },
-  statusCardContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  vitalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  vitalText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text.primary,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-  },
-  scoreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  scoreValue: {
-    fontSize: TYPOGRAPHY.fontSize['3xl'],
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.primary,
-  },
-  statusBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  statusBadgeText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.white,
-  },
-  statusTimestamp: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.text.secondary,
-    marginTop: SPACING.xs,
-  },
-  actionPrompt: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-  },
-  actionPromptText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-  },
-  noDataText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text.disabled,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  allergyText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.error,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-  },
-  nkdaBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.accentLight,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.sm,
-    marginBottom: SPACING.xs,
-  },
-  nkdaText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.success,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-  },
-  nkdaSubtext: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.text.secondary,
-  },
-  medCount: {
-    fontSize: TYPOGRAPHY.fontSize['2xl'],
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.primary,
-    marginBottom: SPACING.xs,
-  },
-  viewLink: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.info,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-  },
-  noMedsText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text.secondary,
-  },
-  notesText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text.primary,
-    lineHeight: TYPOGRAPHY.fontSize.sm * 1.5,
-  },
-
-  // ZONE 3: Quick Actions
-  quickActions: {
-    marginBottom: SPACING.xl,
-  },
-  sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text.primary,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xs,
   },
-  actionRow: {
-    flexDirection: 'row',
-    gap: SPACING.lg,
-    marginBottom: SPACING.lg,
+  demographicsText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
+    marginBottom: 1,
   },
-  quickActionButton: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg,
-    minHeight: SPACING.touchTarget.comfortable,
+
+  // Incident Button - Small, top-right corner
+  incidentButtonSmall: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SPACING.sm,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.sm,
+    padding: SPACING.xs,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    width: 60,
+    height: 60,
   },
-  quickActionButtonPrimary: {
+  incidentButtonLabel: {
+    fontSize: 8,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.error,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+
+  // Compact Tiles - Compressed
+  compactTile: {
+    flex: 1,
+  },
+  tileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  tileTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  tileValue: {
+    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+    marginBottom: SPACING.xs,
+  },
+  tileSubtext: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
+  },
+  medScrollView: {
+    maxHeight: 80,
+    marginTop: SPACING.xs,
+  },
+  medItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.xs,
+    paddingRight: SPACING.xs,
+  },
+  medBullet: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.primary,
+    marginRight: SPACING.xs,
+    marginTop: 1,
+  },
+  medText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.primary,
+    lineHeight: 16,
+  },
+
+  // Info Row - Compressed
+  infoRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  infoTile: {
+    flex: 1,
+  },
+  infoText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.primary,
+    marginBottom: SPACING.xs,
+  },
+  tileTimestamp: {
+    fontSize: 10,
+    color: COLORS.text.secondary,
+    marginTop: SPACING.xs,
+  },
+  noDataText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.disabled,
+    fontStyle: 'italic',
+  },
+
+  // Actions Grid - Compressed (3 columns, tighter spacing)
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    width: '32%',
+    minHeight: 90,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginBottom: SPACING.xs,
+  },
+  actionLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+    marginTop: SPACING.xs,
+    textAlign: 'center',
+  },
+
+  // Status Indicators
+  checkmarkBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  countBadge: {
+    position: 'absolute',
+    top: 36,
+    right: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  countBadgeText: {
+    color: COLORS.surface,
+    fontSize: 14,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  specialBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: COLORS.warning,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  specialBadgeText: {
+    color: COLORS.surface,
+    fontSize: 16,
+  },
+
+  // Round Complete Button - Reduced Height, Language-Specific Text
+  roundCompleteButton: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 55,
+    borderWidth: 2,
+    borderColor: COLORS.success,
+    marginBottom: SPACING.md,
+  },
+  roundCompleteButtonActive: {
     backgroundColor: COLORS.success,
     borderColor: COLORS.success,
   },
-  quickActionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text.primary,
-    textAlign: 'center',
+  roundCompleteButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.success,
   },
-  quickActionLabelWhite: {
+  roundCompleteButtonTextActive: {
     color: COLORS.white,
   },
 });

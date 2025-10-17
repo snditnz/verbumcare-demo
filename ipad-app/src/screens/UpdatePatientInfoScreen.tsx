@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
@@ -19,16 +19,40 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'UpdatePatientInfo'>;
 };
 
-export default function UpdatePatientInfoScreen({ navigation }: Props) {
-  const { currentPatient, sessionPatientUpdates, setPatientUpdates, setCurrentStep, language, getOriginalPatient } = useAssessmentStore();
+// Tab definitions
+type TabKey = 'basic' | 'physical' | 'contact' | 'medical' | 'admission' | 'insurance';
 
-  // Form state - initialize with current patient data or session draft
+interface Tab {
+  key: TabKey;
+  titleJa: string;
+  titleEn: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}
+
+export default function UpdatePatientInfoScreen({ navigation }: Props) {
+  const { currentPatient, sessionPatientUpdates, setPatientUpdates, language, getOriginalPatient } = useAssessmentStore();
+
+  // Tab state - start with basic demographics
+  const [activeTab, setActiveTab] = useState<TabKey>('basic');
+
+  // Define tabs
+  const tabs: Tab[] = [
+    { key: 'basic', titleJa: '基本情報', titleEn: 'Basic', icon: 'person' },
+    { key: 'physical', titleJa: '身体測定', titleEn: 'Physical', icon: 'body' },
+    { key: 'medical', titleJa: '医療情報', titleEn: 'Medical', icon: 'medical' },
+    { key: 'contact', titleJa: '連絡先', titleEn: 'Contact', icon: 'call' },
+    { key: 'admission', titleJa: '入院', titleEn: 'Admission', icon: 'bed' },
+    { key: 'insurance', titleJa: '保険', titleEn: 'Insurance', icon: 'card' },
+  ];
+
+  // Form state
   const [height, setHeight] = useState(
     sessionPatientUpdates?.height?.toString() || currentPatient?.height?.toString() || ''
   );
-  const [allergies, setAllergies] = useState(
-    sessionPatientUpdates?.allergies || currentPatient?.allergies || ''
+  const [allergies, setAllergies] = useState<string[]>(
+    sessionPatientUpdates?.allergies || currentPatient?.allergies || []
   );
+  const [newAllergy, setNewAllergy] = useState('');
   const [medications, setMedications] = useState(
     sessionPatientUpdates?.medications || currentPatient?.medications || ''
   );
@@ -40,39 +64,59 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
 
   const t = translations[language];
 
-  // Get original patient data (before any edits) for diff comparison
+  // Get original patient data
   const originalPatient = useMemo(() => {
     if (!currentPatient) return null;
     return getOriginalPatient(currentPatient.patient_id);
   }, [currentPatient, getOriginalPatient]);
 
-  // Calculate which fields have been edited (for yellow background decoration)
+  // Calculate edited fields
   const editedFields = useMemo(() => {
     return getEditedFields(originalPatient, sessionPatientUpdates);
   }, [originalPatient, sessionPatientUpdates]);
 
-  // Note: This screen is part of hub-and-spoke navigation from PatientInfo,
-  // not part of the main workflow, so we don't set currentStep
-
-  // Reload form values when screen opens (supports reopening with saved data)
+  // Reload form values
   useEffect(() => {
-    // Priority: session draft > current patient data
     setHeight(sessionPatientUpdates?.height?.toString() || currentPatient?.height?.toString() || '');
-    setAllergies(sessionPatientUpdates?.allergies || currentPatient?.allergies || '');
+    setAllergies(sessionPatientUpdates?.allergies || currentPatient?.allergies || []);
     setMedications(sessionPatientUpdates?.medications || currentPatient?.medications || '');
     setKeyNotes(sessionPatientUpdates?.keyNotes || currentPatient?.key_notes || '');
   }, [sessionPatientUpdates, currentPatient]);
 
   useEffect(() => {
-    // Check if form has changes from original patient data
+    const allergiesChanged = JSON.stringify(allergies) !== JSON.stringify(currentPatient?.allergies || []);
     const changed =
       height !== (currentPatient?.height?.toString() || '') ||
-      allergies !== (currentPatient?.allergies || '') ||
+      allergiesChanged ||
       medications !== (currentPatient?.medications || '') ||
       keyNotes !== (currentPatient?.key_notes || '');
 
     setHasChanges(changed);
   }, [height, allergies, medications, keyNotes, currentPatient]);
+
+  const handleAddAllergy = () => {
+    const trimmed = (newAllergy || '').trim();
+    if (!trimmed) {
+      Alert.alert(
+        language === 'ja' ? 'エラー' : 'Error',
+        language === 'ja' ? 'アレルギー名を入力してください' : 'Please enter an allergy name'
+      );
+      return;
+    }
+    if (allergies.includes(trimmed)) {
+      Alert.alert(
+        language === 'ja' ? 'エラー' : 'Error',
+        language === 'ja' ? 'このアレルギーは既に追加されています' : 'This allergy is already added'
+      );
+      return;
+    }
+    setAllergies([...allergies, trimmed]);
+    setNewAllergy('');
+  };
+
+  const handleRemoveAllergy = (index: number) => {
+    setAllergies(allergies.filter((_, i) => i !== index));
+  };
 
   const handleSaveDraft = () => {
     if (!hasChanges) {
@@ -85,7 +129,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
 
     const draft: PatientUpdateDraft = {
       height: height ? parseFloat(height) : undefined,
-      allergies: allergies || undefined,
+      allergies: allergies.length > 0 ? allergies : undefined,
       medications: medications || undefined,
       keyNotes: keyNotes || undefined,
       confirmed: false,
@@ -115,12 +159,13 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
       return;
     }
 
+    const allergiesChanged = JSON.stringify(allergies) !== JSON.stringify(currentPatient?.allergies || []);
     const updateSummary = [
       height && height !== (currentPatient?.height?.toString() || '')
         ? `${language === 'ja' ? '身長' : 'Height'}: ${height} cm`
         : null,
-      allergies && allergies !== (currentPatient?.allergies || '')
-        ? `${language === 'ja' ? 'アレルギー' : 'Allergies'}: ${allergies}`
+      allergiesChanged && allergies.length > 0
+        ? `${language === 'ja' ? 'アレルギー' : 'Allergies'}: ${allergies.join(', ')}`
         : null,
       medications && medications !== (currentPatient?.medications || '')
         ? `${language === 'ja' ? '服薬' : 'Medications'}: ${medications}`
@@ -140,7 +185,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
           onPress: () => {
             const update: PatientUpdateDraft = {
               height: height ? parseFloat(height) : undefined,
-              allergies: allergies || undefined,
+              allergies: allergies.length > 0 ? allergies : undefined,
               medications: medications || undefined,
               keyNotes: keyNotes || undefined,
               confirmed: true,
@@ -209,6 +254,28 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
         </View>
       </View>
 
+      {/* Tab Bar */}
+      <View style={styles.tabBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBarContent}>
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Ionicons
+                name={tab.icon}
+                size={ICON_SIZES.md}
+                color={activeTab === tab.key ? COLORS.primary : COLORS.text.secondary}
+              />
+              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+                {language === 'ja' ? tab.titleJa : tab.titleEn}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       <ScrollView style={styles.content}>
         {/* Draft Status Banner */}
         {sessionPatientUpdates && !sessionPatientUpdates.confirmed && (
@@ -228,67 +295,205 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Physical Measurements */}
-        <Card>
-          <View style={styles.cardHeader}>
-            <Ionicons name="body" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>
-              {language === 'ja' ? '身体測定' : 'Physical Measurements'}
+        {/* 1. BASIC DEMOGRAPHICS TAB */}
+        {activeTab === 'basic' && (
+          <View>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>
+              {language === 'ja' ? '氏名' : 'Full Name'} <Text style={styles.required}>*</Text>
             </Text>
+            <TextInput
+              style={[styles.input, styles.inputDisabled]}
+              value={`${currentPatient?.family_name} ${currentPatient?.given_name}`}
+              editable={false}
+            />
+            <Text style={styles.helperText}>
+              {language === 'ja' ? '※ 氏名の変更はシステム管理者にお問い合わせください' : '※ Contact system administrator to change name'}
+            </Text>
+          </View>
+
+          <View style={styles.formRow}>
+            <View style={[styles.formGroup, { flex: 2 }]}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '生年月日' : 'Date of Birth'} <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={currentPatient?.date_of_birth ? currentPatient.date_of_birth.split('T')[0] : ''}
+                editable={false}
+              />
+            </View>
+
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '年齢' : 'Age'}
+              </Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={`${currentPatient?.age || ''}${language === 'ja' ? '歳' : ' yrs'}`}
+                editable={false}
+              />
+            </View>
+          </View>
+
+          <View style={styles.formRow}>
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '性別' : 'Gender'} <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={currentPatient?.gender === 'male' ? (language === 'ja' ? '男性' : 'Male') : (language === 'ja' ? '女性' : 'Female')}
+                editable={false}
+              />
+            </View>
+
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '血液型' : 'Blood Type'} <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={currentPatient?.blood_type || (language === 'ja' ? '不明' : 'Unknown')}
+                editable={false}
+              />
+            </View>
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              {language === 'ja' ? '身長 (cm)' : 'Height (cm)'}
-            </Text>
-            <TextInput
-              style={[styles.input, editedFields.height && styles.editedInput]}
-              placeholder="165"
-              placeholderTextColor={COLORS.text.disabled}
-              value={height}
-              onChangeText={setHeight}
-              keyboardType="decimal-pad"
-            />
-          </View>
-
-          <Text style={styles.helperText}>
-            {language === 'ja'
-              ? '※ 体重は「バイタル測定」画面で記録されます'
-              : '※ Weight is recorded in the Vitals Capture screen'}
-          </Text>
-        </Card>
-
-        {/* Medical Information */}
-        <Card>
-          <View style={styles.cardHeader}>
-            <Ionicons name="medical" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>
-              {language === 'ja' ? '医療情報' : 'Medical Information'}
+            <Text style={styles.helperText}>
+              {language === 'ja' ? '※ 年齢は生年月日から自動計算されます' : '※ Age is auto-calculated from date of birth'}
             </Text>
           </View>
+          </View>
+        )}
 
+        {/* 2. PHYSICAL MEASUREMENTS TAB */}
+        {activeTab === 'physical' && (
+          <View>
+          <View style={styles.formRow}>
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '身長 (cm)' : 'Height (cm)'} <Text style={styles.required}>*</Text>
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="193"
+                placeholderTextColor={COLORS.text.disabled}
+                value={height}
+                onChangeText={setHeight}
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '体重 (kg)' : 'Weight (kg)'}
+              </Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={currentPatient?.weight?.toString() || ''}
+                editable={false}
+              />
+            </View>
+
+            <View style={[styles.formGroup, { flex: 1 }]}>
+              <Text style={styles.label}>BMI</Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={currentPatient?.weight && height
+                  ? (parseFloat(height) ? (currentPatient.weight / Math.pow(parseFloat(height) / 100, 2)).toFixed(1) : '')
+                  : ''}
+                editable={false}
+              />
+            </View>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.helperText}>
+              {language === 'ja'
+                ? '※ 体重はバイタル測定で記録できます　※ BMIは自動計算'
+                : '※ Weight is recorded in Vitals Capture　※ BMI is auto-calculated'}
+            </Text>
+          </View>
+          </View>
+        )}
+
+        {/* 3. CONTACT INFORMATION TAB */}
+        {activeTab === 'contact' && (
+          <View>
+            <Text style={styles.comingSoonText}>
+              {language === 'ja' ? '連絡先情報機能は開発中です' : 'Contact information features coming soon'}
+            </Text>
+          </View>
+        )}
+
+        {/* 4. MEDICAL INFORMATION TAB */}
+        {activeTab === 'medical' && (
+          <View>
           <View style={styles.formGroup}>
             <Text style={styles.label}>
               {language === 'ja' ? 'アレルギー' : 'Allergies'}
             </Text>
-            <TextInput
-              style={[styles.input, styles.textArea, editedFields.allergies && styles.editedInput]}
-              placeholder={language === 'ja' ? 'アレルギー情報を入力' : 'Enter allergy information'}
-              placeholderTextColor={COLORS.text.disabled}
-              value={allergies}
-              onChangeText={setAllergies}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
+
+            {/* Existing allergies list */}
+            {allergies.length > 0 && (
+              <View style={styles.allergiesList}>
+                {allergies.map((allergy, index) => (
+                  <View key={index} style={styles.allergyItem}>
+                    <Text style={styles.allergyText}>🚫 {allergy}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleRemoveAllergy(index)}
+                      style={styles.removeButton}
+                    >
+                      <Ionicons name="close-circle" size={ICON_SIZES.md} color={COLORS.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Add new allergy */}
+            <View style={styles.addAllergyRow}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder={language === 'ja' ? 'アレルギーを追加' : 'Add allergy'}
+                placeholderTextColor={COLORS.text.disabled}
+                value={newAllergy}
+                onChangeText={setNewAllergy}
+                onSubmitEditing={handleAddAllergy}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                onPress={handleAddAllergy}
+                style={styles.addButton}
+              >
+                <Ionicons name="add-circle" size={ICON_SIZES.lg} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {allergies.length === 0 && (
+              <Text style={styles.helperText}>
+                {language === 'ja' ? 'アレルギーなし (NKDA)' : 'No known drug allergies (NKDA)'}
+              </Text>
+            )}
           </View>
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>
-              {language === 'ja' ? '現在の服薬' : 'Current Medications'}
+              {language === 'ja' ? '感染症情報' : 'Infectious Disease Status'}
+            </Text>
+            <Text style={styles.comingSoonText}>
+              {language === 'ja' ? '感染症情報機能は開発中です' : 'Infectious disease tracking coming soon'}
+            </Text>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>
+              {language === 'ja' ? '現在の投薬' : 'Current Medications'}
             </Text>
             <TextInput
-              style={[styles.input, styles.textArea, editedFields.medications && styles.editedInput]}
+              style={[styles.input, styles.textArea]}
               placeholder={language === 'ja' ? '服薬情報を入力' : 'Enter current medications'}
               placeholderTextColor={COLORS.text.disabled}
               value={medications}
@@ -298,20 +503,31 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
               textAlignVertical="top"
             />
           </View>
-        </Card>
 
-        {/* Key Notes */}
-        <Card>
-          <View style={styles.cardHeader}>
-            <Ionicons name="alert-circle" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.cardTitle}>
-              {language === 'ja' ? '特記事項' : 'Key Notes'}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>
+              {language === 'ja' ? '慢性疾患' : 'Chronic Conditions'}
+            </Text>
+            <Text style={styles.comingSoonText}>
+              {language === 'ja' ? '開発中' : 'Coming soon'}
             </Text>
           </View>
 
           <View style={styles.formGroup}>
+            <Text style={styles.label}>
+              {language === 'ja' ? '手術歴' : 'Past Surgeries'}
+            </Text>
+            <Text style={styles.comingSoonText}>
+              {language === 'ja' ? '開発中' : 'Coming soon'}
+            </Text>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>
+              {language === 'ja' ? '特記事項' : 'Key Notes'}
+            </Text>
             <TextInput
-              style={[styles.input, styles.textArea, { minHeight: 120 }, editedFields.keyNotes && styles.editedInput]}
+              style={[styles.input, styles.textArea, { minHeight: 120 }]}
               placeholder={language === 'ja' ? '特記事項を入力' : 'Enter key notes or important information'}
               placeholderTextColor={COLORS.text.disabled}
               value={keyNotes}
@@ -321,7 +537,36 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
               textAlignVertical="top"
             />
           </View>
-        </Card>
+          </View>
+        )}
+
+        {/* 5. ADMISSION INFORMATION TAB */}
+        {activeTab === 'admission' && (
+          <View>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '病室番号' : 'Room Number'}
+              </Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={currentPatient?.room || ''}
+                editable={false}
+              />
+            </View>
+            <Text style={styles.comingSoonText}>
+              {language === 'ja' ? '入院情報の詳細機能は開発中です' : 'Detailed admission features coming soon'}
+            </Text>
+          </View>
+        )}
+
+        {/* 6. INSURANCE INFORMATION TAB */}
+        {activeTab === 'insurance' && (
+          <View>
+            <Text style={styles.comingSoonText}>
+              {language === 'ja' ? '保険情報機能は開発中です' : 'Insurance information features coming soon'}
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Bottom Actions */}
@@ -412,25 +657,52 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
   },
-  cardHeader: {
+  // Tab Bar styles
+  tabBar: {
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  tabBarContent: {
+    paddingHorizontal: SPACING.md,
+  },
+  tab: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
   },
-  cardTitle: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
+  tabActive: {
+    borderBottomColor: COLORS.primary,
+  },
+  tabText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text.secondary,
+  },
+  tabTextActive: {
+    color: COLORS.primary,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.text.primary,
   },
   formGroup: {
     marginBottom: SPACING.lg,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: 0,
   },
   label: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.primary,
     marginBottom: SPACING.sm,
+  },
+  required: {
+    color: COLORS.error,
   },
   input: {
     backgroundColor: COLORS.surface,
@@ -442,6 +714,10 @@ const styles = StyleSheet.create({
     color: COLORS.text.primary,
     minHeight: SPACING.touchTarget.comfortable,
   },
+  inputDisabled: {
+    backgroundColor: COLORS.background,
+    color: COLORS.text.disabled,
+  },
   textArea: {
     minHeight: 80,
   },
@@ -450,6 +726,13 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     fontStyle: 'italic',
     marginTop: SPACING.xs,
+  },
+  comingSoonText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.disabled,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    padding: SPACING.md,
   },
   bottomActions: {
     flexDirection: 'row',
@@ -465,10 +748,41 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     marginLeft: SPACING.xs,
   },
-  // Edited field decoration - yellow background with warning border
   editedInput: {
-    backgroundColor: '#FFF9C4', // Light yellow
+    backgroundColor: '#FFF9C4',
     borderLeftWidth: 4,
     borderLeftColor: COLORS.warning,
+  },
+  allergiesList: {
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  allergyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    minHeight: SPACING.touchTarget.comfortable,
+  },
+  allergyText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.error,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  removeButton: {
+    padding: SPACING.xs,
+  },
+  addAllergyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  addButton: {
+    padding: SPACING.xs,
   },
 });
