@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Patient } from '@models';
+import { Patient, CarePlan, ProblemTemplate } from '@models';
 
 /**
  * Offline-first caching service using AsyncStorage
@@ -9,10 +9,17 @@ import { Patient } from '@models';
 const CACHE_KEYS = {
   PATIENTS: '@verbumcare/patients',
   PATIENT_PREFIX: '@verbumcare/patient/',
+  CARE_PLANS: '@verbumcare/care_plans',
+  CARE_PLAN_PREFIX: '@verbumcare/care_plan/',
+  PROBLEM_TEMPLATES: '@verbumcare/problem_templates',
+  PROBLEM_TEMPLATES_VERSION: '@verbumcare/problem_templates_version',
   LAST_SYNC: '@verbumcare/last_sync',
   PENDING_SYNC: '@verbumcare/pending_sync',
   SESSION_DATA: '@verbumcare/session_data',
 } as const;
+
+// Cache version - increment this when template structure changes
+const PROBLEM_TEMPLATES_VERSION = 2; // v2: Added multilingual support with {ja, en, zh} structure
 
 // Cache expiry: 1 hour for patients list, 5 minutes for individual patient
 const CACHE_EXPIRY = {
@@ -230,6 +237,178 @@ class CacheService {
       await AsyncStorage.removeItem(CACHE_KEYS.SESSION_DATA);
     } catch (error) {
       console.error('Error clearing session data:', error);
+    }
+  }
+
+  /**
+   * Cache care plans (offline-first)
+   */
+  async cacheCarePlans(carePlans: CarePlan[]): Promise<void> {
+    try {
+      const cached: CachedData<CarePlan[]> = {
+        data: carePlans,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours
+      };
+      await AsyncStorage.setItem(CACHE_KEYS.CARE_PLANS, JSON.stringify(cached));
+
+      // Also cache individually by patient ID for quick access
+      for (const plan of carePlans) {
+        await this.cacheCarePlan(plan);
+      }
+    } catch (error) {
+      console.error('Error caching care plans:', error);
+    }
+  }
+
+  /**
+   * Cache individual care plan
+   */
+  async cacheCarePlan(carePlan: CarePlan): Promise<void> {
+    try {
+      const cached: CachedData<CarePlan> = {
+        data: carePlan,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours
+      };
+      const key = `${CACHE_KEYS.CARE_PLAN_PREFIX}${carePlan.patientId}`;
+      await AsyncStorage.setItem(key, JSON.stringify(cached));
+    } catch (error) {
+      console.error('Error caching care plan:', error);
+    }
+  }
+
+  /**
+   * Get cached care plan for a patient
+   */
+  async getCachedCarePlan(patientId: string): Promise<CarePlan | null> {
+    try {
+      const key = `${CACHE_KEYS.CARE_PLAN_PREFIX}${patientId}`;
+      const cached = await AsyncStorage.getItem(key);
+      if (!cached) return null;
+
+      const parsed: CachedData<CarePlan> = JSON.parse(cached);
+
+      // Convert date strings back to Date objects
+      const carePlan = this.deserializeCarePlan(parsed.data);
+
+      // For care plans, we don't expire them - offline-first
+      // We'll sync when online but always have the local version
+      return carePlan;
+    } catch (error) {
+      console.error('Error reading cached care plan:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Deserialize care plan - convert date strings back to Date objects
+   */
+  private deserializeCarePlan(plan: any): CarePlan {
+    return {
+      ...plan,
+      createdDate: new Date(plan.createdDate),
+      lastReviewDate: new Date(plan.lastReviewDate),
+      nextReviewDate: new Date(plan.nextReviewDate),
+      lastMonitoringDate: plan.lastMonitoringDate ? new Date(plan.lastMonitoringDate) : undefined,
+      nextMonitoringDate: new Date(plan.nextMonitoringDate),
+      familySignature: plan.familySignature ? {
+        ...plan.familySignature,
+        date: new Date(plan.familySignature.date)
+      } : undefined,
+      carePlanItems: plan.carePlanItems.map((item: any) => ({
+        ...item,
+        problem: {
+          ...item.problem,
+          identifiedDate: new Date(item.problem.identifiedDate)
+        },
+        longTermGoal: {
+          ...item.longTermGoal,
+          targetDate: new Date(item.longTermGoal.targetDate)
+        },
+        shortTermGoal: {
+          ...item.shortTermGoal,
+          targetDate: new Date(item.shortTermGoal.targetDate)
+        },
+        interventions: item.interventions.map((intervention: any) => ({
+          ...intervention,
+          createdDate: new Date(intervention.createdDate)
+        })),
+        progressNotes: item.progressNotes.map((note: any) => ({
+          ...note,
+          date: new Date(note.date)
+        })),
+        lastUpdated: new Date(item.lastUpdated)
+      })),
+      auditLog: plan.auditLog.map((log: any) => ({
+        ...log,
+        timestamp: new Date(log.timestamp)
+      })),
+      monitoringRecords: plan.monitoringRecords.map((record: any) => ({
+        ...record,
+        monitoringDate: new Date(record.monitoringDate),
+        nextMonitoringDate: new Date(record.nextMonitoringDate)
+      }))
+    };
+  }
+
+  /**
+   * Cache problem templates
+   */
+  async cacheProblemTemplates(templates: ProblemTemplate[]): Promise<void> {
+    try {
+      const cached: CachedData<ProblemTemplate[]> = {
+        data: templates,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days
+      };
+      await AsyncStorage.setItem(CACHE_KEYS.PROBLEM_TEMPLATES, JSON.stringify(cached));
+      // Store the version number
+      await AsyncStorage.setItem(CACHE_KEYS.PROBLEM_TEMPLATES_VERSION, PROBLEM_TEMPLATES_VERSION.toString());
+    } catch (error) {
+      console.error('Error caching problem templates:', error);
+    }
+  }
+
+  /**
+   * Get cached problem templates
+   * Returns null if cache version doesn't match (forces re-fetch)
+   */
+  async getCachedProblemTemplates(): Promise<ProblemTemplate[] | null> {
+    try {
+      // Check cache version first
+      const cachedVersion = await AsyncStorage.getItem(CACHE_KEYS.PROBLEM_TEMPLATES_VERSION);
+      const versionNumber = cachedVersion ? parseInt(cachedVersion, 10) : 0;
+
+      if (versionNumber !== PROBLEM_TEMPLATES_VERSION) {
+        // Version mismatch - clear old cache and return null to force re-fetch
+        console.log(`Problem templates cache version mismatch (cached: ${versionNumber}, current: ${PROBLEM_TEMPLATES_VERSION}). Clearing cache.`);
+        await this.clearProblemTemplatesCache();
+        return null;
+      }
+
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.PROBLEM_TEMPLATES);
+      if (!cached) return null;
+
+      const parsed: CachedData<ProblemTemplate[]> = JSON.parse(cached);
+      // Don't expire problem templates - they rarely change
+      return parsed.data;
+    } catch (error) {
+      console.error('Error reading cached problem templates:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Clear problem templates cache (useful when structure changes)
+   */
+  async clearProblemTemplatesCache(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(CACHE_KEYS.PROBLEM_TEMPLATES);
+      await AsyncStorage.removeItem(CACHE_KEYS.PROBLEM_TEMPLATES_VERSION);
+      console.log('Problem templates cache cleared');
+    } catch (error) {
+      console.error('Error clearing problem templates cache:', error);
     }
   }
 
