@@ -22,7 +22,7 @@ type Props = {
 
 export default function FullCarePlanViewScreen({ navigation }: Props) {
   const { currentPatient, language } = useAssessmentStore();
-  const { getCarePlanByPatientId } = useCarePlanStore();
+  const { getCarePlanByPatientId, problemTemplates } = useCarePlanStore();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const t = translations[language];
@@ -57,6 +57,41 @@ export default function FullCarePlanViewScreen({ navigation }: Props) {
     return `${year}/${month}/${day}`;
   };
 
+  const translateCareLevel = (careLevel: string) => {
+    if (language === 'ja') return careLevel;
+
+    const careLevelMap: Record<string, string> = {
+      '要支援1': 'Support Level 1',
+      '要支援2': 'Support Level 2',
+      '要介護1': 'Care Level 1',
+      '要介護2': 'Care Level 2',
+      '要介護3': 'Care Level 3',
+      '要介護4': 'Care Level 4',
+      '要介護5': 'Care Level 5',
+    };
+
+    return careLevelMap[careLevel] || careLevel;
+  };
+
+  // Translate text if it matches a template
+  const getTranslatedText = (text: string): string => {
+    if (!text || !problemTemplates || problemTemplates.length === 0) return text;
+
+    // Search through templates to find a match
+    for (const template of problemTemplates) {
+      // Check if text matches the template text (in any language)
+      if (text === template.japanese || text === template.english || text === template.chinese) {
+        // If current language is available, return it; otherwise return the original text
+        if (language === 'ja' && template.japanese) return template.japanese;
+        if (language === 'en' && template.english) return template.english;
+        if (language === 'zh' && template.chinese) return template.chinese;
+        return text; // fallback to original text
+      }
+    }
+
+    return text; // No match found, return original
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent':
@@ -85,7 +120,7 @@ export default function FullCarePlanViewScreen({ navigation }: Props) {
                 color={COLORS.text.secondary}
               />
               <Text style={styles.problemTitle}>
-                {t['carePlan.problem']} {carePlan.carePlanItems.indexOf(item) + 1}: {item.problem.description}
+                {t['carePlan.problem']} {carePlan.carePlanItems.indexOf(item) + 1}: {getTranslatedText(item.problem.description)}
               </Text>
             </View>
             <View style={[styles.priorityBadge, { backgroundColor: `${priorityColor}20`, borderColor: priorityColor }]}>
@@ -262,10 +297,10 @@ export default function FullCarePlanViewScreen({ navigation }: Props) {
         </View>
         <View style={styles.headerCenter}>
           <Text style={styles.patientName}>
-            {currentPatient.family_name} {currentPatient.given_name} {t['carePlan.carePlan']}
+            {currentPatient.family_name} {currentPatient.given_name} {t['carePlan.title']}
           </Text>
           <Text style={styles.screenTitle}>
-            {carePlan.careLevel} | {t['carePlan.version']} {carePlan.version}
+            {translateCareLevel(carePlan.careLevel)} | {t['carePlan.version']} {carePlan.version}
           </Text>
         </View>
         <View style={styles.headerRight}>
