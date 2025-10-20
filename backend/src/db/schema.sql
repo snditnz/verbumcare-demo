@@ -5,6 +5,14 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Drop tables if exist (for clean setup)
+DROP TABLE IF EXISTS care_plan_audit_log CASCADE;
+DROP TABLE IF EXISTS care_conferences CASCADE;
+DROP TABLE IF EXISTS monitoring_records CASCADE;
+DROP TABLE IF EXISTS weekly_schedule_items CASCADE;
+DROP TABLE IF EXISTS care_plan_progress_notes CASCADE;
+DROP TABLE IF EXISTS care_plan_items CASCADE;
+DROP TABLE IF EXISTS care_plans CASCADE;
+DROP TABLE IF EXISTS problem_templates CASCADE;
 DROP TABLE IF EXISTS voice_recordings CASCADE;
 DROP TABLE IF EXISTS nursing_assessments CASCADE;
 DROP TABLE IF EXISTS vital_signs CASCADE;
@@ -172,6 +180,167 @@ ADD CONSTRAINT fk_voice_recording
 FOREIGN KEY (voice_recording_id)
 REFERENCES voice_recordings(recording_id);
 
+-- Care Plans table (Japanese Long-Term Care Insurance compliant)
+CREATE TABLE care_plans (
+    care_plan_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    patient_id UUID NOT NULL REFERENCES patients(patient_id),
+    care_level VARCHAR(20), -- 要支援1, 要支援2, 要介護1-5
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'draft', 'archived')),
+    version INTEGER DEFAULT 1,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_review_date TIMESTAMP,
+    next_review_date TIMESTAMP,
+    created_by UUID REFERENCES staff(staff_id),
+
+    -- Table 1 - Basic Info & Policy
+    patient_intent TEXT, -- 利用者の意向
+    family_intent TEXT, -- 家族の意向
+    comprehensive_policy TEXT, -- 総合的な援助の方針
+
+    -- Team & Family
+    care_manager_id UUID REFERENCES staff(staff_id),
+    team_members JSONB, -- Array of team member objects
+    family_signature JSONB, -- Family signature data
+
+    -- Monitoring
+    last_monitoring_date TIMESTAMP,
+    next_monitoring_date TIMESTAMP,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Care Plan Items (Problems, Goals, Interventions)
+CREATE TABLE care_plan_items (
+    care_plan_item_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    care_plan_id UUID NOT NULL REFERENCES care_plans(care_plan_id) ON DELETE CASCADE,
+
+    -- Problem/Need
+    problem_category VARCHAR(50) NOT NULL, -- ADL, fall_prevention, pain_management, etc.
+    problem_description TEXT NOT NULL,
+    problem_priority VARCHAR(20) NOT NULL, -- urgent, high, medium, low
+    identified_date TIMESTAMP NOT NULL,
+    problem_status VARCHAR(20) DEFAULT 'active', -- active, resolved, monitoring
+
+    -- Long-term Goal
+    long_term_goal_description TEXT NOT NULL,
+    long_term_goal_target_date TIMESTAMP,
+    long_term_goal_duration VARCHAR(20), -- 1_month, 3_months, 6_months, 12_months
+    long_term_goal_achievement_status INTEGER DEFAULT 0, -- 0-100
+
+    -- Short-term Goal
+    short_term_goal_description TEXT NOT NULL,
+    short_term_goal_target_date TIMESTAMP,
+    short_term_goal_duration VARCHAR(20),
+    short_term_goal_achievement_status INTEGER DEFAULT 0, -- 0-100
+    short_term_goal_measurable_criteria TEXT,
+
+    -- Interventions (stored as JSONB array)
+    interventions JSONB, -- Array of intervention objects
+
+    -- Links to assessments
+    linked_assessments JSONB, -- {adlId, fallRiskId, painAssessmentId, nutritionId}
+
+    -- Metadata
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES staff(staff_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Care Plan Progress Notes
+CREATE TABLE care_plan_progress_notes (
+    progress_note_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    care_plan_item_id UUID NOT NULL REFERENCES care_plan_items(care_plan_item_id) ON DELETE CASCADE,
+    note_date TIMESTAMP NOT NULL,
+    note TEXT NOT NULL,
+    author_id UUID NOT NULL REFERENCES staff(staff_id),
+    author_name VARCHAR(200) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Weekly Schedule Items
+CREATE TABLE weekly_schedule_items (
+    schedule_item_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    care_plan_id UUID NOT NULL REFERENCES care_plans(care_plan_id) ON DELETE CASCADE,
+    day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6), -- 0=Sunday
+    time_slot VARCHAR(20) NOT NULL, -- morning, afternoon, evening, night, specific_time
+    specific_time TIME,
+
+    service_data JSONB NOT NULL, -- Service details (type, description, duration, provider, location)
+    linked_to_care_plan_item UUID REFERENCES care_plan_items(care_plan_item_id),
+    frequency VARCHAR(50), -- daily, weekly, biweekly, monthly, as_needed
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Monitoring Records
+CREATE TABLE monitoring_records (
+    monitoring_record_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    care_plan_id UUID NOT NULL REFERENCES care_plans(care_plan_id) ON DELETE CASCADE,
+    monitoring_date TIMESTAMP NOT NULL,
+    monitoring_type VARCHAR(50) NOT NULL, -- routine_3month, formal_6month, condition_change
+    conducted_by UUID NOT NULL REFERENCES staff(staff_id),
+    conducted_by_name VARCHAR(200) NOT NULL,
+
+    -- Assessment data
+    item_reviews JSONB, -- Array of item review objects
+    overall_status TEXT,
+    patient_feedback TEXT,
+    family_feedback TEXT,
+    staff_observations TEXT,
+
+    -- Changes needed
+    proposed_changes JSONB, -- {newProblems[], resolvedProblems[], goalAdjustments[], interventionChanges[]}
+
+    -- Next steps
+    next_monitoring_date TIMESTAMP,
+    action_items JSONB, -- Array of action item strings
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Care Conferences
+CREATE TABLE care_conferences (
+    care_conference_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    care_plan_id UUID NOT NULL REFERENCES care_plans(care_plan_id) ON DELETE CASCADE,
+    conference_date TIMESTAMP NOT NULL,
+    conference_type VARCHAR(50) NOT NULL, -- initial, routine_review, condition_change, family_request
+
+    attendees JSONB NOT NULL, -- Array of attendee objects
+    discussion JSONB NOT NULL, -- {currentStatus, concerns[], suggestions[], decisions[]}
+    minutes TEXT,
+    action_items JSONB, -- Array of action item objects
+
+    care_plan_approved BOOLEAN DEFAULT FALSE,
+    next_conference_date TIMESTAMP,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Care Plan Audit Log
+CREATE TABLE care_plan_audit_log (
+    audit_log_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    care_plan_id UUID NOT NULL REFERENCES care_plans(care_plan_id) ON DELETE CASCADE,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    user_id UUID REFERENCES staff(staff_id),
+    user_name VARCHAR(200) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    changes JSONB,
+    version INTEGER NOT NULL
+);
+
+-- Problem Templates (for quick entry)
+CREATE TABLE problem_templates (
+    template_id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    category VARCHAR(50) NOT NULL, -- ADL, fall_prevention, pain_management, etc.
+    japanese_text TEXT NOT NULL,
+    english_text TEXT NOT NULL,
+    suggested_long_term_goals JSONB, -- Array of goal strings
+    suggested_short_term_goals JSONB, -- Array of goal strings
+    suggested_interventions JSONB, -- Array of {type, description} objects
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for common queries
 CREATE INDEX idx_patients_facility ON patients(facility_id);
 CREATE INDEX idx_patients_mrn ON patients(mrn);
@@ -186,3 +355,14 @@ CREATE INDEX idx_voice_recordings_patient ON voice_recordings(patient_id);
 CREATE INDEX idx_voice_recordings_processing_status ON voice_recordings(processing_status);
 CREATE INDEX idx_voice_recordings_extraction_ja ON voice_recordings USING GIN ((ai_structured_extraction->'ja'));
 CREATE INDEX idx_voice_recordings_extraction_en ON voice_recordings USING GIN ((ai_structured_extraction->'en'));
+
+-- Care Plan indexes
+CREATE INDEX idx_care_plans_patient ON care_plans(patient_id);
+CREATE INDEX idx_care_plans_status ON care_plans(status);
+CREATE INDEX idx_care_plan_items_care_plan ON care_plan_items(care_plan_id);
+CREATE INDEX idx_care_plan_progress_notes_item ON care_plan_progress_notes(care_plan_item_id);
+CREATE INDEX idx_weekly_schedule_items_care_plan ON weekly_schedule_items(care_plan_id);
+CREATE INDEX idx_monitoring_records_care_plan ON monitoring_records(care_plan_id);
+CREATE INDEX idx_care_conferences_care_plan ON care_conferences(care_plan_id);
+CREATE INDEX idx_care_plan_audit_log_care_plan ON care_plan_audit_log(care_plan_id);
+CREATE INDEX idx_problem_templates_category ON problem_templates(category);

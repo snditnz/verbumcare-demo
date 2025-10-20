@@ -49,11 +49,11 @@ VALUES
     (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440203', 'ORD003-04', 'リシノプリル', 'Lisinopril', '賴諾普利', '2144009', '10', 'mg', 'oral', 'QD', '09:00', '2024-01-08 00:00:00', false, 'active', '550e8400-e29b-41d4-a716-446655440103');
 
 -- Suzuki Aiko (鈴木愛子) - Patient 4
-INSERT INTO medication_orders (order_id, patient_id, order_number, medication_name_ja, medication_name_en, medication_name_zh, hot_code, dose, dose_unit, route, frequency, scheduled_time, start_datetime, prn, status, ordered_by)
+INSERT INTO medication_orders (order_id, patient_id, order_number, medication_name_ja, medication_name_en, medication_name_zh, hot_code, dose, dose_unit, route, frequency, scheduled_time, start_datetime, prn, prn_reason, status, ordered_by)
 VALUES
-    (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440204', 'ORD004-01', 'セファゾリン', 'Cefazolin', '頭孢唑林', '6132400', '1', 'g', 'iv', 'Q8H', '06:00', '2024-01-14 00:00:00', false, 'active', '550e8400-e29b-41d4-a716-446655440103'),
-    (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440204', 'ORD004-02', 'セファゾリン', 'Cefazolin', '頭孢唑林', '6132400', '1', 'g', 'iv', 'Q8H', '14:00', '2024-01-14 00:00:00', false, 'active', '550e8400-e29b-41d4-a716-446655440103'),
-    (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440204', 'ORD004-03', 'セファゾリン', 'Cefazolin', '頭孢唑林', '6132400', '1', 'g', 'iv', 'Q8H', '22:00', '2024-01-14 00:00:00', false, 'active', '550e8400-e29b-41d4-a716-446655440103'),
+    (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440204', 'ORD004-01', 'セファゾリン', 'Cefazolin', '頭孢唑林', '6132400', '1', 'g', 'iv', 'Q8H', '06:00', '2024-01-14 00:00:00', false, NULL, 'active', '550e8400-e29b-41d4-a716-446655440103'),
+    (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440204', 'ORD004-02', 'セファゾリン', 'Cefazolin', '頭孢唑林', '6132400', '1', 'g', 'iv', 'Q8H', '14:00', '2024-01-14 00:00:00', false, NULL, 'active', '550e8400-e29b-41d4-a716-446655440103'),
+    (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440204', 'ORD004-03', 'セファゾリン', 'Cefazolin', '頭孢唑林', '6132400', '1', 'g', 'iv', 'Q8H', '22:00', '2024-01-14 00:00:00', false, NULL, 'active', '550e8400-e29b-41d4-a716-446655440103'),
     (uuid_generate_v4(), '550e8400-e29b-41d4-a716-446655440204', 'ORD004-04', 'モルヒネ', 'Morphine', '嗎啡', '8114006', '2', 'mg', 'iv', 'PRN', NULL, '2024-01-14 00:00:00', true, '疼痛時（4時間毎まで）', 'active', '550e8400-e29b-41d4-a716-446655440103');
 
 -- Watanabe Hiroshi (渡辺博) - Patient 5
@@ -113,3 +113,55 @@ WHERE o.scheduled_time < CURRENT_TIME
   AND o.prn = false
   AND o.status = 'active'
 LIMIT 10;
+
+-- Insert Problem Templates for Care Plans
+INSERT INTO problem_templates (category, japanese_text, english_text, suggested_long_term_goals, suggested_short_term_goals, suggested_interventions)
+VALUES
+  (
+    'ADL',
+    'トイレ動作の自立困難',
+    'Difficulty with independent toileting',
+    '["日中、見守りのみでトイレ動作ができる", "転倒せずにトイレ動作を完了できる"]'::jsonb,
+    '["手すりを使用してトイレまで歩行できる", "座位から立位への移乗が安全にできる"]'::jsonb,
+    '[{"type": "observation", "description": "トイレ動作時の様子、転倒リスクを毎回観察"}, {"type": "care", "description": "歩行器使用指導、手すり活用支援"}, {"type": "education", "description": "安全なトイレ動作の指導"}]'::jsonb
+  ),
+  (
+    'fall_prevention',
+    '転倒リスクが高い',
+    'High risk of falling',
+    '["6ヶ月間転倒事故ゼロを維持する", "安全な移動方法を習得する"]'::jsonb,
+    '["歩行器を正しく使用できる", "ベッドからの起き上がりが安全にできる"]'::jsonb,
+    '[{"type": "observation", "description": "ふらつき、バランス、歩行状態の継続観察"}, {"type": "care", "description": "環境整備（段差解消、手すり設置）"}, {"type": "education", "description": "転倒予防のための生活指導"}]'::jsonb
+  ),
+  (
+    'nutrition',
+    '食事摂取量の低下',
+    'Decreased food intake',
+    '["適正体重を維持する（BMI 18.5-25）", "必要栄養量の80%以上を摂取できる"]'::jsonb,
+    '["1日3食、50%以上の摂取ができる", "好みの食事形態を見つける"]'::jsonb,
+    '[{"type": "observation", "description": "食事摂取量、体重変化の記録"}, {"type": "care", "description": "食事形態の工夫、間食の提供"}, {"type": "education", "description": "栄養の重要性について指導"}]'::jsonb
+  ),
+  (
+    'pain_management',
+    '慢性的な腰痛がある',
+    'Chronic low back pain',
+    '["痛みが日常生活に支障をきたさないレベルまで軽減する", "痛みのセルフマネジメントができる"]'::jsonb,
+    '["安静時の痛みがNRS 3以下になる", "痛み軽減のための工夫を3つ以上実践できる"]'::jsonb,
+    '[{"type": "observation", "description": "痛みの程度、部位、性質の評価（毎日）"}, {"type": "care", "description": "体位変換、温罨法、マッサージの実施"}, {"type": "education", "description": "痛み軽減のためのポジショニング指導"}]'::jsonb
+  ),
+  (
+    'cognition',
+    '認知機能の低下（見当識障害）',
+    'Cognitive decline (disorientation)',
+    '["日時の見当識を維持する", "穏やかに施設生活を送ることができる"]'::jsonb,
+    '["曜日と時間帯がわかる", "職員の顔と名前を覚える"]'::jsonb,
+    '[{"type": "observation", "description": "見当識、記憶力、判断力の定期評価"}, {"type": "care", "description": "オリエンテーション支援（カレンダー、時計の活用）"}, {"type": "education", "description": "家族への認知症ケアの指導"}]'::jsonb
+  ),
+  (
+    'psychosocial',
+    '社会的孤立・活動量の低下',
+    'Social isolation and decreased activity',
+    '["施設内で親しい仲間を作る", "楽しみを見つけ、活動的に過ごす"]'::jsonb,
+    '["レクリエーションに週3回以上参加する", "他の利用者と会話を楽しむ"]'::jsonb,
+    '[{"type": "observation", "description": "表情、活動参加状況、他者との交流の観察"}, {"type": "care", "description": "レクリエーション参加の声かけ、趣味活動の提供"}, {"type": "education", "description": "社会参加の重要性について説明"}]'::jsonb
+  );

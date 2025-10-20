@@ -21,6 +21,7 @@ import configRoutes from './routes/config.js';
 import barthelRoutes from './routes/barthel.js';
 import incidentRoutes from './routes/incidents.js';
 import sessionRoutes from './routes/sessions.js';
+import carePlanRoutes from './routes/care-plans.js';
 
 dotenv.config();
 
@@ -73,6 +74,7 @@ app.use('/api/config', configRoutes);
 app.use('/api', barthelRoutes);
 app.use('/api', incidentRoutes);
 app.use('/api', sessionRoutes);
+app.use('/api/care-plans', carePlanRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
