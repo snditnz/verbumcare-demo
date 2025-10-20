@@ -194,36 +194,25 @@ export default function AddCarePlanItemScreen({ navigation }: Props) {
     const interventions = template.suggestedInterventions;
 
     // Long-term goals
-    console.log('DEBUG: longTermGoals type:', typeof longTermGoals, 'isArray:', Array.isArray(longTermGoals));
-    console.log('DEBUG: longTermGoals value:', JSON.stringify(longTermGoals, null, 2));
-    console.log('DEBUG: current language:', language);
-
     if (Array.isArray(longTermGoals)) {
       // Old format: direct array (for backward compatibility)
-      console.log('DEBUG: Using old format (array)');
       setLongTermGoal(longTermGoals[0]);
     } else if (typeof longTermGoals === 'object' && longTermGoals !== null) {
       // New multilingual format: {ja: [], en: [], zh: []}
       const langKey = language === 'ja' ? 'ja' : language === 'en' ? 'en' : 'zh';
-      console.log('DEBUG: Using new format (object), langKey:', langKey);
       const goalsArray = (longTermGoals as any)[langKey] || (longTermGoals as any).en || [];
-      console.log('DEBUG: Selected goals array:', goalsArray);
       if (goalsArray.length > 0) {
         setLongTermGoal(goalsArray[0]);
       }
     }
 
     // Short-term goals
-    console.log('DEBUG: shortTermGoals type:', typeof shortTermGoals, 'isArray:', Array.isArray(shortTermGoals));
-
     if (Array.isArray(shortTermGoals)) {
       // Old format: direct array (for backward compatibility)
-      console.log('DEBUG: Using old format for short-term goals (array)');
       setShortTermGoal(shortTermGoals[0]);
     } else if (typeof shortTermGoals === 'object' && shortTermGoals !== null) {
       // New multilingual format: {ja: [], en: [], zh: []}
       const langKey = language === 'ja' ? 'ja' : language === 'en' ? 'en' : 'zh';
-      console.log('DEBUG: Using new format for short-term goals, langKey:', langKey);
       const goalsArray = (shortTermGoals as any)[langKey] || (shortTermGoals as any).en || [];
       if (goalsArray.length > 0) {
         setShortTermGoal(goalsArray[0]);
@@ -231,17 +220,13 @@ export default function AddCarePlanItemScreen({ navigation }: Props) {
     }
 
     // Set intervention suggestions
-    console.log('DEBUG: interventions type:', typeof interventions, 'isArray:', Array.isArray(interventions));
-
     let interventionsArray: any[] = [];
     if (Array.isArray(interventions)) {
       // Old format: direct array (for backward compatibility)
-      console.log('DEBUG: Using old format for interventions (array)');
       interventionsArray = interventions;
     } else if (typeof interventions === 'object' && interventions !== null) {
       // New multilingual format: {ja: [], en: [], zh: []}
       const langKey = language === 'ja' ? 'ja' : language === 'en' ? 'en' : 'zh';
-      console.log('DEBUG: Using new format for interventions, langKey:', langKey);
       interventionsArray = (interventions as any)[langKey] || (interventions as any).en || [];
     }
 
