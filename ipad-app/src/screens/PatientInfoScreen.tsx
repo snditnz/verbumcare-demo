@@ -21,6 +21,7 @@ type RootStackParamList = {
   FallRiskAssessment: undefined;
   KihonChecklist: undefined;
   ReviewConfirm: undefined;
+  CarePlanHub: undefined;
   ComingSoon: { feature: string };
 };
 
@@ -499,7 +500,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
           <ActionButton
             icon="document-text"
             label={language === 'ja' ? 'ケアプラン' : 'Care Plan'}
-            onPress={() => navigation.navigate('ComingSoon', { feature: language === 'ja' ? 'ケアプラン' : 'Care Plan' })}
+            onPress={() => navigation.navigate('CarePlanHub')}
             status={{ completed: false, borderColor: COLORS.border }}
           />
 

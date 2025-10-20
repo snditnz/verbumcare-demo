@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { socketService } from './src/services';
+import { useCarePlanStore } from './src/stores/carePlanStore';
 import PatientListScreen from './src/screens/PatientListScreen';
 import PatientScanScreen from './src/screens/PatientScanScreen';
 import PatientInfoScreen from './src/screens/PatientInfoScreen';
@@ -15,6 +16,10 @@ import ReviewConfirmScreen from './src/screens/ReviewConfirmScreen';
 import PainAssessmentScreen from './src/screens/PainAssessmentScreen';
 import FallRiskAssessmentScreen from './src/screens/FallRiskAssessmentScreen';
 import KihonChecklistScreen from './src/screens/KihonChecklistScreen';
+import CarePlanHubScreen from './src/screens/CarePlanHubScreen';
+import FullCarePlanViewScreen from './src/screens/FullCarePlanViewScreen';
+import CreateCarePlanScreen from './src/screens/CreateCarePlanScreen';
+import AddCarePlanItemScreen from './src/screens/AddCarePlanItemScreen';
 import ComingSoonScreen from './src/screens/ComingSoonScreen';
 
 export type RootStackParamList = {
@@ -29,6 +34,10 @@ export type RootStackParamList = {
   PainAssessment: undefined;
   FallRiskAssessment: undefined;
   KihonChecklist: undefined;
+  CarePlanHub: undefined;
+  FullCarePlanView: undefined;
+  CreateCarePlan: undefined;
+  AddCarePlanItem: undefined;
   ReviewConfirm: undefined;
   ComingSoon: { feature: string };
 };
@@ -39,6 +48,18 @@ export default function App() {
   useEffect(() => {
     // Connect Socket.IO on app launch for real-time voice processing updates
     socketService.connect();
+
+    // Load problem templates from backend on app start
+    // This ensures templates are available when creating care plans
+    const loadTemplates = async () => {
+      try {
+        await useCarePlanStore.getState().loadProblemTemplates();
+      } catch (error) {
+        console.error('Failed to load problem templates on app start:', error);
+        // App will continue with fallback templates
+      }
+    };
+    loadTemplates();
 
     return () => {
       // Cleanup Socket.IO connection when app unmounts
@@ -112,6 +133,26 @@ export default function App() {
             name="KihonChecklist"
             component={KihonChecklistScreen}
             options={{ title: 'Kihon Checklist' }}
+          />
+          <Stack.Screen
+            name="CarePlanHub"
+            component={CarePlanHubScreen}
+            options={{ title: 'Care Plan' }}
+          />
+          <Stack.Screen
+            name="FullCarePlanView"
+            component={FullCarePlanViewScreen}
+            options={{ title: 'Care Plan Details' }}
+          />
+          <Stack.Screen
+            name="CreateCarePlan"
+            component={CreateCarePlanScreen}
+            options={{ title: 'Create Care Plan' }}
+          />
+          <Stack.Screen
+            name="AddCarePlanItem"
+            component={AddCarePlanItemScreen}
+            options={{ title: 'Add Problem/Goal' }}
           />
           <Stack.Screen
             name="ReviewConfirm"

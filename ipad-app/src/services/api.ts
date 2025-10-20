@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { API_CONFIG, FACILITY_ID, DEMO_STAFF_ID } from '@constants/config';
 import { APIResponse, APIVitalSigns, VoiceUploadResponse } from '@models/api';
-import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin } from '@models';
+import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, ProblemTemplate } from '@models';
 import { cacheService } from './cacheService';
 
 class APIService {
@@ -267,6 +267,170 @@ class APIService {
       console.error('Error submitting session data:', error);
       throw error;
     }
+  }
+
+  // ========== Care Plan APIs ==========
+
+  /**
+   * Get problem templates for care plan creation
+   * @returns Array of problem templates
+   */
+  async getProblemTemplates(): Promise<ProblemTemplate[]> {
+    const response = await this.client.get<{ templates: ProblemTemplate[]; language: string }>(
+      '/care-plans/problem-templates'
+    );
+    return response.data.templates;
+  }
+
+  /**
+   * Get all care plans for a patient
+   * @param patientId - Patient ID
+   * @returns Array of care plans (usually just one active plan)
+   */
+  async getCarePlans(patientId: string): Promise<CarePlan[]> {
+    const response = await this.client.get<APIResponse<CarePlan[]>>(
+      '/care-plans',
+      {
+        params: { patient_id: patientId }
+      }
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Get a specific care plan by ID
+   * @param carePlanId - Care plan ID
+   * @returns Care plan with all items and details
+   */
+  async getCarePlan(carePlanId: string): Promise<CarePlan> {
+    const response = await this.client.get<APIResponse<CarePlan>>(
+      `/care-plans/${carePlanId}`
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Create a new care plan
+   * @param carePlan - Care plan data
+   * @returns Created care plan with ID
+   */
+  async createCarePlan(carePlan: Omit<CarePlan, 'id' | 'auditLog'>): Promise<CarePlan> {
+    const response = await this.client.post<APIResponse<CarePlan>>(
+      '/care-plans',
+      {
+        patient_id: carePlan.patientId,
+        care_level: carePlan.careLevel,
+        status: carePlan.status,
+        version: carePlan.version,
+        patient_intent: carePlan.patientIntent,
+        family_intent: carePlan.familyIntent,
+        comprehensive_policy: carePlan.comprehensivePolicy,
+        care_manager_id: carePlan.careManagerId,
+        team_members: carePlan.teamMembers,
+        next_review_date: carePlan.nextReviewDate,
+        next_monitoring_date: carePlan.nextMonitoringDate,
+        created_by: DEMO_STAFF_ID,
+      }
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Update an existing care plan
+   * @param carePlanId - Care plan ID
+   * @param updates - Partial care plan updates
+   * @returns Updated care plan
+   */
+  async updateCarePlan(
+    carePlanId: string,
+    updates: Partial<CarePlan>
+  ): Promise<CarePlan> {
+    const response = await this.client.put<APIResponse<CarePlan>>(
+      `/care-plans/${carePlanId}`,
+      {
+        ...updates,
+        updated_by: DEMO_STAFF_ID,
+      }
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Add a care plan item (problem, goals, interventions)
+   * @param carePlanId - Care plan ID
+   * @param item - Care plan item data
+   * @returns Created care plan item with ID
+   */
+  async addCarePlanItem(
+    carePlanId: string,
+    item: Omit<CarePlanItem, 'id'>
+  ): Promise<CarePlanItem> {
+    const response = await this.client.post<APIResponse<CarePlanItem>>(
+      `/care-plans/${carePlanId}/items`,
+      {
+        problem: item.problem,
+        long_term_goal: item.longTermGoal,
+        short_term_goal: item.shortTermGoal,
+        interventions: item.interventions,
+        linked_assessments: item.linkedAssessments,
+        created_by: DEMO_STAFF_ID,
+      }
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Update a care plan item
+   * @param carePlanId - Care plan ID
+   * @param itemId - Care plan item ID
+   * @param updates - Partial item updates
+   * @returns Updated care plan item
+   */
+  async updateCarePlanItem(
+    carePlanId: string,
+    itemId: string,
+    updates: Partial<CarePlanItem>
+  ): Promise<CarePlanItem> {
+    const response = await this.client.put<APIResponse<CarePlanItem>>(
+      `/care-plans/${carePlanId}/items/${itemId}`,
+      {
+        ...updates,
+        updated_by: DEMO_STAFF_ID,
+      }
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Delete a care plan item
+   * @param carePlanId - Care plan ID
+   * @param itemId - Care plan item ID
+   */
+  async deleteCarePlanItem(carePlanId: string, itemId: string): Promise<void> {
+    await this.client.delete(`/care-plans/${carePlanId}/items/${itemId}`);
+  }
+
+  /**
+   * Add a progress note to a care plan item
+   * @param carePlanId - Care plan ID
+   * @param itemId - Care plan item ID
+   * @param note - Progress note text
+   * @returns Updated care plan item
+   */
+  async addProgressNote(
+    carePlanId: string,
+    itemId: string,
+    note: string
+  ): Promise<CarePlanItem> {
+    const response = await this.client.post<APIResponse<CarePlanItem>>(
+      `/care-plans/${carePlanId}/items/${itemId}/notes`,
+      {
+        note,
+        author: DEMO_STAFF_ID,
+        author_name: 'Demo Staff', // TODO: Get from user context
+      }
+    );
+    return response.data.data;
   }
 }
 

@@ -18,8 +18,15 @@
     "preview": {
       "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": true
       }
+    },
+    "demo": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "node": "20.18.0"
     },
     "production": {
       "ios": {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,10 +26,15 @@ const GOAL_DURATIONS: GoalDuration[] = ['1_month', '3_months', '6_months', '12_m
 
 export default function AddCarePlanItemScreen({ navigation }: Props) {
   const { currentPatient, language } = useAssessmentStore();
-  const { getCarePlanByPatientId, addCarePlanItem, problemTemplates } = useCarePlanStore();
+  const { getCarePlanByPatientId, addCarePlanItem, problemTemplates, loadProblemTemplates } = useCarePlanStore();
 
   const t = translations[language];
   const carePlan = currentPatient ? getCarePlanByPatientId(currentPatient.patient_id) : undefined;
+
+  // Load problem templates on mount
+  useEffect(() => {
+    loadProblemTemplates();
+  }, []);
 
   // Ensure problemTemplates is always an array
   const templates = problemTemplates || [];
