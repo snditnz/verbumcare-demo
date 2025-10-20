@@ -335,9 +335,10 @@ CREATE TABLE problem_templates (
     category VARCHAR(50) NOT NULL, -- ADL, fall_prevention, pain_management, etc.
     japanese_text TEXT NOT NULL,
     english_text TEXT NOT NULL,
-    suggested_long_term_goals JSONB, -- Array of goal strings
-    suggested_short_term_goals JSONB, -- Array of goal strings
-    suggested_interventions JSONB, -- Array of {type, description} objects
+    chinese_text TEXT, -- Traditional Chinese
+    suggested_long_term_goals JSONB, -- Multi-language: {ja: [], en: [], zh: []}
+    suggested_short_term_goals JSONB, -- Multi-language: {ja: [], en: [], zh: []}
+    suggested_interventions JSONB, -- Multi-language: {ja: [{type, description}], en: [], zh: []}
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

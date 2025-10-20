@@ -18,6 +18,7 @@ router.get('/problem-templates', async (req, res) => {
         category,
         japanese_text as "japanese",
         english_text as "english",
+        chinese_text as "chinese",
         suggested_long_term_goals as "suggestedLongTermGoals",
         suggested_short_term_goals as "suggestedShortTermGoals",
         suggested_interventions as "suggestedInterventions"

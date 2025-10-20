@@ -114,54 +114,60 @@ WHERE o.scheduled_time < CURRENT_TIME
   AND o.status = 'active'
 LIMIT 10;
 
--- Insert Problem Templates for Care Plans
-INSERT INTO problem_templates (category, japanese_text, english_text, suggested_long_term_goals, suggested_short_term_goals, suggested_interventions)
+-- Insert Problem Templates for Care Plans (Multilingual)
+INSERT INTO problem_templates (category, japanese_text, english_text, chinese_text, suggested_long_term_goals, suggested_short_term_goals, suggested_interventions)
 VALUES
   (
     'ADL',
     'トイレ動作の自立困難',
     'Difficulty with independent toileting',
-    '["日中、見守りのみでトイレ動作ができる", "転倒せずにトイレ動作を完了できる"]'::jsonb,
-    '["手すりを使用してトイレまで歩行できる", "座位から立位への移乗が安全にできる"]'::jsonb,
-    '[{"type": "observation", "description": "トイレ動作時の様子、転倒リスクを毎回観察"}, {"type": "care", "description": "歩行器使用指導、手すり活用支援"}, {"type": "education", "description": "安全なトイレ動作の指導"}]'::jsonb
+    '如廁動作自理困難',
+    '{"ja": ["日中、見守りのみでトイレ動作ができる", "転倒せずにトイレ動作を完了できる"], "en": ["Able to perform toileting with supervision only during daytime", "Complete toileting without falling"], "zh": ["白天僅需監督即可完成如廁動作", "完成如廁動作而不跌倒"]}'::jsonb,
+    '{"ja": ["手すりを使用してトイレまで歩行できる", "座位から立位への移乗が安全にできる"], "en": ["Able to walk to toilet using handrails", "Safely transfer from sitting to standing"], "zh": ["能使用扶手步行至廁所", "能安全地從坐姿轉為站姿"]}'::jsonb,
+    '{"ja": [{"type": "observation", "description": "トイレ動作時の様子、転倒リスクを毎回観察"}, {"type": "care", "description": "歩行器使用指導、手すり活用支援"}, {"type": "education", "description": "安全なトイレ動作の指導"}], "en": [{"type": "observation", "description": "Observe toileting behavior and fall risk each time"}, {"type": "care", "description": "Walker usage training, handrail utilization support"}, {"type": "education", "description": "Safe toileting technique education"}], "zh": [{"type": "observation", "description": "每次觀察如廁行為及跌倒風險"}, {"type": "care", "description": "助行器使用指導、扶手運用協助"}, {"type": "education", "description": "安全如廁技巧衛教"}]}'::jsonb
   ),
   (
     'fall_prevention',
     '転倒リスクが高い',
     'High risk of falling',
-    '["6ヶ月間転倒事故ゼロを維持する", "安全な移動方法を習得する"]'::jsonb,
-    '["歩行器を正しく使用できる", "ベッドからの起き上がりが安全にできる"]'::jsonb,
-    '[{"type": "observation", "description": "ふらつき、バランス、歩行状態の継続観察"}, {"type": "care", "description": "環境整備（段差解消、手すり設置）"}, {"type": "education", "description": "転倒予防のための生活指導"}]'::jsonb
+    '跌倒風險高',
+    '{"ja": ["6ヶ月間転倒事故ゼロを維持する", "安全な移動方法を習得する"], "en": ["Maintain zero fall incidents for 6 months", "Master safe mobility methods"], "zh": ["維持6個月零跌倒事故", "掌握安全移動方法"]}'::jsonb,
+    '{"ja": ["歩行器を正しく使用できる", "ベッドからの起き上がりが安全にできる"], "en": ["Able to use walker correctly", "Safely get up from bed"], "zh": ["能正確使用助行器", "能安全地從床上起身"]}'::jsonb,
+    '{"ja": [{"type": "observation", "description": "ふらつき、バランス、歩行状態の継続観察"}, {"type": "care", "description": "環境整備（段差解消、手すり設置）"}, {"type": "education", "description": "転倒予防のための生活指導"}], "en": [{"type": "observation", "description": "Continuous observation of unsteadiness, balance, and gait"}, {"type": "care", "description": "Environmental modifications (remove steps, install handrails)"}, {"type": "education", "description": "Fall prevention lifestyle education"}], "zh": [{"type": "observation", "description": "持續觀察不穩、平衡和步態"}, {"type": "care", "description": "環境改善（消除高低差、設置扶手）"}, {"type": "education", "description": "跌倒預防生活指導"}]}'::jsonb
   ),
   (
     'nutrition',
     '食事摂取量の低下',
     'Decreased food intake',
-    '["適正体重を維持する（BMI 18.5-25）", "必要栄養量の80%以上を摂取できる"]'::jsonb,
-    '["1日3食、50%以上の摂取ができる", "好みの食事形態を見つける"]'::jsonb,
-    '[{"type": "observation", "description": "食事摂取量、体重変化の記録"}, {"type": "care", "description": "食事形態の工夫、間食の提供"}, {"type": "education", "description": "栄養の重要性について指導"}]'::jsonb
+    '進食量減少',
+    '{"ja": ["適正体重を維持する（BMI 18.5-25）", "必要栄養量の80%以上を摂取できる"], "en": ["Maintain appropriate weight (BMI 18.5-25)", "Achieve 80%+ of required nutritional intake"], "zh": ["維持適當體重（BMI 18.5-25）", "達到所需營養攝取量的80%以上"]}'::jsonb,
+    '{"ja": ["1日3食、50%以上の摂取ができる", "好みの食事形態を見つける"], "en": ["Achieve 50%+ intake for 3 meals daily", "Find preferred food textures"], "zh": ["每日三餐達到50%以上攝取", "找到喜好的食物質地"]}'::jsonb,
+    '{"ja": [{"type": "observation", "description": "食事摂取量、体重変化の記録"}, {"type": "care", "description": "食事形態の工夫、間食の提供"}, {"type": "education", "description": "栄養の重要性について指導"}], "en": [{"type": "observation", "description": "Record food intake and weight changes"}, {"type": "care", "description": "Modify food textures, provide snacks"}, {"type": "education", "description": "Education on importance of nutrition"}], "zh": [{"type": "observation", "description": "記錄進食量和體重變化"}, {"type": "care", "description": "調整食物質地、提供點心"}, {"type": "education", "description": "營養重要性衛教"}]}'::jsonb
   ),
   (
     'pain_management',
     '慢性的な腰痛がある',
     'Chronic low back pain',
-    '["痛みが日常生活に支障をきたさないレベルまで軽減する", "痛みのセルフマネジメントができる"]'::jsonb,
-    '["安静時の痛みがNRS 3以下になる", "痛み軽減のための工夫を3つ以上実践できる"]'::jsonb,
-    '[{"type": "observation", "description": "痛みの程度、部位、性質の評価（毎日）"}, {"type": "care", "description": "体位変換、温罨法、マッサージの実施"}, {"type": "education", "description": "痛み軽減のためのポジショニング指導"}]'::jsonb
+    '慢性下背痛',
+    '{"ja": ["痛みが日常生活に支障をきたさないレベルまで軽減する", "痛みのセルフマネジメントができる"], "en": ["Reduce pain to level that does not interfere with daily living", "Able to self-manage pain"], "zh": ["將疼痛減輕至不影響日常生活的程度", "能自我管理疼痛"]}'::jsonb,
+    '{"ja": ["安静時の痛みがNRS 3以下になる", "痛み軽減のための工夫を3つ以上実践できる"], "en": ["Resting pain reduces to NRS 3 or below", "Implement 3+ pain relief strategies"], "zh": ["靜止時疼痛降至NRS 3以下", "實踐3種以上疼痛緩解策略"]}'::jsonb,
+    '{"ja": [{"type": "observation", "description": "痛みの程度、部位、性質の評価（毎日）"}, {"type": "care", "description": "体位変換、温罨法、マッサージの実施"}, {"type": "education", "description": "痛み軽減のためのポジショニング指導"}], "en": [{"type": "observation", "description": "Daily assessment of pain intensity, location, and quality"}, {"type": "care", "description": "Position changes, heat therapy, massage"}, {"type": "education", "description": "Positioning education for pain relief"}], "zh": [{"type": "observation", "description": "每日評估疼痛程度、部位和性質"}, {"type": "care", "description": "變換姿勢、熱敷、按摩"}, {"type": "education", "description": "疼痛緩解姿勢衛教"}]}'::jsonb
   ),
   (
     'cognition',
     '認知機能の低下（見当識障害）',
     'Cognitive decline (disorientation)',
-    '["日時の見当識を維持する", "穏やかに施設生活を送ることができる"]'::jsonb,
-    '["曜日と時間帯がわかる", "職員の顔と名前を覚える"]'::jsonb,
-    '[{"type": "observation", "description": "見当識、記憶力、判断力の定期評価"}, {"type": "care", "description": "オリエンテーション支援（カレンダー、時計の活用）"}, {"type": "education", "description": "家族への認知症ケアの指導"}]'::jsonb
+    '認知功能下降（定向力障礙）',
+    '{"ja": ["日時の見当識を維持する", "穏やかに施設生活を送ることができる"], "en": ["Maintain time and date orientation", "Live peacefully in facility"], "zh": ["維持時間和日期定向力", "能平和地在機構生活"]}'::jsonb,
+    '{"ja": ["曜日と時間帯がわかる", "職員の顔と名前を覚える"], "en": ["Recognize day of week and time of day", "Remember staff faces and names"], "zh": ["能辨識星期和時段", "記住工作人員的臉和姓名"]}'::jsonb,
+    '{"ja": [{"type": "observation", "description": "見当識、記憶力、判断力の定期評価"}, {"type": "care", "description": "オリエンテーション支援（カレンダー、時計の活用）"}, {"type": "education", "description": "家族への認知症ケアの指導"}], "en": [{"type": "observation", "description": "Regular assessment of orientation, memory, and judgment"}, {"type": "care", "description": "Orientation support (calendar and clock use)"}, {"type": "education", "description": "Dementia care education for family"}], "zh": [{"type": "observation", "description": "定期評估定向力、記憶力和判斷力"}, {"type": "care", "description": "定向力支援（利用日曆和時鐘）"}, {"type": "education", "description": "失智症照護家屬衛教"}]}'::jsonb
   ),
   (
     'psychosocial',
     '社会的孤立・活動量の低下',
     'Social isolation and decreased activity',
-    '["施設内で親しい仲間を作る", "楽しみを見つけ、活動的に過ごす"]'::jsonb,
-    '["レクリエーションに週3回以上参加する", "他の利用者と会話を楽しむ"]'::jsonb,
-    '[{"type": "observation", "description": "表情、活動参加状況、他者との交流の観察"}, {"type": "care", "description": "レクリエーション参加の声かけ、趣味活動の提供"}, {"type": "education", "description": "社会参加の重要性について説明"}]'::jsonb
+    '社交孤立與活動量減少',
+    '{"ja": ["施設内で親しい仲間を作る", "楽しみを見つけ、活動的に過ごす"], "en": ["Make close friends within facility", "Find enjoyment and stay active"], "zh": ["在機構內建立親密友誼", "找到樂趣並保持活躍"]}'::jsonb,
+    '{"ja": ["レクリエーションに週3回以上参加する", "他の利用者と会話を楽しむ"], "en": ["Participate in recreation 3+ times per week", "Enjoy conversations with other residents"], "zh": ["每週參加3次以上康樂活動", "享受與其他住民的交談"]}'::jsonb,
+    '{"ja": [{"type": "observation", "description": "表情、活動参加状況、他者との交流の観察"}, {"type": "care", "description": "レクリエーション参加の声かけ、趣味活動の提供"}, {"type": "education", "description": "社会参加の重要性について説明"}], "en": [{"type": "observation", "description": "Observe facial expressions, activity participation, social interactions"}, {"type": "care", "description": "Encourage recreation participation, provide hobby activities"}, {"type": "education", "description": "Explain importance of social participation"}], "zh": [{"type": "observation", "description": "觀察表情、活動參與、與他人互動"}, {"type": "care", "description": "鼓勵參與康樂活動、提供嗜好活動"}, {"type": "education", "description": "說明社交參與的重要性"}]}'::jsonb
   );
