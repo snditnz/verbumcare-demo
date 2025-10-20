@@ -11,3 +11,5 @@ export { default as CarePlanHubScreen } from './CarePlanHubScreen';
 export { default as FullCarePlanViewScreen } from './FullCarePlanViewScreen';
 export { default as CreateCarePlanScreen } from './CreateCarePlanScreen';
 export { default as AddCarePlanItemScreen } from './AddCarePlanItemScreen';
+export { default as QuickProgressUpdateScreen } from './QuickProgressUpdateScreen';
+export { default as MonitoringFormScreen } from './MonitoringFormScreen';

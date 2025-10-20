@@ -16,8 +16,9 @@ interface CarePlanStore {
   createCarePlan: (carePlan: Omit<CarePlan, 'id' | 'auditLog'>) => Promise<CarePlan>;
   updateCarePlan: (carePlan: CarePlan) => Promise<void>;
   addCarePlanItem: (patientId: string, item: Omit<CarePlanItem, 'id'>) => Promise<void>;
-  updateCarePlanItem: (patientId: string, item: CarePlanItem) => Promise<void>;
+  updateCarePlanItem: (carePlanId: string, item: CarePlanItem) => Promise<void>;
   deleteCarePlanItem: (patientId: string, itemId: string) => Promise<void>;
+  createMonitoringRecord: (carePlanId: string, record: any) => Promise<void>;
   clearError: () => void;
 }
 
@@ -274,24 +275,99 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
     }
   },
 
-  updateCarePlanItem: async (patientId: string, item: CarePlanItem) => {
+  updateCarePlanItem: async (carePlanId: string, item: CarePlanItem) => {
     try {
       set({ isLoading: true, error: null });
-      const carePlan = get().carePlans.get(patientId);
-      if (!carePlan) {
+
+      // Find the care plan by ID
+      const carePlanEntry = Array.from(get().carePlans.entries()).find(
+        ([_, plan]) => plan.id === carePlanId
+      );
+
+      if (!carePlanEntry) {
         throw new Error('Care plan not found');
       }
 
-      await apiService.updateCarePlanItem(carePlan.id, item.id, item);
+      const [patientId, carePlan] = carePlanEntry;
 
-      // Reload the care plan to get updated data
-      await get().loadCarePlan(patientId);
-      set({ isLoading: false });
+      // Update locally first (optimistic update)
+      const updatedCarePlan = {
+        ...carePlan,
+        carePlanItems: carePlan.carePlanItems.map(i =>
+          i.id === item.id ? item : i
+        ),
+      };
+
+      await cacheService.cacheCarePlan(updatedCarePlan);
+
+      set((state) => {
+        const newCarePlans = new Map(state.carePlans);
+        newCarePlans.set(patientId, updatedCarePlan);
+        return { carePlans: newCarePlans, isLoading: false };
+      });
+
+      // Try to sync with backend
+      try {
+        await apiService.updateCarePlanItem(carePlan.id, item.id, item);
+      } catch (syncError: any) {
+        console.warn('Failed to sync care plan item update, will retry later:', syncError);
+        await cacheService.addPendingSync('updateCarePlanItem', { carePlanId, item });
+      }
     } catch (error: any) {
       console.error('Error updating care plan item:', error);
       set({
         isLoading: false,
         error: 'Failed to update care plan item.'
+      });
+      throw error;
+    }
+  },
+
+  createMonitoringRecord: async (carePlanId: string, record: any) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      // Find the care plan by ID
+      const carePlanEntry = Array.from(get().carePlans.entries()).find(
+        ([_, plan]) => plan.id === carePlanId
+      );
+
+      if (!carePlanEntry) {
+        throw new Error('Care plan not found');
+      }
+
+      const [patientId, carePlan] = carePlanEntry;
+
+      // Update locally first
+      const updatedCarePlan = {
+        ...carePlan,
+        monitoringRecords: [...carePlan.monitoringRecords, record],
+        lastMonitoringDate: record.monitoringDate,
+        nextMonitoringDate: record.nextMonitoringDate,
+      };
+
+      await cacheService.cacheCarePlan(updatedCarePlan);
+
+      set((state) => {
+        const newCarePlans = new Map(state.carePlans);
+        newCarePlans.set(patientId, updatedCarePlan);
+        return { carePlans: newCarePlans, isLoading: false };
+      });
+
+      // Try to sync with backend
+      try {
+        // TODO: Add API endpoint for monitoring records
+        // await apiService.createMonitoringRecord(carePlanId, record);
+        console.log('Monitoring record created locally:', record);
+      } catch (syncError: any) {
+        console.warn('Failed to sync monitoring record, will retry later:', syncError);
+        await cacheService.addPendingSync('createMonitoringRecord', { carePlanId, record });
+      }
+    } catch (error: any) {
+      console.error('Error creating monitoring record:', error);
+      set({
+        isLoading: false,
+        error: 'Failed to create monitoring record.'
       });
       throw error;
     }

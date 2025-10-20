@@ -14,6 +14,8 @@ type RootStackParamList = {
   FullCarePlanView: undefined;
   CreateCarePlan: undefined;
   AddCarePlanItem: undefined;
+  QuickProgressUpdate: undefined;
+  MonitoringForm: undefined;
   PatientInfo: undefined;
   ComingSoon: { feature: string };
 };
@@ -261,11 +263,19 @@ export default function CarePlanHubScreen({ navigation }: Props) {
           />
 
           <ActionCard
+            icon="create"
+            title={language === 'ja' ? '進捗クイック更新' : 'Quick Progress'}
+            subtitle={language === 'ja' ? '達成度を素早く更新' : 'Update achievement'}
+            onPress={() => navigation.navigate('QuickProgressUpdate')}
+            color={COLORS.status.normal}
+          />
+
+          <ActionCard
             icon="analytics"
             title={t['carePlan.monitoring']}
             subtitle={language === 'ja' ? '3ヶ月モニタリング' : '3-month monitoring'}
-            onPress={() => navigation.navigate('ComingSoon', { feature: t['carePlan.monitoring'] })}
-            color={COLORS.status.normal}
+            onPress={() => navigation.navigate('MonitoringForm')}
+            color={COLORS.status.warning}
           />
 
           <ActionCard
