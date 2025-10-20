@@ -81,7 +81,7 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
         // Try to update in background
         apiService.getCarePlans(patientId)
           .then(carePlans => {
-            if (carePlans.length > 0) {
+            if (carePlans && Array.isArray(carePlans) && carePlans.length > 0) {
               cacheService.cacheCarePlan(carePlans[0]);
               set((state) => {
                 const newCarePlans = new Map(state.carePlans);
@@ -97,17 +97,20 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
       // No cache - try API
       const carePlans = await apiService.getCarePlans(patientId);
 
-      if (carePlans.length > 0) {
+      if (carePlans && Array.isArray(carePlans) && carePlans.length > 0) {
         await cacheService.cacheCarePlan(carePlans[0]);
-      }
 
-      set((state) => {
-        const newCarePlans = new Map(state.carePlans);
-        carePlans.forEach(plan => {
-          newCarePlans.set(plan.patientId, plan);
+        set((state) => {
+          const newCarePlans = new Map(state.carePlans);
+          carePlans.forEach(plan => {
+            newCarePlans.set(plan.patientId, plan);
+          });
+          return { carePlans: newCarePlans, isLoading: false };
         });
-        return { carePlans: newCarePlans, isLoading: false };
-      });
+      } else {
+        // No care plans found - this is normal
+        set({ isLoading: false, error: null });
+      }
     } catch (error: any) {
       // 404 is expected when no care plan exists - not an error
       if (error.response?.status === 404) {

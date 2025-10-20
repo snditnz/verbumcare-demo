@@ -13,6 +13,7 @@ import { CarePlanItem } from '@models/app';
 type RootStackParamList = {
   FullCarePlanView: undefined;
   CarePlanHub: undefined;
+  AddCarePlanItem: undefined;
 };
 
 type Props = {
@@ -261,7 +262,7 @@ export default function FullCarePlanViewScreen({ navigation }: Props) {
         </View>
         <View style={styles.headerCenter}>
           <Text style={styles.patientName}>
-            {currentPatient.family_name} {currentPatient.given_name}のケアプラン
+            {currentPatient.family_name} {currentPatient.given_name} {t['carePlan.carePlan']}
           </Text>
           <Text style={styles.screenTitle}>
             {carePlan.careLevel} | {t['carePlan.version']} {carePlan.version}
@@ -305,7 +306,10 @@ export default function FullCarePlanViewScreen({ navigation }: Props) {
         ))}
 
         {/* Add Problem Button */}
-        <TouchableOpacity style={styles.addProblemButton}>
+        <TouchableOpacity
+          style={styles.addProblemButton}
+          onPress={() => navigation.navigate('AddCarePlanItem')}
+        >
           <Ionicons name="add-circle" size={ICON_SIZES.lg} color={COLORS.accent} />
           <Text style={styles.addProblemText}>{t['carePlan.addNewProblem']}</Text>
         </TouchableOpacity>
