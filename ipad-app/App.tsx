@@ -1,12 +1,23 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, View } from 'react-native';
 import { socketService } from './src/services';
 import { useCarePlanStore } from './src/stores/carePlanStore';
+import { useAuthStore } from './src/stores/authStore';
+import { COLORS } from './src/constants/theme';
+
+// Auth screens
+import LoginScreen from './src/screens/LoginScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
+
+// Patient screens
 import PatientListScreen from './src/screens/PatientListScreen';
 import PatientScanScreen from './src/screens/PatientScanScreen';
 import PatientInfoScreen from './src/screens/PatientInfoScreen';
+
+// Assessment screens
 import VitalsCaptureScreen from './src/screens/VitalsCaptureScreen';
 import ADLVoiceScreen from './src/screens/ADLVoiceScreen';
 import MedicineAdminScreen from './src/screens/MedicineAdminScreen';
@@ -16,15 +27,21 @@ import ReviewConfirmScreen from './src/screens/ReviewConfirmScreen';
 import PainAssessmentScreen from './src/screens/PainAssessmentScreen';
 import FallRiskAssessmentScreen from './src/screens/FallRiskAssessmentScreen';
 import KihonChecklistScreen from './src/screens/KihonChecklistScreen';
+
+// Care Plan screens
 import CarePlanHubScreen from './src/screens/CarePlanHubScreen';
 import FullCarePlanViewScreen from './src/screens/FullCarePlanViewScreen';
 import CreateCarePlanScreen from './src/screens/CreateCarePlanScreen';
 import AddCarePlanItemScreen from './src/screens/AddCarePlanItemScreen';
 import QuickProgressUpdateScreen from './src/screens/QuickProgressUpdateScreen';
 import MonitoringFormScreen from './src/screens/MonitoringFormScreen';
+
+// Utility screens
 import ComingSoonScreen from './src/screens/ComingSoonScreen';
 
 export type RootStackParamList = {
+  Login: undefined;
+  Dashboard: undefined;
   PatientList: undefined;
   PatientScan: undefined;
   PatientInfo: undefined;
@@ -49,7 +66,13 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList>('Login');
+
   useEffect(() => {
+    // Check authentication status on app launch
+    checkAuth();
+
     // Connect Socket.IO on app launch for real-time voice processing updates
     socketService.connect();
 
@@ -71,18 +94,45 @@ export default function App() {
     };
   }, []);
 
+  // Update initial route based on authentication
+  useEffect(() => {
+    if (!isLoading) {
+      setInitialRoute(isAuthenticated ? 'Dashboard' : 'Login');
+    }
+  }, [isAuthenticated, isLoading]);
+
+  // Show loading screen while checking auth
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary }}>
+        <ActivityIndicator size="large" color={COLORS.white} />
+      </View>
+    );
+  }
+
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="PatientList"
+          initialRouteName={initialRoute}
           screenOptions={{
             headerShown: false,
             orientation: 'landscape',
             animation: 'slide_from_right',
           }}
         >
+          {/* Auth & Home Screens */}
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ title: 'VerbumCare Login' }}
+          />
+          <Stack.Screen
+            name="Dashboard"
+            component={DashboardScreen}
+            options={{ title: 'VerbumCare Dashboard' }}
+          />
           <Stack.Screen
             name="PatientList"
             component={PatientListScreen}

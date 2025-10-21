@@ -37,16 +37,82 @@ export default function QuickProgressUpdateScreen({ navigation }: Props) {
   if (!currentPatient || !carePlan) {
     return (
       <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Button variant="text" onPress={() => navigation.goBack()}>
+              {`← ${t['common.back']}`}
+            </Button>
+          </View>
+          <View style={styles.headerCenter}>
+            <Text style={styles.screenTitle}>
+              {language === 'ja' ? '進捗クイック更新' : 'Quick Progress Update'}
+            </Text>
+          </View>
+          <View style={styles.headerRight}>
+            <LanguageToggle />
+          </View>
+        </View>
+
         <View style={styles.emptyState}>
+          <Ionicons name="document-text-outline" size={64} color={COLORS.text.disabled} />
           <Text style={styles.emptyText}>
             {language === 'ja' ? 'ケアプランが見つかりません' : 'Care plan not found'}
           </Text>
+          <Text style={[styles.emptyText, { fontSize: TYPOGRAPHY.fontSize.sm, marginTop: SPACING.sm }]}>
+            {language === 'ja'
+              ? '患者のケアプランを先に作成してください'
+              : 'Please create a care plan for this patient first'}
+          </Text>
+          <Button variant="primary" onPress={() => navigation.goBack()} style={{ marginTop: SPACING.xl }}>
+            {language === 'ja' ? '戻る' : 'Go Back'}
+          </Button>
         </View>
       </SafeAreaView>
     );
   }
 
   const activeItems = carePlan.carePlanItems.filter(item => item.problem.status === 'active');
+
+  // Show empty state if no active items
+  if (activeItems.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Button variant="text" onPress={() => navigation.goBack()}>
+              {`← ${t['common.back']}`}
+            </Button>
+          </View>
+          <View style={styles.headerCenter}>
+            <Text style={styles.patientName}>
+              {currentPatient.family_name} {currentPatient.given_name}
+            </Text>
+            <Text style={styles.screenTitle}>
+              {language === 'ja' ? '進捗クイック更新' : 'Quick Progress Update'}
+            </Text>
+          </View>
+          <View style={styles.headerRight}>
+            <LanguageToggle />
+          </View>
+        </View>
+
+        <View style={styles.emptyState}>
+          <Ionicons name="checkmark-circle-outline" size={64} color={COLORS.success} />
+          <Text style={styles.emptyText}>
+            {language === 'ja' ? 'アクティブなケアプラン項目がありません' : 'No active care plan items'}
+          </Text>
+          <Text style={[styles.emptyText, { fontSize: TYPOGRAPHY.fontSize.sm, marginTop: SPACING.sm }]}>
+            {language === 'ja'
+              ? 'ケアプランに課題を追加するか、既存の項目を有効化してください'
+              : 'Add items to the care plan or activate existing items'}
+          </Text>
+          <Button variant="primary" onPress={() => navigation.goBack()} style={{ marginTop: SPACING.xl }}>
+            {language === 'ja' ? 'ケアプランに戻る' : 'Back to Care Plan'}
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
   const selectedItem = activeItems.find(item => item.id === selectedItemId);
 
   // Initialize sliders when item is selected
