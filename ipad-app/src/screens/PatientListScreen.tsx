@@ -13,6 +13,7 @@ import { debugStorage } from '../utils/debugStorage';
 const logoMark = require('../../VerbumCare-Logo-Mark.png');
 
 type RootStackParamList = {
+  Dashboard: undefined;
   PatientList: undefined;
   PatientScan: undefined;
   VitalsCapture: undefined;
@@ -89,8 +90,14 @@ export default function PatientListScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <Image source={logoMark} style={styles.logoImage} resizeMode="contain" />
-          <Text style={styles.logo}>VerbumCare</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Dashboard' as any)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.white} />
+            <Image source={logoMark} style={styles.logoImage} resizeMode="contain" />
+            <Text style={styles.logo}>VerbumCare</Text>
+          </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
           <TouchableOpacity onPress={() => debugStorage()}>

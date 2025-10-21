@@ -151,16 +151,8 @@ export default function DashboardScreen({ navigation }: Props) {
       </View>
 
       <ScrollView style={styles.content}>
-        {/* Quick Actions & Stats Grid - 2 rows x 3 columns */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="flash" size={ICON_SIZES.lg} color={COLORS.accent} />
-            <Text style={styles.sectionTitle}>
-              {language === 'ja' ? 'クイックアクション' : 'Quick Actions'}
-            </Text>
-          </View>
-
-          <View style={styles.gridContainer}>
+        {/* Top Grid: Quick Actions & Stats - 2 rows x 5 columns (including 2-col Recent) */}
+        <View style={styles.gridContainer}>
             {/* Recent Patients - Right side, spans 2 rows */}
             <View style={styles.gridCellDouble}>
               <Card style={{ flex: 1, padding: SPACING.md }}>
@@ -279,16 +271,17 @@ export default function DashboardScreen({ navigation }: Props) {
               </View>
             </View>
           </View>
-        </View>
 
-        {/* Section 1: Alerts & Notifications */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="notifications" size={ICON_SIZES.lg} color={COLORS.error} />
-            <Text style={styles.sectionTitle}>
-              {language === 'ja' ? 'アラート＆通知' : 'Alerts & Notifications'}
-            </Text>
-          </View>
+        {/* Bottom Row: 3 equal sections */}
+        <View style={styles.bottomRow}>
+          {/* Section 1: Alerts & Notifications */}
+          <View style={styles.bottomSection}>
+            <View style={styles.sectionHeaderCompact}>
+              <Ionicons name="notifications" size={ICON_SIZES.md} color={COLORS.error} />
+              <Text style={styles.sectionTitleSmall}>
+                {language === 'ja' ? 'アラート' : 'Alerts'}
+              </Text>
+            </View>
 
           {highPriorityProblems.length === 0 && stuckGoals.length === 0 && overdueMonitoring.length === 0 ? (
             <Text style={styles.emptyMessage}>
@@ -402,38 +395,38 @@ export default function DashboardScreen({ navigation }: Props) {
               )}
             </View>
           )}
-        </View>
-
-        {/* Section 2: Today's Schedule */}
-        <View style={styles.sectionCompact}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="calendar-outline" size={ICON_SIZES.md} color={COLORS.primary} />
-            <Text style={styles.sectionTitleSmall}>
-              {language === 'ja' ? '本日の予定' : "Today's Schedule"}
-            </Text>
           </View>
-          <Text style={styles.emptyMessage}>
-            {language === 'ja' ? '予定なし' : 'No schedule today'}
-          </Text>
-        </View>
 
-        {/* Section 3: Care Plans Overview */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="list-outline" size={ICON_SIZES.lg} color={COLORS.accent} />
-            <Text style={styles.sectionTitle}>
-              {language === 'ja' ? 'ケアプラン一覧' : 'Care Plans Overview'}
-            </Text>
-            <Button
-              variant="text"
-              onPress={() => navigation.navigate('PatientList' as any)}
-              style={{ marginLeft: 'auto' }}
-            >
-              <Text style={styles.viewAllText}>
-                {language === 'ja' ? '全患者' : 'All Patients'} →
+          {/* Section 2: Today's Schedule */}
+          <View style={styles.bottomSection}>
+            <View style={styles.sectionHeaderCompact}>
+              <Ionicons name="calendar-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.sectionTitleSmall}>
+                {language === 'ja' ? '本日予定' : "Today's Schedule"}
               </Text>
-            </Button>
+            </View>
+            <Text style={styles.emptyMessage}>
+              {language === 'ja' ? '予定なし' : 'No schedule'}
+            </Text>
           </View>
+
+          {/* Section 3: Care Plans Overview */}
+          <View style={styles.bottomSection}>
+            <View style={styles.sectionHeaderCompact}>
+              <Ionicons name="list-outline" size={ICON_SIZES.md} color={COLORS.accent} />
+              <Text style={styles.sectionTitleSmall}>
+                {language === 'ja' ? 'ケアプラン' : 'Care Plans'}
+              </Text>
+              <Button
+                variant="text"
+                onPress={() => navigation.navigate('PatientList' as any)}
+                style={{ marginLeft: 'auto' }}
+              >
+                <Text style={styles.viewAllTextSmall}>
+                  {language === 'ja' ? '全て' : 'All'} →
+                </Text>
+              </Button>
+            </View>
 
           {loading ? (
             <ActivityIndicator size="small" color={COLORS.primary} />
@@ -502,6 +495,7 @@ export default function DashboardScreen({ navigation }: Props) {
               })}
             </View>
           )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -571,10 +565,25 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   gridLeftSide: {
     flex: 3,
     gap: SPACING.md,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    flex: 1,
+  },
+  bottomSection: {
+    flex: 1,
+  },
+  sectionHeaderCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
   gridRow: {
     flexDirection: 'row',

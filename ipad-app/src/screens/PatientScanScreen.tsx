@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Alert, Image } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAssessmentStore } from '@stores/assessmentStore';
@@ -10,7 +10,10 @@ import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '@constants/theme';
 import { DEMO_PATIENTS } from '@constants/demoPatients';
 import { Patient } from '@models';
 
+const logoMark = require('../../VerbumCare-Logo-Mark.png');
+
 type RootStackParamList = {
+  Dashboard: undefined;
   PatientList: undefined;
   PatientScan: undefined;
   VitalsCapture: undefined;
@@ -91,7 +94,7 @@ export default function PatientScanScreen({ navigation }: Props) {
   };
 
   const handleCancel = () => {
-    navigation.navigate('PatientList');
+    navigation.navigate('Dashboard' as any);
   };
 
   if (!permission) {
@@ -102,8 +105,8 @@ export default function PatientScanScreen({ navigation }: Props) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Button variant="text" onPress={handleCancel}>
-            {`← ${t['common.cancel']}`}
+          <Button variant="text" onPress={handleCancel} style={styles.backButtonContainer}>
+            <Text style={styles.backButton}>{`← ${t['common.cancel']}`}</Text>
           </Button>
           <LanguageToggle />
         </View>
@@ -121,16 +124,19 @@ export default function PatientScanScreen({ navigation }: Props) {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Button variant="text" onPress={handleCancel}>
-            {`← ${t['common.cancel']}`}
+          <Button variant="text" onPress={handleCancel} style={styles.backButtonContainer}>
+            <Text style={styles.backButton}>{`← ${t['common.back']}`}</Text>
           </Button>
         </View>
         <View style={styles.headerCenter}>
+          <Image source={logoMark} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.screenTitle}>
             {language === 'ja' ? 'バーコードスキャン' : 'Scan Barcode'}
           </Text>
         </View>
-        <LanguageToggle />
+        <View style={styles.headerRight}>
+          <LanguageToggle />
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -155,13 +161,20 @@ export default function PatientScanScreen({ navigation }: Props) {
           </CameraView>
         </View>
 
-        {scanned && (
-          <View style={styles.actions}>
+        <View style={styles.actions}>
+          {scanned && (
             <Button variant="outline" onPress={() => setScanned(false)}>
               {t['scan.scanAgain']}
             </Button>
-          </View>
-        )}
+          )}
+          <Button
+            variant="text"
+            onPress={() => navigation.navigate('PatientList' as any)}
+            style={{ marginTop: SPACING.md }}
+          >
+            {language === 'ja' ? '患者を検索' : 'Browse/Search Patients'}
+          </Button>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -178,21 +191,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.primary,
   },
   headerLeft: {
-    flex: 1,
+    // No flex - size to content
   },
   headerCenter: {
-    flex: 2,
+    flex: 1,
     alignItems: 'center',
   },
+  headerRight: {
+    // No flex - size to content
+    alignItems: 'flex-end',
+  },
+  logoImage: {
+    width: 32,
+    height: 32,
+    marginBottom: SPACING.xs,
+  },
   screenTitle: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.white,
+  },
+  backButton: {
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.text.primary,
+    color: COLORS.white,
+  },
+  backButtonContainer: {
+    paddingHorizontal: 0,
   },
   content: {
     flex: 1,
