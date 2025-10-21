@@ -291,14 +291,9 @@ export default function DashboardScreen({ navigation }: Props) {
           </View>
 
           {highPriorityProblems.length === 0 && stuckGoals.length === 0 && overdueMonitoring.length === 0 ? (
-            <Card>
-              <View style={styles.emptyState}>
-                <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
-                <Text style={styles.emptyStateText}>
-                  {language === 'ja' ? 'アラートはありません' : 'No alerts at this time'}
-                </Text>
-              </View>
-            </Card>
+            <Text style={styles.emptyMessage}>
+              {language === 'ja' ? 'アラートはありません' : 'No alerts'}
+            </Text>
           ) : (
             <View style={styles.alertsGrid}>
               {/* High Priority Problems */}
@@ -315,7 +310,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       <Text style={styles.alertCountText}>{highPriorityProblems.length}</Text>
                     </View>
                   </View>
-                  {highPriorityProblems.slice(0, 3).map((alert, idx) => {
+                  {highPriorityProblems.slice(0, 1).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     return (
                       <TouchableOpacity
@@ -349,7 +344,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       <Text style={styles.alertCountText}>{stuckGoals.length}</Text>
                     </View>
                   </View>
-                  {stuckGoals.slice(0, 3).map((alert, idx) => {
+                  {stuckGoals.slice(0, 1).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     return (
                       <TouchableOpacity
@@ -383,7 +378,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       <Text style={styles.alertCountText}>{overdueMonitoring.length}</Text>
                     </View>
                   </View>
-                  {overdueMonitoring.slice(0, 3).map((alert, idx) => {
+                  {overdueMonitoring.slice(0, 1).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     const daysOverdue = Math.floor(
                       (Date.now() - new Date(alert.nextReview).getTime()) / (1000 * 60 * 60 * 24)
@@ -410,29 +405,16 @@ export default function DashboardScreen({ navigation }: Props) {
         </View>
 
         {/* Section 2: Today's Schedule */}
-        <View style={styles.section}>
+        <View style={styles.sectionCompact}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="calendar-outline" size={ICON_SIZES.lg} color={COLORS.primary} />
-            <Text style={styles.sectionTitle}>
+            <Ionicons name="calendar-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+            <Text style={styles.sectionTitleSmall}>
               {language === 'ja' ? '本日の予定' : "Today's Schedule"}
             </Text>
           </View>
-
-          <Card>
-            <View style={styles.emptyState}>
-              <Ionicons name="calendar" size={48} color={COLORS.text.disabled} />
-              <Text style={styles.emptyStateText}>
-                {language === 'ja'
-                  ? '本日の予定はスケジュール機能実装後に表示されます'
-                  : 'Schedule will appear here when implemented'}
-              </Text>
-              <Text style={styles.emptyStateSubtext}>
-                {language === 'ja'
-                  ? 'バイタル測定、服薬、評価などの予定が表示されます'
-                  : 'Vitals, medications, assessments, and care conferences'}
-              </Text>
-            </View>
-          </Card>
+          <Text style={styles.emptyMessage}>
+            {language === 'ja' ? '予定なし' : 'No schedule today'}
+          </Text>
         </View>
 
         {/* Section 3: Care Plans Overview */}
@@ -454,26 +436,14 @@ export default function DashboardScreen({ navigation }: Props) {
           </View>
 
           {loading ? (
-            <Card>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-            </Card>
+            <ActivityIndicator size="small" color={COLORS.primary} />
           ) : patientsWithCarePlans.length === 0 ? (
-            <Card>
-              <View style={styles.emptyState}>
-                <Ionicons name="document-text-outline" size={48} color={COLORS.text.disabled} />
-                <Text style={styles.emptyStateText}>
-                  {language === 'ja' ? 'ケアプランはまだ作成されていません' : 'No care plans created yet'}
-                </Text>
-                <Text style={styles.emptyStateSubtext}>
-                  {language === 'ja'
-                    ? '患者を選択してケアプランを作成してください'
-                    : 'Select a patient to create their care plan'}
-                </Text>
-              </View>
-            </Card>
+            <Text style={styles.emptyMessage}>
+              {language === 'ja' ? 'ケアプランなし' : 'No care plans'}
+            </Text>
           ) : (
             <View style={styles.carePlansGrid}>
-              {patientsWithCarePlans.slice(0, 6).map((carePlan) => {
+              {patientsWithCarePlans.slice(0, 3).map((carePlan) => {
                 const patient = patients.find(p => p.patient_id === carePlan.patientId);
                 const activeItems = carePlan.carePlanItems.filter(i => i.problem.status === 'active');
                 const avgProgress = activeItems.length > 0
@@ -644,7 +614,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   section: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.md,
+  },
+  sectionCompact: {
+    marginBottom: SPACING.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -656,6 +629,16 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.xl,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text.primary,
+  },
+  sectionTitleSmall: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  emptyMessage: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.disabled,
+    fontStyle: 'italic',
   },
   viewAllText: {
     fontSize: TYPOGRAPHY.fontSize.base,
