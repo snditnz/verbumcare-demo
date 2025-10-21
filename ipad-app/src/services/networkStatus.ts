@@ -2,10 +2,10 @@
  * Network Status Service
  *
  * Detects online/offline state and provides status to UI
+ * Fallback version without native NetInfo dependency
  */
 
 import { useState, useEffect } from 'react';
-import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 
 export interface NetworkStatus {
   isConnected: boolean;
@@ -13,56 +13,48 @@ export interface NetworkStatus {
   type: string | null;
 }
 
+// Default to optimistic "online" state
 let currentStatus: NetworkStatus = {
-  isConnected: false,
-  isInternetReachable: null,
-  type: null,
+  isConnected: true,
+  isInternetReachable: true,
+  type: 'wifi',
 };
 
 let listeners: Array<(status: NetworkStatus) => void> = [];
 
 /**
  * Initialize network monitoring
+ * Fallback: assumes always online (for Expo Go compatibility)
  */
 export function initNetworkMonitoring() {
-  const unsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
-    currentStatus = {
-      isConnected: state.isConnected ?? false,
-      isInternetReachable: state.isInternetReachable,
-      type: state.type,
-    };
+  console.log('[NetworkStatus] Using fallback mode (NetInfo not available)');
+  console.log('[NetworkStatus] 🟢 Assuming online');
 
-    // Notify all listeners
-    listeners.forEach(listener => listener(currentStatus));
-
-    console.log('[NetworkStatus]', currentStatus.isConnected ? '🟢 Online' : '🔴 Offline');
-  });
-
-  return unsubscribe;
+  // Return no-op unsubscribe function
+  return () => {};
 }
 
 /**
  * Get current network status
+ * Fallback: returns optimistic online state
  */
 export async function getNetworkStatus(): Promise<NetworkStatus> {
-  const state = await NetInfo.fetch();
-  return {
-    isConnected: state.isConnected ?? false,
-    isInternetReachable: state.isInternetReachable,
-    type: state.type,
-  };
+  // TODO: When app is built with dev build, use actual NetInfo
+  // For now, assume online to not block functionality
+  return currentStatus;
 }
 
 /**
  * Check if device is online
+ * Fallback: returns true
  */
 export async function isOnline(): Promise<boolean> {
-  const status = await getNetworkStatus();
-  return status.isConnected;
+  return currentStatus.isConnected;
 }
 
 /**
  * Subscribe to network status changes
+ * Fallback: no-op
  */
 export function subscribeToNetworkStatus(callback: (status: NetworkStatus) => void) {
   listeners.push(callback);
@@ -75,19 +67,13 @@ export function subscribeToNetworkStatus(callback: (status: NetworkStatus) => vo
 
 /**
  * React hook for network status
+ * Fallback: returns optimistic online state
  */
 export function useNetworkStatus(): NetworkStatus {
-  const [status, setStatus] = useState<NetworkStatus>(currentStatus);
+  const [status] = useState<NetworkStatus>(currentStatus);
 
-  useEffect(() => {
-    // Get initial status
-    getNetworkStatus().then(setStatus);
-
-    // Subscribe to changes
-    const unsubscribe = subscribeToNetworkStatus(setStatus);
-
-    return unsubscribe;
-  }, []);
+  // No actual monitoring in fallback mode
+  // Component will always show "online" state
 
   return status;
 }
