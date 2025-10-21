@@ -10,6 +10,8 @@ import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { apiService } from '@services/api';
+import { cacheService } from '@services/cacheService';
+import { clearUserCache } from '@services/cacheWarmer';
 import { Patient } from '@models';
 
 const logoMark = require('../../VerbumCare-Logo-Mark.png');
@@ -70,6 +72,32 @@ export default function DashboardScreen({ navigation }: Props) {
   const handlePatientSelect = (patient: Patient) => {
     setCurrentPatient(patient);
     navigation.navigate('PatientInfo' as any);
+  };
+
+  const handleClearCache = async () => {
+    try {
+      setLoading(true);
+      // Clear all caches
+      await cacheService.clearCache();
+      if (currentUser) {
+        await clearUserCache(currentUser.userId);
+      }
+      console.log('✅ All cache cleared');
+
+      // Reload patients from server
+      await loadPatients();
+
+      alert(language === 'ja'
+        ? 'キャッシュをクリアしました。サーバーから最新データを読み込みます。'
+        : 'Cache cleared. Loading fresh data from server.');
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      alert(language === 'ja'
+        ? 'キャッシュのクリアに失敗しました'
+        : 'Failed to clear cache');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!currentUser) {
@@ -135,6 +163,9 @@ export default function DashboardScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <TouchableOpacity onPress={handleClearCache} style={styles.clearCacheButton}>
+            <Ionicons name="refresh-outline" size={20} color={COLORS.white} />
+          </TouchableOpacity>
           <LanguageToggle />
           <Button
             variant="text"
@@ -549,6 +580,10 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.white,
     opacity: 0.9,
+  },
+  clearCacheButton: {
+    padding: SPACING.sm,
+    marginRight: SPACING.sm,
   },
   logoutButton: {
     flexDirection: 'row',
