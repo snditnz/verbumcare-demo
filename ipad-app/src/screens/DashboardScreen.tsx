@@ -33,7 +33,7 @@ type Props = {
 export default function DashboardScreen({ navigation }: Props) {
   const { currentUser, logout, isAuthenticated } = useAuthStore();
   const { language, setCurrentPatient } = useAssessmentStore();
-  const { carePlans } = useCarePlanStore();
+  const { carePlans, loadCarePlan, clearStore } = useCarePlanStore();
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,11 +57,33 @@ export default function DashboardScreen({ navigation }: Props) {
       setLoading(true);
       const data = await apiService.getPatients(true);
       setPatients(data);
+
+      // UI is responsive now, load care plans in background
+      setLoading(false);
+
+      // Load care plans for all patients (for dashboard alerts/statistics)
+      await loadAllCarePlans(data);
     } catch (error) {
       console.error('Error loading patients:', error);
-    } finally {
       setLoading(false);
     }
+  };
+
+  const loadAllCarePlans = async (patientList: Patient[]) => {
+    console.log(`[Dashboard] Loading care plans for ${patientList.length} patients...`);
+
+    // Load care plans for each patient in parallel
+    // Silently fails if patient has no care plan (404 is expected)
+    const results = await Promise.allSettled(
+      patientList.map(patient => {
+        console.log(`[Dashboard] Loading care plan for patient: ${patient.patient_id}`);
+        return loadCarePlan(patient.patient_id);
+      })
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+    console.log(`[Dashboard] ✅ Loaded care plans: ${successful} successful, ${failed} failed/none, total in store: ${carePlans.size}`);
   };
 
   const handleLogout = async () => {
@@ -77,17 +99,21 @@ export default function DashboardScreen({ navigation }: Props) {
   const handleClearCache = async () => {
     try {
       setLoading(true);
-      // Clear all caches
+      // Clear all caches (AsyncStorage + Zustand store)
       await cacheService.clearCache();
+      clearStore(); // Clear Zustand in-memory state
       if (currentUser) {
         await clearUserCache(currentUser.userId);
       }
-      console.log('✅ All cache cleared');
+      console.log('✅ All cache cleared (AsyncStorage + Zustand)');
 
       // Force reload patients from server (bypass cache)
       const freshData = await apiService.getPatients(false); // false = skip cache
       setPatients(freshData);
       console.log(`✅ Loaded ${freshData.length} patients from server`);
+
+      // Reload care plans for dashboard alerts/statistics
+      await loadAllCarePlans(freshData);
 
       alert(language === 'ja'
         ? 'キャッシュをクリアしました。サーバーから最新データを読み込みます。'

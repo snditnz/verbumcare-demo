@@ -8,6 +8,7 @@ import { LanguageToggle } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { DEMO_STAFF_ID } from '@constants/config';
 import { CareLevel, CarePlan } from '@models/app';
 
 type RootStackParamList = {
@@ -85,9 +86,9 @@ export default function CreateCarePlanScreen({ navigation }: Props) {
         carePlanItems: [],
         weeklySchedule: [],
 
-        careManagerId: 'cm-current',
+        careManagerId: DEMO_STAFF_ID,
         teamMembers: [
-          { userId: 'cm-current', name: '田中 ケアマネジャー', role: 'care_manager' as const, assigned: true }
+          { userId: DEMO_STAFF_ID, name: '田中 ケアマネジャー', role: 'care_manager' as const, assigned: true }
         ],
 
         lastMonitoringDate: undefined,

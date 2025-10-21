@@ -3,6 +3,57 @@ import { CarePlan, CarePlanItem, ProblemTemplate } from '@models/app';
 import { apiService } from '@services/api';
 import { cacheService } from '@services/cacheService';
 
+/**
+ * Convert date strings from API to Date objects
+ */
+const deserializeCarePlan = (plan: any): CarePlan => {
+  return {
+    ...plan,
+    createdDate: plan.createdDate ? new Date(plan.createdDate) : new Date(),
+    lastReviewDate: plan.lastReviewDate ? new Date(plan.lastReviewDate) : undefined,
+    nextReviewDate: new Date(plan.nextReviewDate),
+    lastMonitoringDate: plan.lastMonitoringDate ? new Date(plan.lastMonitoringDate) : undefined,
+    nextMonitoringDate: new Date(plan.nextMonitoringDate),
+    familySignature: plan.familySignature ? {
+      ...plan.familySignature,
+      date: new Date(plan.familySignature.date)
+    } : undefined,
+    carePlanItems: (plan.carePlanItems || []).map((item: any) => ({
+      ...item,
+      problem: {
+        ...item.problem,
+        identifiedDate: new Date(item.problem.identifiedDate)
+      },
+      longTermGoal: item.longTermGoal ? {
+        ...item.longTermGoal,
+        targetDate: new Date(item.longTermGoal.targetDate)
+      } : undefined,
+      shortTermGoal: item.shortTermGoal ? {
+        ...item.shortTermGoal,
+        targetDate: new Date(item.shortTermGoal.targetDate)
+      } : undefined,
+      interventions: (item.interventions || []).map((intervention: any) => ({
+        ...intervention,
+        createdDate: new Date(intervention.createdDate)
+      })),
+      progressNotes: (item.progressNotes || []).map((note: any) => ({
+        ...note,
+        date: new Date(note.date)
+      })),
+      lastUpdated: new Date(item.lastUpdated)
+    })),
+    auditLog: (plan.auditLog || []).map((log: any) => ({
+      ...log,
+      timestamp: new Date(log.timestamp)
+    })),
+    monitoringRecords: (plan.monitoringRecords || []).map((record: any) => ({
+      ...record,
+      monitoringDate: new Date(record.monitoringDate),
+      nextMonitoringDate: new Date(record.nextMonitoringDate)
+    }))
+  };
+};
+
 interface CarePlanStore {
   carePlans: Map<string, CarePlan>; // key: patientId
   problemTemplates: ProblemTemplate[];
@@ -20,6 +71,7 @@ interface CarePlanStore {
   deleteCarePlanItem: (patientId: string, itemId: string) => Promise<void>;
   createMonitoringRecord: (carePlanId: string, record: any) => Promise<void>;
   clearError: () => void;
+  clearStore: () => void;
 }
 
 export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
@@ -30,6 +82,10 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  clearStore: () => {
+    set({ carePlans: new Map(), problemTemplates: [], isLoading: false, error: null });
   },
 
   loadProblemTemplates: async () => {
@@ -83,10 +139,20 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
         apiService.getCarePlans(patientId)
           .then(carePlans => {
             if (carePlans && Array.isArray(carePlans) && carePlans.length > 0) {
-              cacheService.cacheCarePlan(carePlans[0]);
+              const deserializedPlan = deserializeCarePlan(carePlans[0]);
+              cacheService.cacheCarePlan(deserializedPlan);
               set((state) => {
                 const newCarePlans = new Map(state.carePlans);
-                newCarePlans.set(patientId, carePlans[0]);
+                newCarePlans.set(patientId, deserializedPlan);
+                return { carePlans: newCarePlans };
+              });
+            } else {
+              // API returned 0 care plans - remove stale cached data
+              console.log(`[Background sync] Care plan deleted for patient ${patientId}, removing from cache and store`);
+              cacheService.removeCarePlan(patientId); // Clear the stale cached care plan
+              set((state) => {
+                const newCarePlans = new Map(state.carePlans);
+                newCarePlans.delete(patientId);
                 return { carePlans: newCarePlans };
               });
             }
@@ -99,24 +165,33 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
       const carePlans = await apiService.getCarePlans(patientId);
 
       if (carePlans && Array.isArray(carePlans) && carePlans.length > 0) {
-        await cacheService.cacheCarePlan(carePlans[0]);
+        const deserializedPlans = carePlans.map(deserializeCarePlan);
+        await cacheService.cacheCarePlan(deserializedPlans[0]);
 
         set((state) => {
           const newCarePlans = new Map(state.carePlans);
-          carePlans.forEach(plan => {
+          deserializedPlans.forEach(plan => {
             newCarePlans.set(plan.patientId, plan);
           });
           return { carePlans: newCarePlans, isLoading: false };
         });
       } else {
-        // No care plans found - this is normal
-        set({ isLoading: false, error: null });
+        // No care plans found - remove stale data from store
+        set((state) => {
+          const newCarePlans = new Map(state.carePlans);
+          newCarePlans.delete(patientId);
+          return { carePlans: newCarePlans, isLoading: false, error: null };
+        });
       }
     } catch (error: any) {
-      // 404 is expected when no care plan exists - not an error
+      // 404 is expected when no care plan exists - remove stale data
       if (error.response?.status === 404) {
         console.log('No care plan found for patient:', patientId);
-        set({ isLoading: false, error: null });
+        set((state) => {
+          const newCarePlans = new Map(state.carePlans);
+          newCarePlans.delete(patientId);
+          return { carePlans: newCarePlans, isLoading: false, error: null };
+        });
       } else {
         // Real error but we're offline-first - just log it
         console.error('Error loading care plan:', error);
@@ -160,18 +235,24 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
       // Try to sync with backend
       try {
         const createdPlan = await apiService.createCarePlan(carePlan);
-        await cacheService.cacheCarePlan(createdPlan);
+        const deserializedPlan = deserializeCarePlan(createdPlan);
+        await cacheService.cacheCarePlan(deserializedPlan);
 
         set((state) => {
           const newCarePlans = new Map(state.carePlans);
-          newCarePlans.set(createdPlan.patientId, createdPlan);
+          newCarePlans.set(deserializedPlan.patientId, deserializedPlan);
           return { carePlans: newCarePlans };
         });
 
-        return createdPlan;
+        return deserializedPlan;
       } catch (syncError: any) {
         // Offline or server error - queue for sync
-        console.warn('Failed to sync care plan, will retry later:', syncError);
+        console.error('❌ Failed to sync care plan to server:', {
+          status: syncError.response?.status,
+          statusText: syncError.response?.statusText,
+          data: syncError.response?.data,
+          message: syncError.message,
+        });
         await cacheService.addPendingSync('createCarePlan', carePlan);
         return localPlan; // Return local version
       }
@@ -189,10 +270,11 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       const updated = await apiService.updateCarePlan(carePlan.id, carePlan);
+      const deserializedPlan = deserializeCarePlan(updated);
 
       set((state) => {
         const newCarePlans = new Map(state.carePlans);
-        newCarePlans.set(updated.patientId, updated);
+        newCarePlans.set(deserializedPlan.patientId, deserializedPlan);
         return { carePlans: newCarePlans, isLoading: false };
       });
     } catch (error: any) {

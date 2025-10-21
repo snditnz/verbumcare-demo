@@ -211,7 +211,7 @@ router.get('/', async (req, res) => {
     }
 
     res.json({
-      carePlans: result.rows,
+      data: result.rows,
       language
     });
   } catch (error) {
@@ -366,7 +366,7 @@ router.post('/', async (req, res) => {
     `, [carePlan.id, createdBy]);
 
     res.status(201).json({
-      carePlan,
+      data: carePlan,
       language
     });
   } catch (error) {
@@ -549,9 +549,22 @@ router.post('/:id/items', async (req, res) => {
       FROM staff s WHERE s.staff_id = $2
     `, [carePlanId, updatedBy, JSON.stringify({ itemId: result.rows[0].id, problem })]);
 
+    // Build the full item response
+    const carePlanItem = {
+      id: result.rows[0].id,
+      carePlanId,
+      problem,
+      longTermGoal,
+      shortTermGoal,
+      interventions,
+      linkedAssessments,
+      progressNotes: [],
+      lastUpdated: new Date(),
+      updatedBy
+    };
+
     res.status(201).json({
-      itemId: result.rows[0].id,
-      message: 'Care plan item added successfully',
+      data: carePlanItem,
       language
     });
   } catch (error) {

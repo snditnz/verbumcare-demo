@@ -279,6 +279,19 @@ class CacheService {
   }
 
   /**
+   * Remove cached care plan for a patient
+   */
+  async removeCarePlan(patientId: string): Promise<void> {
+    try {
+      const key = `${CACHE_KEYS.CARE_PLAN_PREFIX}${patientId}`;
+      await AsyncStorage.removeItem(key);
+      console.log(`[Cache] Removed care plan for patient ${patientId}`);
+    } catch (error) {
+      console.error('Error removing care plan from cache:', error);
+    }
+  }
+
+  /**
    * Get cached care plan for a patient
    */
   async getCachedCarePlan(patientId: string): Promise<CarePlan | null> {

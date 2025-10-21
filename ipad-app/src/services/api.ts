@@ -3,6 +3,7 @@ import { API_CONFIG, FACILITY_ID, DEMO_STAFF_ID } from '@constants/config';
 import { APIResponse, APIVitalSigns, VoiceUploadResponse } from '@models/api';
 import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, ProblemTemplate } from '@models';
 import { cacheService } from './cacheService';
+import { useAuthStore } from '@stores/authStore';
 
 class APIService {
   private client: AxiosInstance;
@@ -315,22 +316,35 @@ class APIService {
    * @returns Created care plan with ID
    */
   async createCarePlan(carePlan: Omit<CarePlan, 'id' | 'auditLog'>): Promise<CarePlan> {
+    // TODO: Map authenticated user to actual staff UUID in database
+    // For now, use DEMO_STAFF_ID (valid UUID) since temp auth users don't have DB records
+    const currentUser = useAuthStore.getState().currentUser;
+    const createdBy = DEMO_STAFF_ID; // Always use valid UUID for now
+
+    const requestBody = {
+      patientId: carePlan.patientId,
+      careLevel: carePlan.careLevel,
+      status: carePlan.status,
+      version: carePlan.version,
+      patientIntent: carePlan.patientIntent,
+      familyIntent: carePlan.familyIntent,
+      comprehensivePolicy: carePlan.comprehensivePolicy,
+      careManagerId: carePlan.careManagerId,
+      teamMembers: carePlan.teamMembers,
+      nextReviewDate: carePlan.nextReviewDate,
+      nextMonitoringDate: carePlan.nextMonitoringDate,
+      createdBy,
+    };
+
+    console.log('📤 Sending care plan to backend:', {
+      ...requestBody,
+      createdByUser: currentUser?.fullName || 'Unknown',
+      createdByUUID: createdBy,
+    });
+
     const response = await this.client.post<APIResponse<CarePlan>>(
       '/care-plans',
-      {
-        patient_id: carePlan.patientId,
-        care_level: carePlan.careLevel,
-        status: carePlan.status,
-        version: carePlan.version,
-        patient_intent: carePlan.patientIntent,
-        family_intent: carePlan.familyIntent,
-        comprehensive_policy: carePlan.comprehensivePolicy,
-        care_manager_id: carePlan.careManagerId,
-        team_members: carePlan.teamMembers,
-        next_review_date: carePlan.nextReviewDate,
-        next_monitoring_date: carePlan.nextMonitoringDate,
-        created_by: DEMO_STAFF_ID,
-      }
+      requestBody
     );
     return response.data.data;
   }
@@ -369,11 +383,11 @@ class APIService {
       `/care-plans/${carePlanId}/items`,
       {
         problem: item.problem,
-        long_term_goal: item.longTermGoal,
-        short_term_goal: item.shortTermGoal,
+        longTermGoal: item.longTermGoal,
+        shortTermGoal: item.shortTermGoal,
         interventions: item.interventions,
-        linked_assessments: item.linkedAssessments,
-        created_by: DEMO_STAFF_ID,
+        linkedAssessments: item.linkedAssessments,
+        updatedBy: DEMO_STAFF_ID,
       }
     );
     return response.data.data;
