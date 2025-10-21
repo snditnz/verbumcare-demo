@@ -18,7 +18,9 @@ type RootStackParamList = {
   Dashboard: undefined;
   Login: undefined;
   PatientList: undefined;
+  PatientScan: undefined;
   PatientInfo: undefined;
+  ADLVoice: undefined;
   CarePlanHub: undefined;
 };
 
@@ -149,39 +151,134 @@ export default function DashboardScreen({ navigation }: Props) {
       </View>
 
       <ScrollView style={styles.content}>
-        {/* Statistics Row */}
-        <View style={styles.statsRow}>
-          <Card style={styles.statCard}>
-            <Ionicons name="people" size={ICON_SIZES.xl} color={COLORS.primary} />
-            <Text style={styles.statValue}>{patients.length}</Text>
-            <Text style={styles.statLabel}>
-              {language === 'ja' ? '総患者数' : 'Total Patients'}
+        {/* Quick Actions & Stats Grid - 2 rows x 3 columns */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="flash" size={ICON_SIZES.lg} color={COLORS.accent} />
+            <Text style={styles.sectionTitle}>
+              {language === 'ja' ? 'クイックアクション' : 'Quick Actions'}
             </Text>
-          </Card>
+          </View>
 
-          <Card style={styles.statCard}>
-            <Ionicons name="document-text" size={ICON_SIZES.xl} color={COLORS.accent} />
-            <Text style={styles.statValue}>{totalCarePlans}</Text>
-            <Text style={styles.statLabel}>
-              {language === 'ja' ? 'ケアプラン' : 'Care Plans'}
-            </Text>
-          </Card>
+          <View style={styles.gridContainer}>
+            {/* Recent Patients - Right side, spans 2 rows */}
+            <View style={styles.gridCellDouble}>
+              <Card style={{ flex: 1, padding: SPACING.md }}>
+                <View style={styles.recentPatientsHeader}>
+                  <Ionicons name="time-outline" size={ICON_SIZES.md} color={COLORS.accent} />
+                  <Text style={styles.recentPatientsTitle}>
+                    {language === 'ja' ? '最近の患者' : 'Recent Patients'}
+                  </Text>
+                  <Button
+                    variant="text"
+                    onPress={() => navigation.navigate('PatientList' as any)}
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    <Text style={styles.viewAllTextSmall}>
+                      {language === 'ja' ? '全て' : 'All'} →
+                    </Text>
+                  </Button>
+                </View>
 
-          <Card style={styles.statCard}>
-            <Ionicons name="warning" size={ICON_SIZES.xl} color={COLORS.status.warning} />
-            <Text style={styles.statValue}>{highPriorityProblems.length}</Text>
-            <Text style={styles.statLabel}>
-              {language === 'ja' ? '高優先度課題' : 'High Priority'}
-            </Text>
-          </Card>
+                {patients.slice(0, 4).map((patient) => (
+                  <TouchableOpacity
+                    key={patient.patient_id}
+                    style={styles.recentPatientItem}
+                    onPress={() => handlePatientSelect(patient)}
+                  >
+                    <Text style={styles.recentPatientName}>
+                      {patient.family_name} {patient.given_name}
+                    </Text>
+                    {patient.room && (
+                      <Text style={styles.recentPatientRoom}>
+                        {language === 'ja' ? '室' : 'Room'} {patient.room}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </Card>
+            </View>
 
-          <Card style={styles.statCard}>
-            <Ionicons name="alert-circle" size={ICON_SIZES.xl} color={COLORS.error} />
-            <Text style={styles.statValue}>{overdueMonitoring.length}</Text>
-            <Text style={styles.statLabel}>
-              {language === 'ja' ? '期限切れ' : 'Overdue'}
-            </Text>
-          </Card>
+            {/* Left side - 2 rows x 3 columns */}
+            <View style={styles.gridLeftSide}>
+              {/* Row 1 */}
+              <View style={styles.gridRow}>
+                {/* 1. Scan Button */}
+                <TouchableOpacity
+                  style={styles.gridCell}
+                  onPress={() => navigation.navigate('PatientScan' as any)}
+                >
+                  <Card style={styles.gridCellInner}>
+                    <View style={[styles.quickActionIconSmall, { backgroundColor: `${COLORS.primary}15` }]}>
+                      <Ionicons name="scan" size={ICON_SIZES.lg} color={COLORS.primary} />
+                    </View>
+                    <Text style={styles.gridCellTitle}>
+                      {language === 'ja' ? 'スキャン' : 'Scan'}
+                    </Text>
+                  </Card>
+                </TouchableOpacity>
+
+                {/* 2. Total Patients */}
+                <TouchableOpacity
+                  style={styles.gridCell}
+                  onPress={() => navigation.navigate('PatientList' as any)}
+                >
+                  <Card style={styles.gridCellInner}>
+                    <Ionicons name="people" size={ICON_SIZES.xl} color={COLORS.primary} />
+                    <Text style={styles.statValue}>{patients.length}</Text>
+                    <Text style={styles.statLabel}>
+                      {language === 'ja' ? '総患者数' : 'Total Patients'}
+                    </Text>
+                  </Card>
+                </TouchableOpacity>
+
+                {/* 3. Care Plans */}
+                <Card style={[styles.gridCell, styles.gridCellInner]}>
+                  <Ionicons name="document-text" size={ICON_SIZES.xl} color={COLORS.accent} />
+                  <Text style={styles.statValue}>{totalCarePlans}</Text>
+                  <Text style={styles.statLabel}>
+                    {language === 'ja' ? 'ケアプラン' : 'Care Plans'}
+                  </Text>
+                </Card>
+              </View>
+
+              {/* Row 2 */}
+              <View style={styles.gridRow}>
+                {/* 5. Record Button */}
+                <TouchableOpacity
+                  style={styles.gridCell}
+                  onPress={() => navigation.navigate('PatientList' as any)}
+                >
+                  <Card style={styles.gridCellInner}>
+                    <View style={[styles.quickActionIconSmall, { backgroundColor: `${COLORS.error}15` }]}>
+                      <Ionicons name="mic" size={ICON_SIZES.lg} color={COLORS.error} />
+                    </View>
+                    <Text style={styles.gridCellTitle}>
+                      {language === 'ja' ? '記録' : 'Record'}
+                    </Text>
+                  </Card>
+                </TouchableOpacity>
+
+                {/* 6. High Priority */}
+                <Card style={[styles.gridCell, styles.gridCellInner]}>
+                  <Ionicons name="warning" size={ICON_SIZES.xl} color={COLORS.status.warning} />
+                  <Text style={styles.statValue}>{highPriorityProblems.length}</Text>
+                  <Text style={styles.statLabel}>
+                    {language === 'ja' ? '高優先度' : 'High Priority'}
+                  </Text>
+                </Card>
+
+                {/* 7. Overdue */}
+                <Card style={[styles.gridCell, styles.gridCellInner]}>
+                  <Ionicons name="alert-circle" size={ICON_SIZES.xl} color={COLORS.error} />
+                  <Text style={styles.statValue}>{overdueMonitoring.length}</Text>
+                  <Text style={styles.statLabel}>
+                    {language === 'ja' ? '期限切れ' : 'Overdue'}
+                  </Text>
+                </Card>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* Section 1: Alerts & Notifications */}
@@ -221,14 +318,18 @@ export default function DashboardScreen({ navigation }: Props) {
                   {highPriorityProblems.slice(0, 3).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     return (
-                      <View key={idx} style={styles.alertItem}>
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.alertItem}
+                        onPress={() => patient && handlePatientSelect(patient)}
+                      >
                         <Text style={styles.alertPatient}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
                         </Text>
                         <Text style={styles.alertDescription} numberOfLines={1}>
                           {alert.problem}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </Card>
@@ -251,14 +352,18 @@ export default function DashboardScreen({ navigation }: Props) {
                   {stuckGoals.slice(0, 3).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     return (
-                      <View key={idx} style={styles.alertItem}>
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.alertItem}
+                        onPress={() => patient && handlePatientSelect(patient)}
+                      >
                         <Text style={styles.alertPatient}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
                         </Text>
                         <Text style={styles.alertDescription} numberOfLines={1}>
                           {alert.goal} ({alert.progress}%)
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </Card>
@@ -284,14 +389,18 @@ export default function DashboardScreen({ navigation }: Props) {
                       (Date.now() - new Date(alert.nextReview).getTime()) / (1000 * 60 * 60 * 24)
                     );
                     return (
-                      <View key={idx} style={styles.alertItem}>
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.alertItem}
+                        onPress={() => patient && handlePatientSelect(patient)}
+                      >
                         <Text style={styles.alertPatient}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
                         </Text>
                         <Text style={styles.alertDescription}>
                           {language === 'ja' ? `${daysOverdue}日遅延` : `${daysOverdue} days overdue`}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </Card>
@@ -489,15 +598,38 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: SPACING.lg,
   },
-  statsRow: {
+  gridContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
-    marginBottom: SPACING.lg,
   },
-  statCard: {
+  gridLeftSide: {
+    flex: 3,
+    gap: SPACING.md,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  gridCell: {
     flex: 1,
+    minWidth: 0,
+  },
+  gridCellInner: {
     alignItems: 'center',
+    justifyContent: 'center',
     padding: SPACING.lg,
+    minHeight: 140,
+  },
+  gridCellDouble: {
+    flex: 2,
+    minWidth: 0,
+  },
+  gridCellTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+    textAlign: 'center',
+    marginTop: SPACING.xs,
   },
   statValue: {
     fontSize: TYPOGRAPHY.fontSize['3xl'],
@@ -666,5 +798,51 @@ const styles = StyleSheet.create({
   progressBar: {
     height: '100%',
     backgroundColor: COLORS.accent,
+  },
+  quickActionIconSmall: {
+    width: 64,
+    height: 64,
+    borderRadius: BORDER_RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
+  },
+  recentPatientsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.md,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  recentPatientsTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  viewAllTextSmall: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  recentPatientItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    marginBottom: SPACING.xs,
+    backgroundColor: `${COLORS.primary}05`,
+  },
+  recentPatientName: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  recentPatientRoom: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
   },
 });

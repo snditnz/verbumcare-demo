@@ -10,6 +10,7 @@ import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constan
 import { SESSION_CONFIG } from '@constants/config';
 
 type RootStackParamList = {
+  Dashboard: undefined;
   PatientList: undefined;
   PatientInfo: undefined;
   VitalsCapture: undefined;
@@ -47,10 +48,10 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
   const t = translations[language];
 
-  // If no patient, navigate back to patient list
+  // If no patient, navigate back to dashboard
   React.useEffect(() => {
     if (!currentPatient) {
-      navigation.navigate('PatientList');
+      navigation.navigate('Dashboard' as any);
     }
   }, [currentPatient, navigation]);
 
@@ -195,7 +196,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Button variant="text" onPress={() => navigation.navigate('PatientList')}>
+          <Button variant="text" onPress={() => navigation.navigate('Dashboard' as any)}>
             {`← ${t['common.back']}`}
           </Button>
         </View>
