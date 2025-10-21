@@ -7,8 +7,8 @@ import { LanguageToggle } from '@components';
 import { Button } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '@constants/theme';
-import { DEMO_PATIENTS } from '@constants/demoPatients';
 import { Patient } from '@models';
+import { apiService } from '@services/api';
 
 const logoMark = require('../../VerbumCare-Logo-Mark.png');
 
@@ -27,12 +27,22 @@ export default function PatientScanScreen({ navigation }: Props) {
   const { setCurrentPatient, setCurrentStep, language } = useAssessmentStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [patients] = useState<Patient[]>(DEMO_PATIENTS);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const t = translations[language];
 
   useEffect(() => {
     setCurrentStep('patient-scan');
+    loadPatients();
   }, []);
+
+  const loadPatients = async () => {
+    try {
+      const data = await apiService.getPatients(true);
+      setPatients(data);
+    } catch (error) {
+      console.error('Error loading patients for scan:', error);
+    }
+  };
 
   useEffect(() => {
     if (!permission?.granted) {
