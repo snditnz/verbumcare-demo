@@ -182,19 +182,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     backgroundColor: COLORS.primary,
+    justifyContent: 'space-between',
   },
   headerLeft: {
-    flex: 1,
+    // No flex - size to content
   },
   headerCenter: {
-    flex: 2,
+    flex: 1,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: SPACING.sm,
   },
   headerRight: {
-    flex: 1,
+    // No flex - size to content
     alignItems: 'flex-end',
   },
   logoImage: {
