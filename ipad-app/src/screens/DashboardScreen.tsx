@@ -84,8 +84,10 @@ export default function DashboardScreen({ navigation }: Props) {
       }
       console.log('✅ All cache cleared');
 
-      // Reload patients from server
-      await loadPatients();
+      // Force reload patients from server (bypass cache)
+      const freshData = await apiService.getPatients(false); // false = skip cache
+      setPatients(freshData);
+      console.log(`✅ Loaded ${freshData.length} patients from server`);
 
       alert(language === 'ja'
         ? 'キャッシュをクリアしました。サーバーから最新データを読み込みます。'
