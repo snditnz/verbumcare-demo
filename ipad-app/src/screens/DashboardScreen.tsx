@@ -5,7 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore, getRoleDisplayName } from '@stores/authStore';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { useCarePlanStore } from '@stores/carePlanStore';
-import { LanguageToggle } from '@components';
+import { LanguageToggle, NetworkStatusIndicator } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -124,6 +124,7 @@ export default function DashboardScreen({ navigation }: Props) {
         <View style={styles.headerLeft}>
           <Image source={logoMark} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.logo}>VerbumCare</Text>
+          <NetworkStatusIndicator compact />
         </View>
         <View style={styles.headerCenter}>
           <Text style={styles.welcomeText}>
@@ -239,7 +240,7 @@ export default function DashboardScreen({ navigation }: Props) {
                 {/* 5. Record Button */}
                 <TouchableOpacity
                   style={styles.gridCell}
-                  onPress={() => navigation.navigate('PatientList' as any)}
+                  onPress={() => navigation.navigate('ADLVoice' as any)}
                 >
                   <Card style={styles.gridCellInner}>
                     <View style={[styles.quickActionIconSmall, { backgroundColor: `${COLORS.error}15` }]}>

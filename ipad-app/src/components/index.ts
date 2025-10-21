@@ -5,3 +5,4 @@ export { BLEStatusIndicator } from './BLEStatusIndicator';
 export { BLEIndicator } from './BLEIndicator';
 export { VitalsDisplay } from './VitalsDisplay';
 export { VoiceRecorder } from './VoiceRecorder';
+export { NetworkStatusIndicator } from './NetworkStatusIndicator';
