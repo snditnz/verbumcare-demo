@@ -10,6 +10,7 @@ export { default as PatientInfoScreen } from './PatientInfoScreen';
 // Assessments
 export { default as VitalsCaptureScreen } from './VitalsCaptureScreen';
 export { default as ADLVoiceScreen } from './ADLVoiceScreen';
+export { default as GeneralVoiceRecorderScreen } from './GeneralVoiceRecorderScreen';
 export { default as PainAssessmentScreen } from './PainAssessmentScreen';
 export { default as FallRiskAssessmentScreen } from './FallRiskAssessmentScreen';
 export { default as KihonChecklistScreen } from './KihonChecklistScreen';

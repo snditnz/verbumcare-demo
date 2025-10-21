@@ -20,7 +20,7 @@ type RootStackParamList = {
   PatientList: undefined;
   PatientScan: undefined;
   PatientInfo: undefined;
-  ADLVoice: undefined;
+  GeneralVoiceRecorder: undefined;
   CarePlanHub: undefined;
 };
 
@@ -240,7 +240,7 @@ export default function DashboardScreen({ navigation }: Props) {
                 {/* 5. Record Button */}
                 <TouchableOpacity
                   style={styles.gridCell}
-                  onPress={() => navigation.navigate('ADLVoice' as any)}
+                  onPress={() => navigation.navigate('GeneralVoiceRecorder' as any)}
                 >
                   <Card style={styles.gridCellInner}>
                     <View style={[styles.quickActionIconSmall, { backgroundColor: `${COLORS.error}15` }]}>

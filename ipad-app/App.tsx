@@ -20,6 +20,7 @@ import PatientInfoScreen from './src/screens/PatientInfoScreen';
 // Assessment screens
 import VitalsCaptureScreen from './src/screens/VitalsCaptureScreen';
 import ADLVoiceScreen from './src/screens/ADLVoiceScreen';
+import GeneralVoiceRecorderScreen from './src/screens/GeneralVoiceRecorderScreen';
 import MedicineAdminScreen from './src/screens/MedicineAdminScreen';
 import UpdatePatientInfoScreen from './src/screens/UpdatePatientInfoScreen';
 import IncidentReportScreen from './src/screens/IncidentReportScreen';
@@ -47,6 +48,7 @@ export type RootStackParamList = {
   PatientInfo: undefined;
   VitalsCapture: undefined;
   ADLVoice: undefined;
+  GeneralVoiceRecorder: undefined;
   MedicineAdmin: undefined;
   UpdatePatientInfo: undefined;
   IncidentReport: undefined;
@@ -157,6 +159,11 @@ export default function App() {
             name="ADLVoice"
             component={ADLVoiceScreen}
             options={{ title: 'ADL Voice Recording' }}
+          />
+          <Stack.Screen
+            name="GeneralVoiceRecorder"
+            component={GeneralVoiceRecorderScreen}
+            options={{ title: 'Voice Recording' }}
           />
           <Stack.Screen
             name="MedicineAdmin"
