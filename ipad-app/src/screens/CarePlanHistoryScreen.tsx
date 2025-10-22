@@ -129,6 +129,11 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
   };
 
   const renderChanges = (changes: any, action: string) => {
+    // Handle null or undefined changes
+    if (!changes || typeof changes !== 'object') {
+      return null;
+    }
+
     // Handle monitoring completed action
     if (action === 'monitoring_completed' && changes.monitoringId) {
       return (
@@ -136,13 +141,13 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
           <Text style={styles.changeLabel}>
             {language === 'ja' ? 'モニタリングID:' : 'Monitoring ID:'}
           </Text>
-          <Text style={styles.changeValue}>{changes.monitoringId}</Text>
+          <Text style={styles.changeValue}>{String(changes.monitoringId)}</Text>
           {changes.monitoringType && (
             <>
               <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
                 {language === 'ja' ? '種類:' : 'Type:'}
               </Text>
-              <Text style={styles.changeValue}>{changes.monitoringType}</Text>
+              <Text style={styles.changeValue}>{String(changes.monitoringType)}</Text>
             </>
           )}
         </View>
@@ -156,13 +161,13 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
           <Text style={styles.changeLabel}>
             {language === 'ja' ? 'ケアプラン項目:' : 'Care Plan Item:'}
           </Text>
-          <Text style={styles.changeValue}>{changes.itemId}</Text>
+          <Text style={styles.changeValue}>{String(changes.itemId)}</Text>
           {changes.problem && (
             <>
               <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
                 {language === 'ja' ? '課題:' : 'Problem:'}
               </Text>
-              <Text style={styles.changeValue}>{changes.problem}</Text>
+              <Text style={styles.changeValue}>{String(changes.problem)}</Text>
             </>
           )}
         </View>
@@ -182,8 +187,8 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
       };
 
       const fieldLabel = language === 'ja'
-        ? (fieldLabels[changes.field]?.ja || changes.field)
-        : (fieldLabels[changes.field]?.en || changes.field);
+        ? (fieldLabels[changes.field]?.ja || String(changes.field))
+        : (fieldLabels[changes.field]?.en || String(changes.field));
 
       return (
         <View>
@@ -197,7 +202,11 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
               <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
                 {language === 'ja' ? '変更前:' : 'Before:'}
               </Text>
-              <Text style={styles.changeValueOld}>{String(changes.oldValue)}</Text>
+              <Text style={styles.changeValueOld}>
+                {typeof changes.oldValue === 'object'
+                  ? JSON.stringify(changes.oldValue)
+                  : String(changes.oldValue)}
+              </Text>
             </>
           )}
 
@@ -206,26 +215,53 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
               <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
                 {language === 'ja' ? '変更後:' : 'After:'}
               </Text>
-              <Text style={styles.changeValueNew}>{String(changes.newValue)}</Text>
+              <Text style={styles.changeValueNew}>
+                {typeof changes.newValue === 'object'
+                  ? JSON.stringify(changes.newValue)
+                  : String(changes.newValue)}
+              </Text>
             </>
           )}
         </View>
       );
     }
 
-    // For any other changes, display key-value pairs
-    return (
-      <View>
-        {Object.entries(changes).map(([key, value]) => (
-          <View key={key} style={{ marginBottom: SPACING.xs }}>
-            <Text style={styles.changeLabel}>{key}:</Text>
-            <Text style={styles.changeValue}>
-              {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-            </Text>
-          </View>
-        ))}
-      </View>
-    );
+    // For any other changes, display key-value pairs safely
+    try {
+      const entries = Object.entries(changes);
+      if (entries.length === 0) {
+        return (
+          <Text style={styles.changeValue}>
+            {language === 'ja' ? '変更なし' : 'No changes'}
+          </Text>
+        );
+      }
+
+      return (
+        <View>
+          {entries.map(([key, value]) => (
+            <View key={key} style={{ marginBottom: SPACING.xs }}>
+              <Text style={styles.changeLabel}>{String(key)}:</Text>
+              <Text style={styles.changeValue}>
+                {value === null
+                  ? 'null'
+                  : value === undefined
+                  ? 'undefined'
+                  : typeof value === 'object'
+                  ? JSON.stringify(value, null, 2)
+                  : String(value)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      );
+    } catch (error) {
+      return (
+        <Text style={styles.changeValue}>
+          {language === 'ja' ? '変更の表示エラー' : 'Error displaying changes'}
+        </Text>
+      );
+    }
   };
 
   return (
