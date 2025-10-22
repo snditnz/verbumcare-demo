@@ -527,7 +527,7 @@ export default function DashboardScreen({ navigation }: Props) {
                     style={styles.carePlanCard}
                     onPress={() => {
                       setCurrentPatient(patient!);
-                      navigation.navigate('FullCarePlanView' as any);
+                      navigation.navigate('CarePlanHub' as any);
                     }}
                   >
                     <Card style={{ flex: 1 }}>
