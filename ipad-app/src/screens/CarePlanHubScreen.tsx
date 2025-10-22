@@ -17,6 +17,8 @@ type RootStackParamList = {
   QuickProgressUpdate: undefined;
   MonitoringForm: undefined;
   PatientInfo: undefined;
+  WeeklySchedule: undefined;
+  CarePlanHistory: undefined;
   ComingSoon: { feature: string };
 };
 
@@ -290,7 +292,7 @@ export default function CarePlanHubScreen({ navigation }: Props) {
             icon="calendar"
             title={t['carePlan.weeklySchedule']}
             subtitle={language === 'ja' ? '週間サービス計画' : 'Weekly services'}
-            onPress={() => navigation.navigate('ComingSoon', { feature: t['carePlan.weeklySchedule'] })}
+            onPress={() => navigation.navigate('WeeklySchedule')}
             color={COLORS.primary}
           />
 
@@ -298,7 +300,7 @@ export default function CarePlanHubScreen({ navigation }: Props) {
             icon="time"
             title={t['carePlan.history']}
             subtitle={language === 'ja' ? `${carePlan.version}バージョン` : `${carePlan.version} versions`}
-            onPress={() => navigation.navigate('ComingSoon', { feature: t['carePlan.history'] })}
+            onPress={() => navigation.navigate('CarePlanHistory')}
             color={COLORS.text.secondary}
           />
         </View>
