@@ -369,7 +369,12 @@ export default function DashboardScreen({ navigation }: Props) {
                       <TouchableOpacity
                         key={idx}
                         style={styles.alertItem}
-                        onPress={() => patient && handlePatientSelect(patient)}
+                        onPress={() => {
+                          if (patient) {
+                            setCurrentPatient(patient);
+                            navigation.navigate('FullCarePlanView' as any);
+                          }
+                        }}
                       >
                         <Text style={styles.alertPatient}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
@@ -403,7 +408,12 @@ export default function DashboardScreen({ navigation }: Props) {
                       <TouchableOpacity
                         key={idx}
                         style={styles.alertItem}
-                        onPress={() => patient && handlePatientSelect(patient)}
+                        onPress={() => {
+                          if (patient) {
+                            setCurrentPatient(patient);
+                            navigation.navigate('MonitoringForm' as any);
+                          }
+                        }}
                       >
                         <Text style={styles.alertPatient}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
@@ -440,7 +450,12 @@ export default function DashboardScreen({ navigation }: Props) {
                       <TouchableOpacity
                         key={idx}
                         style={styles.alertItem}
-                        onPress={() => patient && handlePatientSelect(patient)}
+                        onPress={() => {
+                          if (patient) {
+                            setCurrentPatient(patient);
+                            navigation.navigate('MonitoringForm' as any);
+                          }
+                        }}
                       >
                         <Text style={styles.alertPatient}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
@@ -512,7 +527,7 @@ export default function DashboardScreen({ navigation }: Props) {
                     style={styles.carePlanCard}
                     onPress={() => {
                       setCurrentPatient(patient!);
-                      navigation.navigate('CarePlanHub' as any);
+                      navigation.navigate('FullCarePlanView' as any);
                     }}
                   >
                     <Card style={{ flex: 1 }}>
