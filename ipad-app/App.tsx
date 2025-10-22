@@ -36,6 +36,8 @@ import CreateCarePlanScreen from './src/screens/CreateCarePlanScreen';
 import AddCarePlanItemScreen from './src/screens/AddCarePlanItemScreen';
 import QuickProgressUpdateScreen from './src/screens/QuickProgressUpdateScreen';
 import MonitoringFormScreen from './src/screens/MonitoringFormScreen';
+import WeeklyScheduleScreen from './src/screens/WeeklyScheduleScreen';
+import CarePlanHistoryScreen from './src/screens/CarePlanHistoryScreen';
 
 // Utility screens
 import ComingSoonScreen from './src/screens/ComingSoonScreen';
@@ -61,6 +63,8 @@ export type RootStackParamList = {
   AddCarePlanItem: undefined;
   QuickProgressUpdate: undefined;
   MonitoringForm: undefined;
+  WeeklySchedule: undefined;
+  CarePlanHistory: undefined;
   ReviewConfirm: undefined;
   ComingSoon: { feature: string };
 };
@@ -224,6 +228,16 @@ export default function App() {
             name="MonitoringForm"
             component={MonitoringFormScreen}
             options={{ title: 'Monitoring Record' }}
+          />
+          <Stack.Screen
+            name="WeeklySchedule"
+            component={WeeklyScheduleScreen}
+            options={{ title: 'Weekly Schedule' }}
+          />
+          <Stack.Screen
+            name="CarePlanHistory"
+            component={CarePlanHistoryScreen}
+            options={{ title: 'Care Plan History' }}
           />
           <Stack.Screen
             name="ReviewConfirm"
