@@ -128,6 +128,106 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
     return COLORS.text.secondary;
   };
 
+  const renderChanges = (changes: any, action: string) => {
+    // Handle monitoring completed action
+    if (action === 'monitoring_completed' && changes.monitoringId) {
+      return (
+        <View>
+          <Text style={styles.changeLabel}>
+            {language === 'ja' ? 'モニタリングID:' : 'Monitoring ID:'}
+          </Text>
+          <Text style={styles.changeValue}>{changes.monitoringId}</Text>
+          {changes.monitoringType && (
+            <>
+              <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
+                {language === 'ja' ? '種類:' : 'Type:'}
+              </Text>
+              <Text style={styles.changeValue}>{changes.monitoringType}</Text>
+            </>
+          )}
+        </View>
+      );
+    }
+
+    // Handle item added/updated/removed
+    if (changes.itemId) {
+      return (
+        <View>
+          <Text style={styles.changeLabel}>
+            {language === 'ja' ? 'ケアプラン項目:' : 'Care Plan Item:'}
+          </Text>
+          <Text style={styles.changeValue}>{changes.itemId}</Text>
+          {changes.problem && (
+            <>
+              <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
+                {language === 'ja' ? '課題:' : 'Problem:'}
+              </Text>
+              <Text style={styles.changeValue}>{changes.problem}</Text>
+            </>
+          )}
+        </View>
+      );
+    }
+
+    // Handle field updates with before/after values
+    if (changes.field && (changes.oldValue !== undefined || changes.newValue !== undefined)) {
+      const fieldLabels: Record<string, { ja: string; en: string }> = {
+        patientIntent: { ja: '利用者の意向', en: 'Patient Intent' },
+        familyIntent: { ja: '家族の意向', en: 'Family Intent' },
+        comprehensivePolicy: { ja: '総合的な援助方針', en: 'Comprehensive Policy' },
+        careLevel: { ja: '要介護度', en: 'Care Level' },
+        status: { ja: 'ステータス', en: 'Status' },
+        nextReviewDate: { ja: '次回見直し日', en: 'Next Review Date' },
+        nextMonitoringDate: { ja: '次回モニタリング日', en: 'Next Monitoring Date' },
+      };
+
+      const fieldLabel = language === 'ja'
+        ? (fieldLabels[changes.field]?.ja || changes.field)
+        : (fieldLabels[changes.field]?.en || changes.field);
+
+      return (
+        <View>
+          <Text style={styles.changeLabel}>
+            {language === 'ja' ? '変更項目:' : 'Changed Field:'}
+          </Text>
+          <Text style={styles.changeValue}>{fieldLabel}</Text>
+
+          {changes.oldValue !== undefined && (
+            <>
+              <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
+                {language === 'ja' ? '変更前:' : 'Before:'}
+              </Text>
+              <Text style={styles.changeValueOld}>{String(changes.oldValue)}</Text>
+            </>
+          )}
+
+          {changes.newValue !== undefined && (
+            <>
+              <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
+                {language === 'ja' ? '変更後:' : 'After:'}
+              </Text>
+              <Text style={styles.changeValueNew}>{String(changes.newValue)}</Text>
+            </>
+          )}
+        </View>
+      );
+    }
+
+    // For any other changes, display key-value pairs
+    return (
+      <View>
+        {Object.entries(changes).map(([key, value]) => (
+          <View key={key} style={{ marginBottom: SPACING.xs }}>
+            <Text style={styles.changeLabel}>{key}:</Text>
+            <Text style={styles.changeValue}>
+              {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+            </Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -283,9 +383,7 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
 
                       {entry.changes && (
                         <View style={styles.historyChanges}>
-                          <Text style={styles.historyChangesText}>
-                            {JSON.stringify(entry.changes, null, 2)}
-                          </Text>
+                          {renderChanges(entry.changes, entry.action)}
                         </View>
                       )}
 
@@ -446,10 +544,25 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm,
     marginTop: SPACING.sm,
   },
-  historyChangesText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
+  changeLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.secondary,
-    fontFamily: 'monospace',
+    marginBottom: SPACING.xs,
+  },
+  changeValue: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.primary,
+  },
+  changeValueOld: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.error,
+    textDecorationLine: 'line-through',
+  },
+  changeValueNew: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.success,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   historyFooter: {
     marginTop: SPACING.sm,
