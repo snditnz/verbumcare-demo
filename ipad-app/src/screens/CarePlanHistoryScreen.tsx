@@ -156,19 +156,26 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
 
     // Handle item added/updated/removed
     if (changes.itemId) {
+      const problemDesc = typeof changes.problem === 'object' && changes.problem?.description
+        ? changes.problem.description
+        : String(changes.problem);
+
       return (
         <View>
-          <Text style={styles.changeLabel}>
-            {language === 'ja' ? 'ケアプラン項目:' : 'Care Plan Item:'}
-          </Text>
-          <Text style={styles.changeValue}>{String(changes.itemId)}</Text>
           {changes.problem && (
-            <>
-              <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
-                {language === 'ja' ? '課題:' : 'Problem:'}
-              </Text>
-              <Text style={styles.changeValue}>{String(changes.problem)}</Text>
-            </>
+            <Text style={styles.changeText}>
+              <Text style={styles.changeTextBold}>{problemDesc}</Text>
+              {changes.problem?.category && (
+                <Text style={styles.changeTextSecondary}>
+                  {' • '}{language === 'ja' ? 'カテゴリー: ' : 'Category: '}{String(changes.problem.category)}
+                </Text>
+              )}
+              {changes.problem?.priority && (
+                <Text style={styles.changeTextSecondary}>
+                  {' • '}{language === 'ja' ? '優先度: ' : 'Priority: '}{String(changes.problem.priority)}
+                </Text>
+              )}
+            </Text>
           )}
         </View>
       );
@@ -192,36 +199,25 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
 
       return (
         <View>
-          <Text style={styles.changeLabel}>
-            {language === 'ja' ? '変更項目:' : 'Changed Field:'}
-          </Text>
-          <Text style={styles.changeValue}>{fieldLabel}</Text>
-
-          {changes.oldValue !== undefined && (
-            <>
-              <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
-                {language === 'ja' ? '変更前:' : 'Before:'}
-              </Text>
-              <Text style={styles.changeValueOld}>
+          <Text style={styles.changeText}>
+            <Text style={styles.changeTextBold}>{fieldLabel}</Text>
+            {changes.oldValue !== undefined && (
+              <Text style={styles.changeTextOld}>
+                {' • '}{language === 'ja' ? '前: ' : 'Before: '}
                 {typeof changes.oldValue === 'object'
                   ? JSON.stringify(changes.oldValue)
                   : String(changes.oldValue)}
               </Text>
-            </>
-          )}
-
-          {changes.newValue !== undefined && (
-            <>
-              <Text style={[styles.changeLabel, { marginTop: SPACING.sm }]}>
-                {language === 'ja' ? '変更後:' : 'After:'}
-              </Text>
-              <Text style={styles.changeValueNew}>
+            )}
+            {changes.newValue !== undefined && (
+              <Text style={styles.changeTextNew}>
+                {' → '}
                 {typeof changes.newValue === 'object'
                   ? JSON.stringify(changes.newValue)
                   : String(changes.newValue)}
               </Text>
-            </>
-          )}
+            )}
+          </Text>
         </View>
       );
     }
@@ -341,8 +337,10 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
                         <View style={styles.historyHeaderContent}>
                           <Text style={styles.historyAction}>
                             {language === 'ja' ? 'モニタリング実施' : 'Monitoring Conducted'}
+                            {record.conductedByName && (
+                              <Text style={styles.historyUser}> • {record.conductedByName}</Text>
+                            )}
                           </Text>
-                          <Text style={styles.historyUser}>{record.conductedByName}</Text>
                         </View>
                         <View style={styles.historyTimestamp}>
                           <Text style={styles.historyDate}>{formatDate(record.monitoringDate)}</Text>
@@ -408,12 +406,20 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
                           />
                         </View>
                         <View style={styles.historyHeaderContent}>
-                          <Text style={styles.historyAction}>{getActionLabel(entry.action)}</Text>
-                          <Text style={styles.historyUser}>{entry.userName}</Text>
+                          <Text style={styles.historyAction}>
+                            {getActionLabel(entry.action)}
+                            {entry.userName && (
+                              <Text style={styles.historyUser}> • {entry.userName}</Text>
+                            )}
+                          </Text>
                         </View>
                         <View style={styles.historyTimestamp}>
-                          <Text style={styles.historyDate}>{formatDate(entry.timestamp)}</Text>
-                          <Text style={styles.historyTime}>{formatTime(entry.timestamp)}</Text>
+                          <Text style={styles.historyDate}>
+                            {formatDate(entry.timestamp)}
+                          </Text>
+                          <Text style={styles.historyTime}>
+                            {formatTime(entry.timestamp)}
+                          </Text>
                         </View>
                       </View>
 
@@ -422,12 +428,6 @@ export default function CarePlanHistoryScreen({ navigation }: Props) {
                           {renderChanges(entry.changes, entry.action)}
                         </View>
                       )}
-
-                      <View style={styles.historyFooter}>
-                        <Text style={styles.historyVersion}>
-                          {language === 'ja' ? 'バージョン' : 'Version'} {entry.version}
-                        </Text>
-                      </View>
                     </Card>
                   </View>
                 );
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
   },
   timelineItem: {
     flexDirection: 'row',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.sm,
   },
   timelineDot: {
     alignItems: 'center',
@@ -524,11 +524,12 @@ const styles = StyleSheet.create({
   },
   historyCard: {
     flex: 1,
+    padding: SPACING.sm,
   },
   historyHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   historyIcon: {
     marginRight: SPACING.sm,
@@ -540,7 +541,6 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.primary,
-    marginBottom: SPACING.xs,
   },
   historyUser: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -550,9 +550,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   historyDate: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text.primary,
-    marginBottom: SPACING.xs,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
   },
   historyTime: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -560,31 +559,29 @@ const styles = StyleSheet.create({
   },
   historyDetails: {
     flexDirection: 'row',
-    marginBottom: SPACING.sm,
+    marginBottom: 2,
   },
   historyDetailLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.secondary,
     marginRight: SPACING.sm,
-    minWidth: 100,
+    minWidth: 80,
   },
   historyDetailValue: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.text.primary,
     flex: 1,
   },
   historyChanges: {
-    backgroundColor: COLORS.background,
-    padding: SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-    marginTop: SPACING.sm,
+    paddingTop: SPACING.xs,
+    marginTop: SPACING.xs,
   },
   changeLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.secondary,
-    marginBottom: SPACING.xs,
+    marginBottom: 2,
   },
   changeValue: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -609,5 +606,27 @@ const styles = StyleSheet.create({
   historyVersion: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.text.disabled,
+  },
+  changeText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.primary,
+    lineHeight: TYPOGRAPHY.fontSize.sm * 1.4,
+  },
+  changeTextBold: {
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  changeTextSecondary: {
+    color: COLORS.text.secondary,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+  },
+  changeTextOld: {
+    color: COLORS.text.secondary,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+  },
+  changeTextNew: {
+    color: COLORS.success,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    fontSize: TYPOGRAPHY.fontSize.xs,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, RefreshControl, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore, getRoleDisplayName } from '@stores/authStore';
@@ -37,6 +37,7 @@ export default function DashboardScreen({ navigation }: Props) {
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const t = translations[language];
 
@@ -94,6 +95,21 @@ export default function DashboardScreen({ navigation }: Props) {
   const handlePatientSelect = (patient: Patient) => {
     setCurrentPatient(patient);
     navigation.navigate('PatientInfo' as any);
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      // Clear all caches
+      await clearUserCache();
+      clearStore();
+      // Reload patients and care plans
+      await loadPatients();
+      setRefreshing(false);
+    } catch (error) {
+      console.error('Error refreshing:', error);
+      setRefreshing(false);
+    }
   };
 
   const handleClearCache = async () => {
@@ -210,7 +226,18 @@ export default function DashboardScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.primary}
+            title={language === 'ja' ? '更新中...' : 'Refreshing...'}
+            titleColor={COLORS.text.secondary}
+          />
+        }
+      >
         {/* Top Grid: Quick Actions & Stats - 2 rows x 5 columns (including 2-col Recent) */}
         <View style={styles.gridContainer}>
             {/* Recent Patients - Right side, spans 2 rows */}

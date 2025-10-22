@@ -264,7 +264,96 @@ router.get('/:id', async (req, res) => {
     const carePlan = result.rows[0];
 
     // Fetch all related data (same as in GET /)
-    // ... (code omitted for brevity - would be same as above)
+    // Get care plan items
+    const itemsQuery = `
+      SELECT
+        cpi.care_plan_item_id as "id",
+        cpi.care_plan_id as "carePlanId",
+        jsonb_build_object(
+          'category', cpi.problem_category,
+          'description', cpi.problem_description,
+          'priority', cpi.problem_priority,
+          'identifiedDate', cpi.identified_date,
+          'status', cpi.problem_status
+        ) as "problem",
+        jsonb_build_object(
+          'description', cpi.long_term_goal_description,
+          'targetDate', cpi.long_term_goal_target_date,
+          'duration', cpi.long_term_goal_duration,
+          'achievementStatus', cpi.long_term_goal_achievement_status
+        ) as "longTermGoal",
+        jsonb_build_object(
+          'description', cpi.short_term_goal_description,
+          'targetDate', cpi.short_term_goal_target_date,
+          'duration', cpi.short_term_goal_duration,
+          'achievementStatus', cpi.short_term_goal_achievement_status,
+          'measurableCriteria', cpi.short_term_goal_measurable_criteria
+        ) as "shortTermGoal",
+        cpi.interventions,
+        cpi.linked_assessments as "linkedAssessments",
+        cpi.last_updated as "lastUpdated",
+        cpi.updated_by as "updatedBy"
+      FROM care_plan_items cpi
+      WHERE cpi.care_plan_id = $1
+      ORDER BY cpi.problem_priority DESC, cpi.identified_date DESC
+    `;
+    const itemsResult = await db.query(itemsQuery, [carePlan.id]);
+
+    // For each item, fetch progress notes
+    for (let j = 0; j < itemsResult.rows.length; j++) {
+      const item = itemsResult.rows[j];
+      const notesQuery = `
+        SELECT
+          progress_note_id as "id",
+          care_plan_item_id as "carePlanItemId",
+          note_date as "date",
+          note,
+          author_id as "author",
+          author_name as "authorName"
+        FROM care_plan_progress_notes
+        WHERE care_plan_item_id = $1
+        ORDER BY note_date DESC
+      `;
+      const notesResult = await db.query(notesQuery, [item.id]);
+      item.progressNotes = notesResult.rows;
+    }
+
+    carePlan.carePlanItems = itemsResult.rows;
+
+    // Get audit log
+    const auditQuery = `
+      SELECT
+        audit_log_id as "id",
+        timestamp,
+        user_id as "userId",
+        user_name as "userName",
+        action,
+        changes,
+        version
+      FROM care_plan_audit_log
+      WHERE care_plan_id = $1
+      ORDER BY timestamp DESC
+    `;
+    const auditResult = await db.query(auditQuery, [carePlan.id]);
+    carePlan.auditLog = auditResult.rows;
+
+    // Get monitoring records
+    const monitoringQuery = `
+      SELECT
+        monitoring_record_id as "id",
+        monitoring_date as "monitoringDate",
+        monitoring_type as "monitoringType",
+        conducted_by as "conductedBy",
+        conducted_by_name as "conductedByName",
+        overall_status as "overallStatus",
+        item_reviews as "itemReviews",
+        next_monitoring_date as "nextMonitoringDate"
+      FROM monitoring_records
+      WHERE care_plan_id = $1
+      ORDER BY monitoring_date DESC
+    `;
+    const monitoringResult = await db.query(monitoringQuery, [carePlan.id]);
+    carePlan.monitoringRecords = monitoringResult.rows;
 
     res.json({
       carePlan,
