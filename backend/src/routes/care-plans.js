@@ -765,4 +765,111 @@ router.post('/:id/items/:itemId/notes', async (req, res) => {
   }
 });
 
+// Create monitoring record
+router.post('/:id/monitoring', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { id: carePlanId } = req.params;
+    const {
+      monitoringDate,
+      monitoringType,
+      conductedBy,
+      conductedByName,
+      itemReviews,
+      overallStatus,
+      patientFeedback,
+      familyFeedback,
+      staffObservations,
+      proposedChanges,
+      nextMonitoringDate,
+      actionItems
+    } = req.body;
+
+    if (!monitoringDate || !monitoringType || !conductedBy || !overallStatus) {
+      return res.status(400).json({
+        error: getTranslation('errors.missing_parameter', language),
+        message: 'monitoringDate, monitoringType, conductedBy, and overallStatus are required'
+      });
+    }
+
+    // Insert monitoring record
+    const query = `
+      INSERT INTO monitoring_records (
+        care_plan_id,
+        monitoring_date,
+        monitoring_type,
+        conducted_by,
+        conducted_by_name,
+        item_reviews,
+        overall_status,
+        patient_feedback,
+        family_feedback,
+        staff_observations,
+        proposed_changes,
+        next_monitoring_date,
+        action_items
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING
+        monitoring_record_id as "id",
+        care_plan_id as "carePlanId",
+        monitoring_date as "monitoringDate",
+        monitoring_type as "monitoringType",
+        conducted_by as "conductedBy",
+        conducted_by_name as "conductedByName",
+        item_reviews as "itemReviews",
+        overall_status as "overallStatus",
+        patient_feedback as "patientFeedback",
+        family_feedback as "familyFeedback",
+        staff_observations as "staffObservations",
+        proposed_changes as "proposedChanges",
+        next_monitoring_date as "nextMonitoringDate",
+        action_items as "actionItems",
+        created_at as "createdAt"
+    `;
+
+    const result = await db.query(query, [
+      carePlanId,
+      monitoringDate,
+      monitoringType,
+      conductedBy,
+      conductedByName,
+      JSON.stringify(itemReviews),
+      overallStatus,
+      patientFeedback,
+      familyFeedback,
+      staffObservations,
+      JSON.stringify(proposedChanges),
+      nextMonitoringDate,
+      JSON.stringify(actionItems)
+    ]);
+
+    const monitoringRecord = result.rows[0];
+
+    // Update care plan's last and next monitoring dates
+    await db.query(`
+      UPDATE care_plans
+      SET last_monitoring_date = $1, next_monitoring_date = $2
+      WHERE care_plan_id = $3
+    `, [monitoringDate, nextMonitoringDate, carePlanId]);
+
+    // Create audit log entry
+    await db.query(`
+      INSERT INTO care_plan_audit_log (care_plan_id, user_id, user_name, action, changes, version)
+      SELECT $1, $2, CONCAT(s.family_name, ' ', s.given_name), 'monitoring_completed', $3, (SELECT version FROM care_plans WHERE care_plan_id = $1)
+      FROM staff s WHERE s.staff_id = $2
+    `, [carePlanId, conductedBy, JSON.stringify({ monitoringId: monitoringRecord.id, monitoringType })]);
+
+    res.status(201).json({
+      data: monitoringRecord,
+      language
+    });
+  } catch (error) {
+    console.error('Error creating monitoring record:', error);
+    res.status(500).json({
+      error: getTranslation('errors.server', detectLanguage(req)),
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 export default router;

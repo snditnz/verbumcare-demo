@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { API_CONFIG, FACILITY_ID, DEMO_STAFF_ID } from '@constants/config';
 import { APIResponse, APIVitalSigns, VoiceUploadResponse } from '@models/api';
-import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, ProblemTemplate } from '@models';
+import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, ProblemTemplate, MonitoringRecord } from '@models';
 import { cacheService } from './cacheService';
 import { useAuthStore } from '@stores/authStore';
 
@@ -442,6 +442,36 @@ class APIService {
         note,
         author: DEMO_STAFF_ID,
         author_name: 'Demo Staff', // TODO: Get from user context
+      }
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Create a monitoring record for a care plan
+   * @param carePlanId - Care plan ID
+   * @param record - Monitoring record data
+   * @returns Created monitoring record with ID
+   */
+  async createMonitoringRecord(
+    carePlanId: string,
+    record: Omit<MonitoringRecord, 'id' | 'createdAt'>
+  ): Promise<MonitoringRecord> {
+    const response = await this.client.post<APIResponse<MonitoringRecord>>(
+      `/care-plans/${carePlanId}/monitoring`,
+      {
+        monitoringDate: record.monitoringDate.toISOString(),
+        monitoringType: record.monitoringType,
+        conductedBy: record.conductedBy,
+        conductedByName: record.conductedByName,
+        itemReviews: record.itemReviews,
+        overallStatus: record.overallStatus,
+        patientFeedback: record.patientFeedback,
+        familyFeedback: record.familyFeedback,
+        staffObservations: record.staffObservations,
+        proposedChanges: record.proposedChanges,
+        nextMonitoringDate: record.nextMonitoringDate.toISOString(),
+        actionItems: record.actionItems,
       }
     );
     return response.data.data;

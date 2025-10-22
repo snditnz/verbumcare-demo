@@ -442,8 +442,7 @@ export default function MonitoringFormScreen({ navigation }: Props) {
                   variant={currentReview.needsModification ? 'primary' : 'outline'}
                   onPress={() => updateReview(currentItem.id, { needsModification: !currentReview.needsModification })}
                 >
-                  {currentReview.needsModification ? '✓ ' : ''}
-                  {language === 'ja' ? '変更が必要' : 'Needs Modification'}
+                  {`${currentReview.needsModification ? '✓ ' : ''}${language === 'ja' ? '変更が必要' : 'Needs Modification'}`}
                 </Button>
               </View>
 

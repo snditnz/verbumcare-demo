@@ -438,9 +438,32 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
 
       // Try to sync with backend
       try {
-        // TODO: Add API endpoint for monitoring records
-        // await apiService.createMonitoringRecord(carePlanId, record);
-        console.log('Monitoring record created locally:', record);
+        const createdRecord = await apiService.createMonitoringRecord(carePlanId, record);
+
+        // Deserialize dates from server response
+        const deserializedRecord = {
+          ...createdRecord,
+          monitoringDate: new Date(createdRecord.monitoringDate),
+          nextMonitoringDate: new Date(createdRecord.nextMonitoringDate),
+        };
+
+        // Update with server-returned record (has ID and createdAt)
+        const finalCarePlan = {
+          ...carePlan,
+          monitoringRecords: [...carePlan.monitoringRecords.filter(r => r.id !== record.id), deserializedRecord],
+          lastMonitoringDate: deserializedRecord.monitoringDate,
+          nextMonitoringDate: deserializedRecord.nextMonitoringDate,
+        };
+
+        await cacheService.cacheCarePlan(finalCarePlan);
+
+        set((state) => {
+          const newCarePlans = new Map(state.carePlans);
+          newCarePlans.set(patientId, finalCarePlan);
+          return { carePlans: newCarePlans };
+        });
+
+        console.log('✅ Monitoring record synced to server:', deserializedRecord.id);
       } catch (syncError: any) {
         console.warn('Failed to sync monitoring record, will retry later:', syncError);
         await cacheService.addPendingSync('createMonitoringRecord', { carePlanId, record });
