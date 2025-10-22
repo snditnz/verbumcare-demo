@@ -510,7 +510,10 @@ export default function DashboardScreen({ navigation }: Props) {
                   <TouchableOpacity
                     key={carePlan.id}
                     style={styles.carePlanCard}
-                    onPress={() => handlePatientSelect(patient!)}
+                    onPress={() => {
+                      setCurrentPatient(patient!);
+                      navigation.navigate('CarePlanHub' as any);
+                    }}
                   >
                     <Card style={{ flex: 1 }}>
                       <View style={styles.carePlanHeader}>
