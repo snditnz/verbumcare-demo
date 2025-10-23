@@ -45,6 +45,110 @@ router.get('/problem-templates', async (req, res) => {
 // CARE PLANS - CRUD Operations
 // ============================================================================
 
+// Get ALL care plans across all patients (for "All Care Plans" page)
+router.get('/all', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+
+    // Single optimized query joining care_plans with patients
+    const query = `
+      SELECT
+        cp.care_plan_id as "id",
+        cp.patient_id as "patientId",
+        cp.care_level as "careLevel",
+        cp.status,
+        cp.version,
+        cp.created_date as "createdDate",
+        cp.last_review_date as "lastReviewDate",
+        cp.next_review_date as "nextReviewDate",
+        cp.created_by as "createdBy",
+        cp.patient_intent as "patientIntent",
+        cp.family_intent as "familyIntent",
+        cp.comprehensive_policy as "comprehensivePolicy",
+        cp.care_manager_id as "careManagerId",
+        cp.team_members as "teamMembers",
+        cp.family_signature as "familySignature",
+        cp.last_monitoring_date as "lastMonitoringDate",
+        cp.next_monitoring_date as "nextMonitoringDate",
+        -- Patient info
+        jsonb_build_object(
+          'patient_id', p.patient_id,
+          'mrn', p.mrn,
+          'family_name', p.family_name,
+          'given_name', p.given_name,
+          'family_name_en', p.family_name_en,
+          'given_name_en', p.given_name_en,
+          'room', p.room,
+          'bed', p.bed,
+          'age', p.age,
+          'gender', p.gender,
+          'status', p.status
+        ) as "patient",
+        -- Stats for quick display
+        COALESCE(
+          (SELECT COUNT(*)
+           FROM care_plan_items cpi
+           WHERE cpi.care_plan_id = cp.care_plan_id
+             AND cpi.problem_status = 'active'),
+          0
+        ) as "activeItemsCount",
+        COALESCE(
+          (SELECT ROUND(AVG(cpi.short_term_goal_achievement_status))
+           FROM care_plan_items cpi
+           WHERE cpi.care_plan_id = cp.care_plan_id
+             AND cpi.problem_status = 'active'),
+          0
+        ) as "avgProgress",
+        -- Alert flags
+        CASE WHEN cp.next_monitoring_date < CURRENT_DATE THEN true ELSE false END as "overdueMonitoring",
+        COALESCE(
+          (SELECT COUNT(*) > 0
+           FROM care_plan_items cpi
+           WHERE cpi.care_plan_id = cp.care_plan_id
+             AND cpi.problem_status = 'active'
+             AND (cpi.problem_priority = 'urgent' OR cpi.problem_priority = 'high')),
+          false
+        ) as "hasHighPriority",
+        COALESCE(
+          (SELECT COUNT(*) > 0
+           FROM care_plan_items cpi
+           WHERE cpi.care_plan_id = cp.care_plan_id
+             AND cpi.problem_status = 'active'
+             AND cpi.short_term_goal_achievement_status < 30),
+          false
+        ) as "hasStuckGoals",
+        -- Last updated info
+        (SELECT MAX(cpi.last_updated)
+         FROM care_plan_items cpi
+         WHERE cpi.care_plan_id = cp.care_plan_id) as "lastItemUpdate",
+        (SELECT s.family_name || ' ' || s.given_name
+         FROM care_plan_items cpi
+         JOIN staff s ON s.staff_id = cpi.updated_by
+         WHERE cpi.care_plan_id = cp.care_plan_id
+         ORDER BY cpi.last_updated DESC
+         LIMIT 1) as "lastUpdatedBy"
+      FROM care_plans cp
+      INNER JOIN patients p ON p.patient_id = cp.patient_id
+      WHERE cp.status IN ('active', 'draft')
+      ORDER BY cp.last_review_date DESC NULLS LAST, cp.created_date DESC
+    `;
+
+    const result = await db.query(query);
+
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      language
+    });
+  } catch (error) {
+    console.error('Error fetching all care plans:', error);
+    res.status(500).json({
+      error: getTranslation('errors.server', detectLanguage(req)),
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Get care plans for a patient
 router.get('/', async (req, res) => {
   try {

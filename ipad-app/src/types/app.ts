@@ -279,6 +279,18 @@ export interface CarePlan {
   auditLog: AuditLogEntry[];
 }
 
+// Care plan with patient info (for "All Care Plans" page)
+export interface CarePlanWithPatient extends Omit<CarePlan, 'carePlanItems' | 'weeklySchedule' | 'monitoringRecords' | 'auditLog'> {
+  patient: Patient;
+  activeItemsCount: number;
+  avgProgress: number;
+  overdueMonitoring: boolean;
+  hasHighPriority: boolean;
+  hasStuckGoals: boolean;
+  lastItemUpdate?: Date;
+  lastUpdatedBy?: string;
+}
+
 // Team member
 export interface TeamMember {
   userId: string;

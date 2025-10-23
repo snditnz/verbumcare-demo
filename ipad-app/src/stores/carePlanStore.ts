@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { CarePlan, CarePlanItem, ProblemTemplate } from '@models/app';
+import { CarePlan, CarePlanItem, CarePlanWithPatient, ProblemTemplate } from '@models/app';
 import { apiService } from '@services/api';
 import { cacheService } from '@services/cacheService';
 
@@ -56,6 +56,7 @@ const deserializeCarePlan = (plan: any): CarePlan => {
 
 interface CarePlanStore {
   carePlans: Map<string, CarePlan>; // key: patientId
+  allCarePlans: CarePlanWithPatient[]; // All care plans with patient info
   problemTemplates: ProblemTemplate[];
   isLoading: boolean;
   error: string | null;
@@ -63,6 +64,7 @@ interface CarePlanStore {
   // Actions
   loadProblemTemplates: () => Promise<void>;
   loadCarePlan: (patientId: string) => Promise<void>;
+  loadAllCarePlans: () => Promise<void>;
   getCarePlanByPatientId: (patientId: string) => CarePlan | undefined;
   createCarePlan: (carePlan: Omit<CarePlan, 'id' | 'auditLog'>) => Promise<CarePlan>;
   updateCarePlan: (carePlan: CarePlan) => Promise<void>;
@@ -76,6 +78,7 @@ interface CarePlanStore {
 
 export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
   carePlans: new Map<string, CarePlan>(),
+  allCarePlans: [],
   problemTemplates: [],
   isLoading: false,
   error: null,
@@ -85,7 +88,7 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
   },
 
   clearStore: () => {
-    set({ carePlans: new Map(), problemTemplates: [], isLoading: false, error: null });
+    set({ carePlans: new Map(), allCarePlans: [], problemTemplates: [], isLoading: false, error: null });
   },
 
   loadProblemTemplates: async () => {
@@ -197,6 +200,34 @@ export const useCarePlanStore = create<CarePlanStore>((set, get) => ({
         console.error('Error loading care plan:', error);
         set({ isLoading: false, error: null }); // Don't show error - offline is normal
       }
+    }
+  },
+
+  loadAllCarePlans: async () => {
+    try {
+      set({ isLoading: true, error: null });
+
+      // Fetch all care plans from backend
+      const allPlans = await apiService.getAllCarePlans();
+
+      // Deserialize dates
+      const deserializedPlans = allPlans.map(plan => ({
+        ...plan,
+        createdDate: new Date(plan.createdDate),
+        lastReviewDate: plan.lastReviewDate ? new Date(plan.lastReviewDate) : undefined,
+        nextReviewDate: new Date(plan.nextReviewDate),
+        lastMonitoringDate: plan.lastMonitoringDate ? new Date(plan.lastMonitoringDate) : undefined,
+        nextMonitoringDate: new Date(plan.nextMonitoringDate),
+        lastItemUpdate: plan.lastItemUpdate ? new Date(plan.lastItemUpdate) : undefined,
+      }));
+
+      set({ allCarePlans: deserializedPlans, isLoading: false });
+    } catch (error: any) {
+      console.error('Error loading all care plans:', error);
+      set({
+        isLoading: false,
+        error: error.message || 'Failed to load care plans'
+      });
     }
   },
 

@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { API_CONFIG, FACILITY_ID, DEMO_STAFF_ID } from '@constants/config';
 import { APIResponse, APIVitalSigns, VoiceUploadResponse } from '@models/api';
-import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, ProblemTemplate, MonitoringRecord } from '@models';
+import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, CarePlanWithPatient, ProblemTemplate, MonitoringRecord } from '@models';
 import { cacheService } from './cacheService';
 import { useAuthStore } from '@stores/authStore';
 
@@ -306,6 +306,17 @@ class APIService {
   async getCarePlan(carePlanId: string): Promise<CarePlan> {
     const response = await this.client.get<APIResponse<CarePlan>>(
       `/care-plans/${carePlanId}`
+    );
+    return response.data.data;
+  }
+
+  /**
+   * Get ALL care plans across all patients (for "All Care Plans" page)
+   * @returns Array of care plans with patient info and stats
+   */
+  async getAllCarePlans(): Promise<CarePlanWithPatient[]> {
+    const response = await this.client.get<APIResponse<CarePlanWithPatient[]>>(
+      '/care-plans/all'
     );
     return response.data.data;
   }

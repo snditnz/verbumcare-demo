@@ -520,7 +520,7 @@ export default function DashboardScreen({ navigation }: Props) {
                 {language === 'ja' ? 'ケアプラン' : 'Care Plans'}
               </Text>
               <TouchableOpacity
-                onPress={() => navigation.navigate('PatientList' as any)}
+                onPress={() => navigation.navigate('AllCarePlans' as any)}
                 style={{ marginLeft: 'auto' }}
               >
                 <Text style={styles.viewAllTextSmall}>
