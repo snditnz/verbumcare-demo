@@ -155,56 +155,89 @@ export default function AllCarePlansScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {/* Filter Chips */}
+      {/* Filters with Groups */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.filterChips}
         contentContainerStyle={styles.filterChipsContent}
       >
-        {/* Status Filters */}
-        <TouchableOpacity
-          style={[styles.filterChip, selectedStatus === 'active' && styles.filterChipActive]}
-          onPress={() => setSelectedStatus(selectedStatus === 'active' ? null : 'active')}
-        >
-          <Text style={[styles.filterChipText, selectedStatus === 'active' && styles.filterChipTextActive]}>
-            {language === 'ja' ? '有効' : 'Active'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterChip, selectedStatus === 'draft' && styles.filterChipActive]}
-          onPress={() => setSelectedStatus(selectedStatus === 'draft' ? null : 'draft')}
-        >
-          <Text style={[styles.filterChipText, selectedStatus === 'draft' && styles.filterChipTextActive]}>
-            {language === 'ja' ? '下書き' : 'Draft'}
-          </Text>
-        </TouchableOpacity>
+        {/* Status Group */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupLabel}>{language === 'ja' ? 'ステータス' : 'Status'}</Text>
+          <View style={styles.filterGroupChips}>
+            <TouchableOpacity
+              style={[styles.filterChip, selectedStatus === 'active' && styles.filterChipActive]}
+              onPress={() => setSelectedStatus(selectedStatus === 'active' ? null : 'active')}
+            >
+              <Text style={[styles.filterChipText, selectedStatus === 'active' && styles.filterChipTextActive]}>
+                {language === 'ja' ? '有効' : 'Active'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterChip, selectedStatus === 'draft' && styles.filterChipActive]}
+              onPress={() => setSelectedStatus(selectedStatus === 'draft' ? null : 'draft')}
+            >
+              <Text style={[styles.filterChipText, selectedStatus === 'draft' && styles.filterChipTextActive]}>
+                {language === 'ja' ? '下書き' : 'Draft'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-        {/* Care Level Filters */}
-        {CARE_LEVELS.map(level => (
-          <TouchableOpacity
-            key={level}
-            style={[styles.filterChip, selectedCareLevel === level && styles.filterChipActive]}
-            onPress={() => setSelectedCareLevel(selectedCareLevel === level ? null : level)}
-          >
-            <Text style={[styles.filterChipText, selectedCareLevel === level && styles.filterChipTextActive]}>
-              {level}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {/* Separator */}
+        <View style={styles.filterSeparator} />
 
-        {/* Room Filters */}
-        {rooms.map(room => (
+        {/* Care Level Group */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupLabel}>{language === 'ja' ? '介護度' : 'Care Level'}</Text>
+          <View style={styles.filterGroupChips}>
+            {CARE_LEVELS.map(level => (
+              <TouchableOpacity
+                key={level}
+                style={[styles.filterChip, selectedCareLevel === level && styles.filterChipActive]}
+                onPress={() => setSelectedCareLevel(selectedCareLevel === level ? null : level)}
+              >
+                <Text style={[styles.filterChipText, selectedCareLevel === level && styles.filterChipTextActive]}>
+                  {level}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Separator */}
+        <View style={styles.filterSeparator} />
+
+        {/* Room Dropdown */}
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupLabel}>{language === 'ja' ? '部屋' : 'Room'}</Text>
           <TouchableOpacity
-            key={room}
-            style={[styles.filterChip, selectedRoom === room && styles.filterChipActive]}
-            onPress={() => setSelectedRoom(selectedRoom === room ? null : room)}
+            style={[styles.roomDropdown, selectedRoom && styles.roomDropdownActive]}
+            onPress={() => {
+              // Cycle through rooms or clear
+              if (!selectedRoom) {
+                setSelectedRoom(rooms[0] || null);
+              } else {
+                const currentIndex = rooms.indexOf(selectedRoom);
+                if (currentIndex < rooms.length - 1) {
+                  setSelectedRoom(rooms[currentIndex + 1]);
+                } else {
+                  setSelectedRoom(null);
+                }
+              }
+            }}
           >
-            <Text style={[styles.filterChipText, selectedRoom === room && styles.filterChipTextActive]}>
-              {room}
+            <Text style={[styles.roomDropdownText, selectedRoom && styles.roomDropdownTextActive]}>
+              {selectedRoom || (language === 'ja' ? '全部' : 'All')}
             </Text>
+            <Ionicons
+              name="chevron-down"
+              size={14}
+              color={selectedRoom ? COLORS.white : COLORS.text.secondary}
+            />
           </TouchableOpacity>
-        ))}
+        </View>
       </ScrollView>
 
       {/* Care Plans List */}
@@ -398,8 +431,30 @@ const styles = StyleSheet.create({
   filterChipsContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: 3,
-    gap: SPACING.sm,
+    gap: SPACING.md,
     height: 28,
+    alignItems: 'center',
+  },
+  filterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  filterGroupLabel: {
+    fontSize: 12,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.secondary,
+    marginRight: SPACING.xs,
+  },
+  filterGroupChips: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  filterSeparator: {
+    width: 1,
+    height: 20,
+    backgroundColor: COLORS.border,
+    marginHorizontal: SPACING.xs,
   },
   filterChip: {
     paddingHorizontal: SPACING.lg,
@@ -421,6 +476,30 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
   filterChipTextActive: {
+    color: COLORS.white,
+  },
+  roomDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    height: 24,
+    borderRadius: BORDER_RADIUS.round,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minWidth: 60,
+  },
+  roomDropdownActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  roomDropdownText: {
+    fontSize: 12,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text.primary,
+  },
+  roomDropdownTextActive: {
     color: COLORS.white,
   },
   resultsCount: {
