@@ -80,7 +80,6 @@ router.get('/all', async (req, res) => {
           'given_name_en', p.given_name_en,
           'room', p.room,
           'bed', p.bed,
-          'age', p.age,
           'gender', p.gender,
           'status', p.status
         ) as "patient",
