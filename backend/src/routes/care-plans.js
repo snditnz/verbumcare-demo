@@ -50,8 +50,19 @@ router.get('/all', async (req, res) => {
   try {
     const language = detectLanguage(req);
 
-    // Single optimized query joining care_plans with patients
+    // Get only the LATEST care plan per patient (not all versions/duplicates)
     const query = `
+      WITH latest_care_plans AS (
+        SELECT
+          cp.care_plan_id,
+          cp.patient_id,
+          ROW_NUMBER() OVER (
+            PARTITION BY cp.patient_id
+            ORDER BY cp.created_date DESC, cp.version DESC
+          ) as rn
+        FROM care_plans cp
+        WHERE cp.status IN ('active', 'draft')
+      )
       SELECT
         cp.care_plan_id as "id",
         cp.patient_id as "patientId",
@@ -126,9 +137,10 @@ router.get('/all', async (req, res) => {
          WHERE cpi.care_plan_id = cp.care_plan_id
          ORDER BY cpi.last_updated DESC
          LIMIT 1) as "lastUpdatedBy"
-      FROM care_plans cp
+      FROM latest_care_plans lcp
+      INNER JOIN care_plans cp ON cp.care_plan_id = lcp.care_plan_id
       INNER JOIN patients p ON p.patient_id = cp.patient_id
-      WHERE cp.status IN ('active', 'draft')
+      WHERE lcp.rn = 1
       ORDER BY cp.last_review_date DESC NULLS LAST, cp.created_date DESC
     `;
 
