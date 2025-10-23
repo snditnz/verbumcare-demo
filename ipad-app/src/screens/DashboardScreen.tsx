@@ -390,7 +390,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       <Text style={styles.alertCountText}>{highPriorityProblems.length}</Text>
                     </View>
                   </View>
-                  {highPriorityProblems.slice(0, 1).map((alert, idx) => {
+                  {highPriorityProblems.slice(0, 4).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     return (
                       <TouchableOpacity
@@ -429,7 +429,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       <Text style={styles.alertCountText}>{stuckGoals.length}</Text>
                     </View>
                   </View>
-                  {stuckGoals.slice(0, 1).map((alert, idx) => {
+                  {stuckGoals.slice(0, 4).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     return (
                       <TouchableOpacity
@@ -468,7 +468,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       <Text style={styles.alertCountText}>{overdueMonitoring.length}</Text>
                     </View>
                   </View>
-                  {overdueMonitoring.slice(0, 1).map((alert, idx) => {
+                  {overdueMonitoring.slice(0, 4).map((alert, idx) => {
                     const patient = patients.find(p => p.patient_id === alert.patientId);
                     const daysOverdue = Math.floor(
                       (Date.now() - new Date(alert.nextReview).getTime()) / (1000 * 60 * 60 * 24)
@@ -538,7 +538,7 @@ export default function DashboardScreen({ navigation }: Props) {
             </Text>
           ) : (
             <View style={styles.carePlansGrid}>
-              {patientsWithCarePlans.slice(0, 3).map((carePlan) => {
+              {patientsWithCarePlans.slice(0, 7).map((carePlan) => {
                 const patient = patients.find(p => p.patient_id === carePlan.patientId);
                 const activeItems = carePlan.carePlanItems.filter(i => i.problem.status === 'active');
                 const avgProgress = activeItems.length > 0
@@ -557,7 +557,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       navigation.navigate('CarePlanHub' as any);
                     }}
                   >
-                    <Card style={{ flex: 1 }}>
+                    <Card style={{ flex: 1, padding: SPACING.sm }}>
                       <View style={styles.carePlanHeader}>
                         <View style={styles.carePlanPatientInfo}>
                           <Text style={styles.carePlanPatientName}>
@@ -787,111 +787,111 @@ const styles = StyleSheet.create({
   alertCard: {
     flex: 1,
     minWidth: 300,
+    padding: SPACING.sm,
   },
   alertHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.md,
-    gap: SPACING.sm,
+    marginBottom: SPACING.xs,
+    gap: SPACING.xs,
   },
   alertBadge: {
-    width: 36,
-    height: 36,
+    width: 28,
+    height: 28,
     borderRadius: BORDER_RADIUS.round,
     alignItems: 'center',
     justifyContent: 'center',
   },
   alertTitle: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.primary,
     flex: 1,
   },
   alertCount: {
     backgroundColor: COLORS.error,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
     borderRadius: BORDER_RADIUS.round,
-    minWidth: 24,
+    minWidth: 20,
     alignItems: 'center',
   },
   alertCountText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.white,
   },
   alertItem: {
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
   alertPatient: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.primary,
-    marginBottom: SPACING.xs,
+    marginBottom: 2,
   },
   alertDescription: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.text.secondary,
   },
   carePlansGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: SPACING.md,
+    gap: SPACING.xs,
   },
   carePlanCard: {
-    width: '32%',
-    minWidth: 250,
+    width: '100%',
   },
   carePlanHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   carePlanPatientInfo: {
     flex: 1,
   },
   carePlanPatientName: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.primary,
   },
   carePlanRoom: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.text.secondary,
-    marginTop: SPACING.xs,
+    marginTop: 2,
   },
   careLevelBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
     borderRadius: BORDER_RADIUS.sm,
   },
   careLevelText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   carePlanStats: {
     flexDirection: 'row',
-    gap: SPACING.lg,
-    marginBottom: SPACING.md,
+    gap: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   carePlanStat: {
     alignItems: 'center',
   },
   carePlanStatValue: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.accent,
   },
   carePlanStatLabel: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.text.secondary,
-    marginTop: SPACING.xs,
+    marginTop: 2,
   },
   progressBarContainer: {
-    height: 6,
+    height: 4,
     backgroundColor: COLORS.border,
     borderRadius: BORDER_RADIUS.sm,
     overflow: 'hidden',
