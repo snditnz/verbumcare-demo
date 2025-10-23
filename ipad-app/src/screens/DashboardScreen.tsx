@@ -403,7 +403,7 @@ export default function DashboardScreen({ navigation }: Props) {
                           }
                         }}
                       >
-                        <Text style={styles.alertPatient}>
+                        <Text style={styles.alertPatient} numberOfLines={1}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
                         </Text>
                         <Text style={styles.alertDescription} numberOfLines={1}>
@@ -442,7 +442,7 @@ export default function DashboardScreen({ navigation }: Props) {
                           }
                         }}
                       >
-                        <Text style={styles.alertPatient}>
+                        <Text style={styles.alertPatient} numberOfLines={1}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
                         </Text>
                         <Text style={styles.alertDescription} numberOfLines={1}>
@@ -484,10 +484,10 @@ export default function DashboardScreen({ navigation }: Props) {
                           }
                         }}
                       >
-                        <Text style={styles.alertPatient}>
+                        <Text style={styles.alertPatient} numberOfLines={1}>
                           {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
                         </Text>
-                        <Text style={styles.alertDescription}>
+                        <Text style={styles.alertDescription} numberOfLines={1}>
                           {language === 'ja' ? `${daysOverdue}日遅延` : `${daysOverdue} days overdue`}
                         </Text>
                       </TouchableOpacity>
@@ -812,19 +812,27 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   alertItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: SPACING.xs,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    gap: SPACING.xs,
   },
   alertPatient: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.text.primary,
-    marginBottom: 2,
+    flex: 0,
+    flexShrink: 0,
+    minWidth: 80,
   },
   alertDescription: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.text.secondary,
+    flex: 1,
+    textAlign: 'right',
   },
   carePlansGrid: {
     flexDirection: 'row',
