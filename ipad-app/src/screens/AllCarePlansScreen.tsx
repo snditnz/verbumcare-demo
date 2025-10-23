@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, RefreshControl, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, RefreshControl, TouchableOpacity, TextInput, ActivityIndicator, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
@@ -34,6 +34,7 @@ export default function AllCarePlansScreen({ navigation }: Props) {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('lastUpdated');
   const [refreshing, setRefreshing] = useState(false);
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
 
   const t = translations[language];
 
@@ -214,19 +215,7 @@ export default function AllCarePlansScreen({ navigation }: Props) {
           <Text style={styles.filterGroupLabel}>{language === 'ja' ? '部屋' : 'Room'}</Text>
           <TouchableOpacity
             style={[styles.roomDropdown, selectedRoom && styles.roomDropdownActive]}
-            onPress={() => {
-              // Cycle through rooms or clear
-              if (!selectedRoom) {
-                setSelectedRoom(rooms[0] || null);
-              } else {
-                const currentIndex = rooms.indexOf(selectedRoom);
-                if (currentIndex < rooms.length - 1) {
-                  setSelectedRoom(rooms[currentIndex + 1]);
-                } else {
-                  setSelectedRoom(null);
-                }
-              }
-            }}
+            onPress={() => setShowRoomPicker(true)}
           >
             <Text style={[styles.roomDropdownText, selectedRoom && styles.roomDropdownTextActive]}>
               {selectedRoom || (language === 'ja' ? '全部' : 'All')}
@@ -239,6 +228,60 @@ export default function AllCarePlansScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Room Picker Modal */}
+      <Modal
+        visible={showRoomPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRoomPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRoomPicker(false)}
+        >
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {language === 'ja' ? '部屋を選択' : 'Select Room'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowRoomPicker(false)}>
+                <Ionicons name="close" size={24} color={COLORS.text.primary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalList}>
+              <TouchableOpacity
+                style={[styles.modalItem, !selectedRoom && styles.modalItemActive]}
+                onPress={() => {
+                  setSelectedRoom(null);
+                  setShowRoomPicker(false);
+                }}
+              >
+                <Text style={[styles.modalItemText, !selectedRoom && styles.modalItemTextActive]}>
+                  {language === 'ja' ? '全部' : 'All Rooms'}
+                </Text>
+                {!selectedRoom && <Ionicons name="checkmark" size={20} color={COLORS.primary} />}
+              </TouchableOpacity>
+              {rooms.sort().map(room => (
+                <TouchableOpacity
+                  key={room}
+                  style={[styles.modalItem, selectedRoom === room && styles.modalItemActive]}
+                  onPress={() => {
+                    setSelectedRoom(room);
+                    setShowRoomPicker(false);
+                  }}
+                >
+                  <Text style={[styles.modalItemText, selectedRoom === room && styles.modalItemTextActive]}>
+                    {language === 'ja' ? `部屋 ${room}` : `Room ${room}`}
+                  </Text>
+                  {selectedRoom === room && <Ionicons name="checkmark" size={20} color={COLORS.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Care Plans List */}
       <ScrollView
@@ -501,6 +544,60 @@ const styles = StyleSheet.create({
   },
   roomDropdownTextActive: {
     color: COLORS.white,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+  },
+  modalList: {
+    maxHeight: 400,
+  },
+  modalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalItemActive: {
+    backgroundColor: `${COLORS.primary}10`,
+  },
+  modalItemText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.primary,
+  },
+  modalItemTextActive: {
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
   },
   resultsCount: {
     paddingHorizontal: SPACING.lg,
