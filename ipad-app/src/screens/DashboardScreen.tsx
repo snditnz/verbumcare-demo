@@ -671,6 +671,7 @@ const styles = StyleSheet.create({
   },
   bottomRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: SPACING.md,
     flex: 1,
   },
