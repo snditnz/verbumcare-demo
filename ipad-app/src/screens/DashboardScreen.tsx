@@ -312,13 +312,18 @@ export default function DashboardScreen({ navigation }: Props) {
                 </TouchableOpacity>
 
                 {/* 3. Care Plans */}
-                <Card style={[styles.gridCell, styles.gridCellInner]}>
-                  <Ionicons name="document-text" size={ICON_SIZES.xl} color={COLORS.accent} />
-                  <Text style={styles.statValue}>{totalCarePlans}</Text>
-                  <Text style={styles.statLabel}>
-                    {language === 'ja' ? 'ケアプラン' : 'Care Plans'}
-                  </Text>
-                </Card>
+                <TouchableOpacity
+                  style={styles.gridCell}
+                  onPress={() => navigation.navigate('AllCarePlans' as any)}
+                >
+                  <Card style={styles.gridCellInner}>
+                    <Ionicons name="document-text" size={ICON_SIZES.xl} color={COLORS.accent} />
+                    <Text style={styles.statValue}>{totalCarePlans}</Text>
+                    <Text style={styles.statLabel}>
+                      {language === 'ja' ? 'ケアプラン' : 'Care Plans'}
+                    </Text>
+                  </Card>
+                </TouchableOpacity>
               </View>
 
               {/* Row 2 */}
