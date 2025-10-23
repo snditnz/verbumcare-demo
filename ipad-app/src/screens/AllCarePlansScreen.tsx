@@ -207,13 +207,6 @@ export default function AllCarePlansScreen({ navigation }: Props) {
         ))}
       </ScrollView>
 
-      {/* Results Count */}
-      <View style={styles.resultsCount}>
-        <Text style={styles.resultsCountText}>
-          {language === 'ja' ? `${sortedPlans.length}件のケアプラン` : `${sortedPlans.length} care plans`}
-        </Text>
-      </View>
-
       {/* Care Plans List */}
       <ScrollView
         style={styles.content}
@@ -346,7 +339,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xs,
+    paddingVertical: 6,
     gap: SPACING.sm,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
@@ -358,8 +351,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.background,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.sm,
     gap: SPACING.xs,
   },
   searchInput: {
@@ -381,7 +374,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.xs,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
+    paddingVertical: 3,
     backgroundColor: COLORS.background,
     borderRadius: BORDER_RADIUS.sm,
   },
@@ -397,13 +390,13 @@ const styles = StyleSheet.create({
   },
   filterChipsContent: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xs,
+    paddingVertical: 4,
     gap: SPACING.xs,
   },
   filterChip: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.round,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -413,7 +406,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
   },
   filterChipText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontSize: 11,
     color: COLORS.text.primary,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
