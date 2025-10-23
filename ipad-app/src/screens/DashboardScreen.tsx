@@ -557,17 +557,22 @@ export default function DashboardScreen({ navigation }: Props) {
                       navigation.navigate('CarePlanHub' as any);
                     }}
                   >
-                    <Card style={{ flex: 1, padding: SPACING.sm }}>
+                    <Card style={{ flex: 1, padding: SPACING.xs }}>
                       <View style={styles.carePlanHeader}>
                         <View style={styles.carePlanPatientInfo}>
                           <Text style={styles.carePlanPatientName}>
                             {patient ? `${patient.family_name} ${patient.given_name}` : 'Unknown'}
+                            {patient?.room && (
+                              <Text style={styles.carePlanRoom}>
+                                {' • '}{language === 'ja' ? '室' : 'Room'} {patient.room}
+                              </Text>
+                            )}
                           </Text>
-                          {patient?.room && (
-                            <Text style={styles.carePlanRoom}>
-                              {language === 'ja' ? '室' : 'Room'} {patient.room}
-                            </Text>
-                          )}
+                        </View>
+                        <View style={styles.carePlanStatsInline}>
+                          <Text style={styles.carePlanStatInlineText}>
+                            {activeItems.length} {language === 'ja' ? '課題' : 'items'} • {avgProgress}%
+                          </Text>
                         </View>
                         <View style={[styles.careLevelBadge, { backgroundColor: `${COLORS.primary}20` }]}>
                           <Text style={[styles.careLevelText, { color: COLORS.primary }]}>
@@ -575,22 +580,6 @@ export default function DashboardScreen({ navigation }: Props) {
                           </Text>
                         </View>
                       </View>
-
-                      <View style={styles.carePlanStats}>
-                        <View style={styles.carePlanStat}>
-                          <Text style={styles.carePlanStatValue}>{activeItems.length}</Text>
-                          <Text style={styles.carePlanStatLabel}>
-                            {language === 'ja' ? '課題' : 'Items'}
-                          </Text>
-                        </View>
-                        <View style={styles.carePlanStat}>
-                          <Text style={styles.carePlanStatValue}>{avgProgress}%</Text>
-                          <Text style={styles.carePlanStatLabel}>
-                            {language === 'ja' ? '進捗' : 'Progress'}
-                          </Text>
-                        </View>
-                      </View>
-
                       <View style={styles.progressBarContainer}>
                         <View style={[styles.progressBar, { width: `${avgProgress}%` }]} />
                       </View>
@@ -692,7 +681,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
+    minHeight: 32,
   },
   gridRow: {
     flexDirection: 'row',
@@ -847,8 +837,9 @@ const styles = StyleSheet.create({
   carePlanHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: SPACING.xs,
+    gap: SPACING.xs,
   },
   carePlanPatientInfo: {
     flex: 1,
@@ -861,7 +852,16 @@ const styles = StyleSheet.create({
   carePlanRoom: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.text.secondary,
-    marginTop: 2,
+    fontWeight: TYPOGRAPHY.fontWeight.normal,
+  },
+  carePlanStatsInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  carePlanStatInlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
   careLevelBadge: {
     paddingHorizontal: SPACING.xs,
@@ -895,6 +895,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.border,
     borderRadius: BORDER_RADIUS.sm,
     overflow: 'hidden',
+    marginTop: SPACING.xs,
   },
   progressBar: {
     height: '100%',
