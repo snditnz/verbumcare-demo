@@ -561,7 +561,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       navigation.navigate('CarePlanHub' as any);
                     }}
                   >
-                    <Card style={{ flex: 1, padding: SPACING.xs }}>
+                    <Card style={{ flex: 1, padding: SPACING.xs, marginBottom: 0 }}>
                       <View style={styles.carePlanHeader}>
                         <View style={styles.carePlanPatientInfo}>
                           <Text style={styles.carePlanPatientName}>

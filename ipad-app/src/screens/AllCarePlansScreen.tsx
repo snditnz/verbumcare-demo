@@ -316,7 +316,7 @@ export default function AllCarePlansScreen({ navigation }: Props) {
                 style={styles.carePlanCard}
                 onPress={() => handleCarePlanPress(carePlan)}
               >
-                <Card style={{ flex: 1, padding: SPACING.xs }}>
+                <Card style={{ flex: 1, padding: SPACING.xs, marginBottom: 0 }}>
                   <View style={styles.cardHeader}>
                     {/* Patient Info */}
                     <View style={styles.patientInfo}>
