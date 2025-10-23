@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
   carePlansGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: SPACING.xs,
+    gap: 6,
   },
   carePlanCard: {
     width: '100%',

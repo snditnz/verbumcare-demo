@@ -626,8 +626,9 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
   },
   carePlansList: {
-    padding: SPACING.sm,
-    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    gap: 6,
   },
   carePlanCard: {
     width: '100%',
