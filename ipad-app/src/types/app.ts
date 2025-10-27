@@ -547,3 +547,40 @@ export interface ProblemTemplate {
         zh: Array<{type: InterventionType; description: string}> }
     | Array<{type: InterventionType; description: string}>;
 }
+
+// Today's Schedule types
+export interface ScheduleItem {
+  id: string;
+  type: 'medication' | 'service' | 'vitals' | 'assessment';
+  title: string;
+  time: string; // HH:MM:SS or time slot
+  details: string;
+  status: 'pending' | 'completed' | 'prn' | 'scheduled' | 'due';
+  completed: boolean;
+  completedAt?: string | null;
+  isPRN?: boolean;
+  timeSlot?: string;
+  lastRecorded?: string | null;
+}
+
+export interface TodaySchedule {
+  patientId: string;
+  date: string;
+  dayOfWeek: number;
+  allItems: ScheduleItem[];
+  grouped: {
+    morning: ScheduleItem[];
+    afternoon: ScheduleItem[];
+    evening: ScheduleItem[];
+    night: ScheduleItem[];
+  };
+  summary: {
+    total: number;
+    completed: number;
+    pending: number;
+    medications: number;
+    services: number;
+    vitals: number;
+    assessments: number;
+  };
+}

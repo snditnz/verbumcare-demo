@@ -42,10 +42,12 @@ import AllCarePlansScreen from './src/screens/AllCarePlansScreen';
 
 // Utility screens
 import ComingSoonScreen from './src/screens/ComingSoonScreen';
+import TodayScheduleScreen from './src/screens/TodayScheduleScreen';
 
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
+  TodaySchedule: undefined;
   PatientList: undefined;
   PatientScan: undefined;
   PatientInfo: undefined;
@@ -140,6 +142,11 @@ export default function App() {
             name="Dashboard"
             component={DashboardScreen}
             options={{ title: 'VerbumCare Dashboard' }}
+          />
+          <Stack.Screen
+            name="TodaySchedule"
+            component={TodayScheduleScreen}
+            options={{ title: "Today's Schedule" }}
           />
           <Stack.Screen
             name="PatientList"

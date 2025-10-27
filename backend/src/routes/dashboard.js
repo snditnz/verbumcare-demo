@@ -536,4 +536,430 @@ router.get('/chain/verify', async (req, res) => {
   }
 });
 
+// Today's Schedule endpoint - aggregate all scheduled items for a patient today
+router.get('/today-schedule/:patientId', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { patientId } = req.params;
+    const today = new Date().toISOString().split('T')[0];
+    const dayOfWeek = new Date().getDay(); // 0 = Sunday, 6 = Saturday
+
+    // 1. Get medications due today
+    const medicationsQuery = `
+      SELECT
+        mo.order_id as id,
+        CASE
+          WHEN $2 = 'ja' THEN mo.medication_name_ja
+          WHEN $2 = 'zh-TW' THEN COALESCE(mo.medication_name_zh, mo.medication_name_en)
+          ELSE COALESCE(mo.medication_name_en, mo.medication_name_ja)
+        END as medication_name,
+        mo.dose,
+        mo.dose_unit,
+        mo.route,
+        mo.scheduled_time as time,
+        ma.status as administered_status,
+        ma.administered_datetime,
+        mo.prn
+      FROM medication_orders mo
+      LEFT JOIN medication_administrations ma ON (
+        mo.order_id = ma.order_id
+        AND DATE(ma.scheduled_datetime) = $3
+      )
+      WHERE mo.patient_id = $1
+        AND mo.status = 'active'
+        AND mo.start_datetime::date <= $3
+        AND (mo.end_datetime IS NULL OR mo.end_datetime::date >= $3)
+      ORDER BY mo.scheduled_time
+    `;
+
+    // 2. Get weekly schedule items for today's day of week
+    const scheduleQuery = `
+      SELECT
+        wsi.schedule_item_id as id,
+        wsi.time_slot,
+        wsi.specific_time,
+        wsi.service_data,
+        wsi.frequency,
+        cpi.problem_description as related_goal
+      FROM care_plans cp
+      JOIN weekly_schedule_items wsi ON cp.care_plan_id = wsi.care_plan_id
+      LEFT JOIN care_plan_items cpi ON wsi.linked_to_care_plan_item = cpi.care_plan_item_id
+      WHERE cp.patient_id = $1
+        AND cp.status = 'active'
+        AND wsi.day_of_week = $2
+      ORDER BY
+        CASE wsi.time_slot
+          WHEN 'morning' THEN 1
+          WHEN 'afternoon' THEN 2
+          WHEN 'evening' THEN 3
+          WHEN 'night' THEN 4
+          ELSE 5
+        END,
+        wsi.specific_time
+    `;
+
+    // 3. Get vitals schedule (if patient has regular vitals monitoring)
+    // For demo purposes, we'll check if patient has had vitals in last 7 days
+    // and suggest they're due if not done today
+    const vitalsQuery = `
+      SELECT
+        COUNT(*) FILTER (WHERE DATE(vs.measured_at) = $2) as recorded_today,
+        MAX(vs.measured_at) as last_recorded,
+        CASE
+          WHEN COUNT(*) FILTER (WHERE vs.measured_at >= NOW() - INTERVAL '7 days') > 0 THEN true
+          ELSE false
+        END as has_regular_monitoring
+      FROM vital_signs vs
+      WHERE vs.patient_id = $1
+    `;
+
+    // 4. Get assessments (check if any are due based on care plan monitoring schedule)
+    const assessmentsQuery = `
+      SELECT
+        cp.next_monitoring_date,
+        COUNT(*) FILTER (WHERE DATE(na.assessment_datetime) = $2) as assessments_today
+      FROM care_plans cp
+      LEFT JOIN nursing_assessments na ON na.patient_id = cp.patient_id
+      WHERE cp.patient_id = $1
+        AND cp.status = 'active'
+      GROUP BY cp.care_plan_id, cp.next_monitoring_date
+    `;
+
+    // Execute all queries in parallel
+    const [medicationsResult, scheduleResult, vitalsResult, assessmentsResult] = await Promise.all([
+      db.query(medicationsQuery, [patientId, language, today]),
+      db.query(scheduleQuery, [patientId, dayOfWeek]),
+      db.query(vitalsQuery, [patientId, today]),
+      db.query(assessmentsQuery, [patientId, today])
+    ]);
+
+    // Process medications
+    const medications = medicationsResult.rows.map(med => ({
+      id: med.id,
+      type: 'medication',
+      title: med.medication_name,
+      time: med.time,
+      details: `${med.dose}${med.dose_unit} - ${med.route}`,
+      status: med.administered_status || (med.prn ? 'prn' : 'pending'),
+      completed: !!med.administered_status,
+      completedAt: med.administered_datetime,
+      isPRN: med.prn
+    }));
+
+    // Process weekly schedule
+    const weeklyServices = scheduleResult.rows.map(item => ({
+      id: item.id,
+      type: 'service',
+      title: item.service_data.serviceType || 'Scheduled Service',
+      time: item.specific_time || item.time_slot,
+      details: item.service_data.provider || item.related_goal || '',
+      timeSlot: item.time_slot,
+      status: 'scheduled',
+      completed: false
+    }));
+
+    // Process vitals
+    const vitalsInfo = vitalsResult.rows[0];
+    const vitalsItems = [];
+    if (vitalsInfo.has_regular_monitoring && vitalsInfo.recorded_today === 0) {
+      vitalsItems.push({
+        id: 'vitals-daily',
+        type: 'vitals',
+        title: language === 'ja' ? 'バイタルサイン測定' : 'Vital Signs',
+        time: '09:00', // Default morning time
+        details: language === 'ja' ? '血圧、脈拍、体温、SpO2' : 'BP, HR, Temp, SpO2',
+        status: 'pending',
+        completed: false,
+        lastRecorded: vitalsInfo.last_recorded
+      });
+    } else if (vitalsInfo.recorded_today > 0) {
+      vitalsItems.push({
+        id: 'vitals-daily',
+        type: 'vitals',
+        title: language === 'ja' ? 'バイタルサイン測定' : 'Vital Signs',
+        time: '09:00',
+        details: language === 'ja' ? '完了' : 'Completed',
+        status: 'completed',
+        completed: true
+      });
+    }
+
+    // Process assessments
+    const assessmentInfo = assessmentsResult.rows[0];
+    const assessmentItems = [];
+    if (assessmentInfo && assessmentInfo.next_monitoring_date) {
+      const nextDate = new Date(assessmentInfo.next_monitoring_date);
+      const todayDate = new Date(today);
+      if (nextDate <= todayDate && assessmentInfo.assessments_today === 0) {
+        assessmentItems.push({
+          id: 'assessment-monitoring',
+          type: 'assessment',
+          title: language === 'ja' ? 'モニタリング評価' : 'Monitoring Assessment',
+          time: '14:00', // Default afternoon time
+          details: language === 'ja' ? 'ケアプラン評価' : 'Care Plan Review',
+          status: 'due',
+          completed: false
+        });
+      }
+    }
+
+    // Combine all items and sort by time
+    const allItems = [...medications, ...weeklyServices, ...vitalsItems, ...assessmentItems];
+
+    // Sort by time (convert time strings to comparable format)
+    allItems.sort((a, b) => {
+      const timeA = a.time || a.timeSlot || '99:99';
+      const timeB = b.time || b.timeSlot || '99:99';
+      return timeA.localeCompare(timeB);
+    });
+
+    // Group by time slot for better organization
+    const grouped = {
+      morning: allItems.filter(item => {
+        const time = item.time || item.timeSlot || '';
+        return time < '12:00' || item.timeSlot === 'morning';
+      }),
+      afternoon: allItems.filter(item => {
+        const time = item.time || item.timeSlot || '';
+        return (time >= '12:00' && time < '17:00') || item.timeSlot === 'afternoon';
+      }),
+      evening: allItems.filter(item => {
+        const time = item.time || item.timeSlot || '';
+        return (time >= '17:00' && time < '21:00') || item.timeSlot === 'evening';
+      }),
+      night: allItems.filter(item => {
+        const time = item.time || item.timeSlot || '';
+        return time >= '21:00' || item.timeSlot === 'night';
+      })
+    };
+
+    res.json({
+      success: true,
+      data: {
+        patientId,
+        date: today,
+        dayOfWeek,
+        allItems,
+        grouped,
+        summary: {
+          total: allItems.length,
+          completed: allItems.filter(i => i.completed).length,
+          pending: allItems.filter(i => !i.completed && i.status !== 'prn').length,
+          medications: medications.length,
+          services: weeklyServices.length,
+          vitals: vitalsItems.length,
+          assessments: assessmentItems.length
+        }
+      },
+      language,
+      message: getTranslation('success', language)
+    });
+  } catch (error) {
+    console.error('Error fetching today schedule:', error);
+    const language = detectLanguage(req);
+    res.status(500).json({
+      success: false,
+      error: getTranslation('error', language),
+      details: error.message,
+      language
+    });
+  }
+});
+
+// Get staff member's schedule for today (their assigned patients only)
+router.get('/today-schedule-all', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const {
+      facility_id = '550e8400-e29b-41d4-a716-446655440001',
+      staff_id = '550e8400-e29b-41d4-a716-446655440101' // DEMO_STAFF_ID
+    } = req.query;
+    const today = new Date().toISOString().split('T')[0];
+    const dayOfWeek = new Date().getDay();
+
+    // Get patients assigned to this staff member (where they are the care manager)
+    // Limit to 15 patients max to keep the schedule manageable
+    const patientsResult = await db.query(`
+      SELECT DISTINCT p.patient_id, p.family_name, p.given_name, p.room
+      FROM patients p
+      LEFT JOIN care_plans cp ON p.patient_id = cp.patient_id
+      WHERE p.facility_id = $1
+        AND (cp.care_manager_id = $2 OR cp.care_manager_id IS NULL)
+      ORDER BY p.room
+      LIMIT 15
+    `, [facility_id, staff_id]);
+
+    const allScheduleItems = [];
+    let totalStats = {
+      total: 0,
+      completed: 0,
+      pending: 0,
+      medications: 0,
+      services: 0,
+      vitals: 0,
+      assessments: 0
+    };
+
+    // Get schedule for each patient
+    for (const patient of patientsResult.rows) {
+      // 1. Medications
+      const medicationsQuery = `
+        SELECT
+          mo.order_id as id,
+          CASE
+            WHEN $2 = 'ja' THEN mo.medication_name_ja
+            WHEN $2 = 'zh-TW' THEN COALESCE(mo.medication_name_zh, mo.medication_name_en)
+            ELSE COALESCE(mo.medication_name_en, mo.medication_name_ja)
+          END as medication_name,
+          mo.dose,
+          mo.dose_unit,
+          mo.route,
+          mo.scheduled_time as time,
+          ma.status as administered_status,
+          ma.administered_datetime,
+          mo.prn
+        FROM medication_orders mo
+        LEFT JOIN medication_administrations ma ON (
+          mo.order_id = ma.order_id
+          AND DATE(ma.scheduled_datetime) = $3
+        )
+        WHERE mo.patient_id = $1
+          AND mo.status = 'active'
+          AND mo.start_datetime::date <= $3
+          AND (mo.end_datetime IS NULL OR mo.end_datetime::date >= $3)
+        ORDER BY mo.scheduled_time
+      `;
+
+      const medications = await db.query(medicationsQuery, [patient.patient_id, language, today]);
+
+      medications.rows.forEach(med => {
+        const completed = med.administered_status === 'administered';
+        allScheduleItems.push({
+          id: `med-${med.id}`,
+          patientId: patient.patient_id,
+          patientName: `${patient.family_name} ${patient.given_name}`,
+          room: patient.room,
+          type: 'medication',
+          title: med.medication_name,
+          time: med.time || '',
+          details: `${med.dose}${med.dose_unit} - ${med.route}`,
+          status: med.prn ? 'prn' : (completed ? 'completed' : 'pending'),
+          completed,
+          completedAt: med.administered_datetime,
+          isPRN: med.prn
+        });
+
+        totalStats.total++;
+        totalStats.medications++;
+        if (completed) totalStats.completed++;
+        else totalStats.pending++;
+      });
+
+      // 2. Weekly schedule items for today
+      const weeklyScheduleQuery = `
+        SELECT
+          wsi.schedule_item_id as id,
+          wsi.specific_time as time,
+          wsi.time_slot,
+          wsi.service_data,
+          cp.care_plan_id
+        FROM weekly_schedule_items wsi
+        JOIN care_plans cp ON wsi.care_plan_id = cp.care_plan_id
+        WHERE cp.patient_id = $1
+          AND wsi.day_of_week = $2
+        ORDER BY wsi.specific_time
+      `;
+
+      const weeklyServices = await db.query(weeklyScheduleQuery, [patient.patient_id, dayOfWeek]);
+
+      weeklyServices.rows.forEach(svc => {
+        const serviceData = svc.service_data || {};
+        const serviceName = serviceData.service_name_ja || serviceData.service_name || 'Service';
+        const duration = serviceData.duration_minutes || '';
+        const provider = serviceData.provider || '';
+        const location = serviceData.location || '';
+
+        allScheduleItems.push({
+          id: `svc-${svc.id}`,
+          patientId: patient.patient_id,
+          patientName: `${patient.family_name} ${patient.given_name}`,
+          room: patient.room,
+          type: 'service',
+          title: serviceName,
+          time: svc.time || svc.time_slot,
+          details: duration ? `${duration}分 - ${provider} @ ${location}` : `${provider} @ ${location}`,
+          status: 'scheduled',
+          completed: false
+        });
+
+        totalStats.total++;
+        totalStats.services++;
+        totalStats.pending++;
+      });
+    }
+
+    // Sort all items by time first, then by room
+    allScheduleItems.sort((a, b) => {
+      // Handle items without time
+      if (!a.time && !b.time) {
+        return (a.room || '').localeCompare(b.room || '');
+      }
+      if (!a.time) return 1;
+      if (!b.time) return -1;
+
+      // Primary sort: by time
+      const timeCompare = a.time.localeCompare(b.time);
+      if (timeCompare !== 0) return timeCompare;
+
+      // Secondary sort: by room (when times are equal)
+      return (a.room || '').localeCompare(b.room || '');
+    });
+
+    // Group by time slot
+    const grouped = {
+      morning: allScheduleItems.filter(item => {
+        const hour = parseInt(item.time?.split(':')[0] || '0');
+        return hour >= 6 && hour < 12;
+      }),
+      afternoon: allScheduleItems.filter(item => {
+        const hour = parseInt(item.time?.split(':')[0] || '0');
+        return hour >= 12 && hour < 17;
+      }),
+      evening: allScheduleItems.filter(item => {
+        const hour = parseInt(item.time?.split(':')[0] || '0');
+        return hour >= 17 && hour < 21;
+      }),
+      night: allScheduleItems.filter(item => {
+        const hour = parseInt(item.time?.split(':')[0] || '0');
+        return hour >= 21 || hour < 6;
+      })
+    };
+
+    res.json({
+      success: true,
+      data: {
+        facilityId: facility_id,
+        staffId: staff_id,
+        date: today,
+        dayOfWeek,
+        totalPatients: patientsResult.rows.length,
+        allItems: allScheduleItems,
+        grouped,
+        summary: totalStats
+      },
+      language
+    });
+
+  } catch (error) {
+    console.error('Error fetching facility schedule:', error);
+    const language = detectLanguage(req);
+    res.status(500).json({
+      success: false,
+      error: getTranslation('error', language),
+      details: error.message,
+      language
+    });
+  }
+});
+
 export default router;

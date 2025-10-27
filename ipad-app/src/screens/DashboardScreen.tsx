@@ -38,6 +38,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [scheduleData, setScheduleData] = useState<any>(null); // TodaySchedule for selected patient
 
   const t = translations[language];
 
@@ -85,6 +86,22 @@ export default function DashboardScreen({ navigation }: Props) {
     const successful = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.filter(r => r.status === 'rejected').length;
     console.log(`[Dashboard] ✅ Loaded care plans: ${successful} successful, ${failed} failed/none, total in store: ${carePlans.size}`);
+
+    // Load today's schedule for first patient as sample
+    if (patientList.length > 0) {
+      loadTodaySchedule(patientList[0].patient_id);
+    }
+  };
+
+  const loadTodaySchedule = async (patientId: string) => {
+    try {
+      const schedule = await apiService.getTodaySchedule(patientId);
+      setScheduleData(schedule);
+      console.log(`[Dashboard] Loaded today's schedule:`, schedule.summary);
+    } catch (error) {
+      console.error('[Dashboard] Failed to load schedule:', error);
+      setScheduleData(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -511,10 +528,63 @@ export default function DashboardScreen({ navigation }: Props) {
               <Text style={styles.sectionTitleSmall}>
                 {language === 'ja' ? '本日予定' : "Today's Schedule"}
               </Text>
+              {scheduleData && (
+                <Text style={{ fontSize: 12, color: COLORS.text.secondary, marginLeft: SPACING.sm }}>
+                  {scheduleData.summary.pending}/{scheduleData.summary.total}
+                </Text>
+              )}
+              <TouchableOpacity
+                onPress={() => navigation.navigate('TodaySchedule' as any)}
+                style={{ marginLeft: 'auto' }}
+              >
+                <Text style={styles.viewAllTextSmall}>
+                  {language === 'ja' ? '詳細' : 'View All'} →
+                </Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.emptyMessage}>
-              {language === 'ja' ? '予定なし' : 'No schedule'}
-            </Text>
+            {!scheduleData ? (
+              <Text style={styles.emptyMessage}>
+                {language === 'ja' ? '読み込み中...' : 'Loading...'}
+              </Text>
+            ) : scheduleData.allItems.length === 0 ? (
+              <Text style={styles.emptyMessage}>
+                {language === 'ja' ? '予定なし' : 'No schedule'}
+              </Text>
+            ) : (
+              <View>
+                {scheduleData.allItems.slice(0, 5).map((item: any) => (
+                  <View key={item.id} style={styles.scheduleItem}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons
+                        name={
+                          item.type === 'medication' ? 'medical' :
+                          item.type === 'vitals' ? 'fitness' :
+                          item.type === 'assessment' ? 'clipboard' :
+                          'calendar'
+                        }
+                        size={16}
+                        color={item.completed ? COLORS.status.success : COLORS.primary}
+                      />
+                      <Text style={{ fontSize: 12, color: COLORS.text.secondary }}>
+                        {item.time?.substring(0, 5) || item.timeSlot}
+                      </Text>
+                      <Text style={{ fontSize: 14, flex: 1 }}>{item.title}</Text>
+                      {item.completed && (
+                        <Ionicons name="checkmark-circle" size={16} color={COLORS.status.success} />
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 12, color: COLORS.text.secondary, marginLeft: 24 }}>
+                      {item.details}
+                    </Text>
+                  </View>
+                ))}
+                {scheduleData.allItems.length > 5 && (
+                  <Text style={{ fontSize: 12, color: COLORS.text.secondary, marginTop: 8 }}>
+                    +{scheduleData.allItems.length - 5} {language === 'ja' ? 'more' : 'more'}
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
 
           {/* Section 3: Care Plans Overview */}
@@ -959,5 +1029,10 @@ const styles = StyleSheet.create({
   recentPatientRoom: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.text.secondary,
+  },
+  scheduleItem: {
+    paddingVertical: SPACING.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: `${COLORS.text.disabled}20`,
   },
 });

@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { API_CONFIG, FACILITY_ID, DEMO_STAFF_ID } from '@constants/config';
 import { APIResponse, APIVitalSigns, VoiceUploadResponse } from '@models/api';
-import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, CarePlanWithPatient, ProblemTemplate, MonitoringRecord } from '@models';
+import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, CarePlanWithPatient, ProblemTemplate, MonitoringRecord, TodaySchedule } from '@models';
 import { cacheService } from './cacheService';
 import { useAuthStore } from '@stores/authStore';
 
@@ -483,6 +483,23 @@ class APIService {
         proposedChanges: record.proposedChanges,
         nextMonitoringDate: record.nextMonitoringDate.toISOString(),
         actionItems: record.actionItems,
+      }
+    );
+    return response.data.data;
+  }
+
+  async getTodaySchedule(patientId: string): Promise<TodaySchedule> {
+    const response = await this.client.get<APIResponse<TodaySchedule>>(
+      `/dashboard/today-schedule/${patientId}`
+    );
+    return response.data.data;
+  }
+
+  async getAllTodaySchedule(staffId?: string): Promise<any> {
+    const response = await this.client.get<APIResponse<any>>(
+      '/dashboard/today-schedule-all',
+      {
+        params: { staff_id: staffId || DEMO_STAFF_ID }
       }
     );
     return response.data.data;

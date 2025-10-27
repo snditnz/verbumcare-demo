@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,6 +8,7 @@ import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { SESSION_CONFIG } from '@constants/config';
+import apiService from '@services/api';
 
 type RootStackParamList = {
   Dashboard: undefined;
@@ -46,7 +47,17 @@ export default function PatientInfoScreen({ navigation }: Props) {
     sessionIncidents,
   } = useAssessmentStore();
 
+  const [scheduleData, setScheduleData] = useState<any>(null);
   const t = translations[language];
+
+  // Load patient's schedule
+  useEffect(() => {
+    if (currentPatient) {
+      apiService.getTodaySchedule(currentPatient.patient_id)
+        .then(schedule => setScheduleData(schedule))
+        .catch(err => console.error('[PatientInfo] Failed to load schedule:', err));
+    }
+  }, [currentPatient]);
 
   // If no patient, navigate back to dashboard
   React.useEffect(() => {
@@ -466,6 +477,45 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </Card>
         </View>
 
+        {/* Today's Schedule Section */}
+        {scheduleData && scheduleData.allItems && scheduleData.allItems.length > 0 && (
+          <Card style={styles.scheduleSection}>
+            <View style={styles.scheduleSectionHeader}>
+              <Ionicons name="calendar-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+              <Text style={styles.scheduleSectionTitle}>
+                {language === 'ja' ? '本日の予定' : "Today's Schedule"}
+              </Text>
+              <Text style={styles.scheduleCount}>
+                {scheduleData.summary.completed}/{scheduleData.summary.total}
+              </Text>
+            </View>
+            <View style={styles.scheduleList}>
+              {scheduleData.allItems.slice(0, 5).map((item: any) => (
+                <View key={item.id} style={styles.scheduleItemCompact}>
+                  <Ionicons
+                    name={item.type === 'medication' ? 'medical' : 'calendar'}
+                    size={16}
+                    color={item.completed ? COLORS.status.success : COLORS.primary}
+                  />
+                  <Text style={styles.scheduleItemTime}>{item.time?.substring(0, 5)}</Text>
+                  <Text style={styles.scheduleItemTitle} numberOfLines={1}>{item.title}</Text>
+                  {item.completed && (
+                    <Ionicons name="checkmark-circle" size={16} color={COLORS.status.success} />
+                  )}
+                  {item.isPRN && (
+                    <Text style={styles.prnBadgeSmall}>PRN</Text>
+                  )}
+                </View>
+              ))}
+              {scheduleData.allItems.length > 5 && (
+                <Text style={styles.scheduleMore}>
+                  +{scheduleData.allItems.length - 5} {language === 'ja' ? 'more' : 'more'}
+                </Text>
+              )}
+            </View>
+          </Card>
+        )}
+
         {/* Action Buttons Grid - 3 columns, 4 rows */}
         <View style={styles.actionsGrid}>
           {/* Row 1 */}
@@ -868,5 +918,61 @@ const styles = StyleSheet.create({
   },
   roundCompleteButtonTextActive: {
     color: COLORS.white,
+  },
+  scheduleSection: {
+    marginBottom: SPACING.sm,
+  },
+  scheduleSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  scheduleSectionTitle: {
+    ...TYPOGRAPHY.body,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+    flex: 1,
+  },
+  scheduleCount: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.text.secondary,
+  },
+  scheduleList: {
+    gap: SPACING.xs,
+  },
+  scheduleItemCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: `${COLORS.border}30`,
+  },
+  scheduleItemTime: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.text.secondary,
+    width: 40,
+  },
+  scheduleItemTitle: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.text.primary,
+    flex: 1,
+  },
+  prnBadgeSmall: {
+    ...TYPOGRAPHY.caption,
+    fontWeight: '700',
+    fontSize: 10,
+    color: COLORS.status.warning,
+    backgroundColor: `${COLORS.status.warning}20`,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  scheduleMore: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginTop: SPACING.xs,
   },
 });
