@@ -9,10 +9,7 @@
 ### T-30min: Network Setup
 
 - [ ] **Turn on portable WiFi router**
-- [ ] **Connect Intel Mac to WiFi**
-  - Network name: _________________
-  - Signal strength: Strong (3+ bars)
-- [ ] **Connect M2 Mac to WiFi**
+- [ ] **Connect pn51-e1 to WiFi**
   - Network name: _________________
   - Signal strength: Strong (3+ bars)
 - [ ] **Connect iPad to WiFi**
@@ -21,29 +18,30 @@
 
 **Verify network:**
 ```bash
-# On Intel Mac:
-ping -c 3 verbumcare-ai.local
+# On pn51-e1:
+ip addr show  # or ifconfig
+# Note the IP address
 
-# On M2 Mac:
-ping -c 3 verbumcare-server.local
+# From iPad or another device:
+ping verbumcare-lab.local
 ```
 
-- [ ] **Both Macs can reach each other** ✅
+- [ ] **verbumcare-lab.local is reachable from iPad** ✅
 
 ---
 
-### T-25min: Intel Mac (Server) Setup
+### T-25min: pn51-e1 (All-in-One Server) Setup
 
 **Close unnecessary apps:**
-- [ ] Close Slack, Email, Chrome (non-demo tabs)
-- [ ] Close Spotify, Music, etc.
-- [ ] Keep only Terminal + necessary monitoring tools
+- [ ] Close browsers (non-demo tabs)
+- [ ] Close unnecessary background services
+- [ ] Keep only Terminal + monitoring tools
 
 **Verify installations:**
-- [ ] Docker Desktop is installed and running
+- [ ] Docker is installed and running
   ```bash
   docker --version
-  docker info
+  docker ps
   ```
 - [ ] Project directory accessible
   ```bash
@@ -51,112 +49,92 @@ ping -c 3 verbumcare-server.local
   ls -la docker-compose.yml
   ```
 
+**Verify AI services:**
+- [ ] Llama 3.1 8B installed and accessible
+  ```bash
+  # Check if Ollama is running
+  curl http://localhost:11434/api/tags
+  # Should show llama3.1:8b or similar
+  ```
+- [ ] faster-whisper installed and accessible
+  ```bash
+  # Check whisper service
+  curl http://localhost:8080/health
+  # OR check the service status
+  systemctl status whisper  # if running as systemd service
+  ```
+
 **Verify configuration:**
 - [ ] `backend/.env` file exists
-- [ ] `backend/.env` contains:
+- [ ] `backend/.env` contains correct URLs:
   ```
-  WHISPER_URL=http://verbumcare-ai.local:8080
-  OLLAMA_URL=http://verbumcare-ai.local:11434
+  WHISPER_URL=http://localhost:8080
+  OLLAMA_URL=http://localhost:11434
   ```
 
 **Start services:**
-- [ ] Run startup script:
+- [ ] Start Docker services:
   ```bash
-  ./intel-mac-start.sh
+  docker-compose up -d
   ```
-- [ ] Wait for "✅ Intel Mac Server Startup Complete!"
+- [ ] Verify containers are running:
+  ```bash
+  docker ps
+  # Should see: PostgreSQL, Backend API
+  ```
 - [ ] **Backend API responding** at http://localhost:3000/health
-- [ ] **PostgreSQL running** (check Docker Desktop or `docker ps`)
-- [ ] **Admin Portal accessible** (optional verification)
+- [ ] **PostgreSQL running** (check `docker ps`)
 
-**Memory check:**
+**Start AI services (if not already running):**
+- [ ] Start Llama 3.1 8B (Ollama)
+  ```bash
+  # Usually auto-starts, but verify:
+  curl http://localhost:11434/api/tags
+  ```
+- [ ] Start faster-whisper service
+  ```bash
+  # Check your whisper startup command/service
+  ```
+
+**System check:**
 ```bash
-# Should show ~5GB used, ~11GB free
-top -l 1 | grep PhysMem
+# Check memory usage
+free -h  # Linux
+# OR
+htop
 ```
-- [ ] **Memory usage under 50%** ✅
+- [ ] **Memory usage reasonable** ✅
+- [ ] **All services responding** ✅
 
 ---
 
-### T-20min: M2 Mac (AI + Presentation) Setup
+### T-15min: Service Verification
 
-**Close ALL unnecessary apps:**
-- [ ] Quit Slack, Email, Messages
-- [ ] Quit Safari (non-demo tabs), Chrome
-- [ ] Quit Spotify, Music, Calendar
-- [ ] Quit ALL background apps
-- [ ] **Only keep: Terminal + PowerPoint** (don't open PPT yet)
-
-**Verify installations:**
-- [ ] Ollama installed
-  ```bash
-  ollama --version
-  which ollama
-  ```
-- [ ] Whisper installed
-  ```bash
-  which whisper-server
-  # OR check for faster-whisper
-  ```
-- [ ] Models downloaded
-  ```bash
-  ollama list | grep llama3:8b
-  ls models/ggml-large-v3.bin  # OR check ~/.cache/whisper/
-  ```
-
-**Start AI services:**
-- [ ] Run startup script:
-  ```bash
-  ./m2-mac-start.sh
-  ```
-- [ ] Wait for "✅ M2 Mac AI Services Ready!"
-- [ ] **Ollama responding** at http://localhost:11434/api/tags
-- [ ] **Whisper responding** at http://localhost:8080/health
-
-**Memory check:**
+**Test all services on pn51-e1:**
 ```bash
-# Should show ~3.5GB used initially
-top -l 1 | grep PhysMem
+# Backend API
+curl http://localhost:3000/health
+
+# PostgreSQL (via backend or direct)
+docker exec -it verbumcare-postgres psql -U demo -d verbumcare_demo -c "SELECT COUNT(*) FROM patients;"
+
+# Llama 3.1 8B
+curl http://localhost:11434/api/tags
+
+# faster-whisper
+curl http://localhost:8080/health
 ```
-- [ ] **Memory usage under 50%** (before PowerPoint) ✅
-- [ ] **6-7GB free** ✅
-
-**Open presentation:**
-- [ ] Open PowerPoint presentation
-- [ ] Set to full screen (presentation mode)
-- [ ] Test navigation (arrow keys work)
-
-**Final memory check:**
-```bash
-top -l 1 | grep PhysMem
-```
-- [ ] **Memory usage 40-50%** (with PowerPoint) ✅
-- [ ] **4-5GB free** ✅
-
----
-
-### T-15min: Cross-Machine Verification
-
-**From Intel Mac, test M2 AI services:**
-```bash
-curl http://verbumcare-ai.local:11434/api/tags
-curl http://verbumcare-ai.local:8080/health
-```
-- [ ] **Ollama reachable from Intel Mac** ✅
-- [ ] **Whisper reachable from Intel Mac** ✅
-
-**From M2 Mac, test Intel backend:**
-```bash
-curl http://verbumcare-server.local:3000/health
-```
-- [ ] **Backend reachable from M2 Mac** ✅
+- [ ] **Backend API responding** ✅
+- [ ] **PostgreSQL accessible** ✅
+- [ ] **Llama 3.1 8B ready** ✅
+- [ ] **faster-whisper ready** ✅
 
 ---
 
 ### T-10min: iPad Client Setup
 
 **Option A: QR Code Configuration (Recommended)**
-- [ ] On any device, open: `http://verbumcare-server.local:3000/api/config/display`
+- [ ] On any device, open: `https://verbumcare-lab.local/api/config/display`
 - [ ] QR code visible
 - [ ] Open iOS app on iPad
 - [ ] Scan QR code
@@ -164,7 +142,7 @@ curl http://verbumcare-server.local:3000/health
 
 **Option B: Manual Configuration**
 - [ ] Open iOS app settings
-- [ ] Enter API URL: `http://verbumcare-server.local:3000/api`
+- [ ] Enter API URL: `https://verbumcare-lab.local/api`
 - [ ] Save configuration
 
 **Test connection:**
@@ -183,35 +161,32 @@ curl http://verbumcare-server.local:3000/health
 
 2. **Upload and process**
 
-3. **Monitor processing:**
+3. **Monitor processing on pn51-e1:**
    - [ ] Upload completes (~1-2 seconds)
-   - [ ] Processing starts (watch for activity if terminals visible)
+   - [ ] Processing starts (watch backend logs)
    - [ ] Results return in 20-30 seconds
    - [ ] No errors displayed
 
-4. **Check memory on M2 during processing:**
+4. **Check system resources during processing:**
    ```bash
-   # In another terminal
-   while true; do top -l 1 | grep PhysMem; sleep 2; done
+   # In another terminal on pn51-e1
+   watch -n 2 'free -h && echo "---" && docker stats --no-stream'
    ```
-   - [ ] **Peak memory ~85-90%** (expected)
+   - [ ] **Memory usage reasonable** (expected spike during AI processing)
    - [ ] **No "out of memory" warnings**
-   - [ ] **Returns to ~50% after processing**
+   - [ ] **System stable after processing**
 
 ---
 
 ### T-2min: Final Checks
 
-**Intel Mac:**
-- [ ] Docker containers running (`docker ps` shows 2 containers)
+**pn51-e1:**
+- [ ] Docker containers running (`docker ps` shows containers)
+- [ ] Backend API responding
+- [ ] Llama 3.1 8B ready
+- [ ] faster-whisper ready
 - [ ] No error logs visible
 - [ ] Network stable
-
-**M2 Mac:**
-- [ ] PowerPoint in presentation mode
-- [ ] Can navigate slides smoothly
-- [ ] Ollama/Whisper logs show "ready" (if visible)
-- [ ] No performance issues
 
 **iPad:**
 - [ ] Connected to WiFi
@@ -221,7 +196,7 @@ curl http://verbumcare-server.local:3000/health
 
 **Environment:**
 - [ ] Projector/screen connected and working
-- [ ] M2 Mac screen visible to audience (if showing presentation)
+- [ ] Presentation ready (if applicable)
 - [ ] All cables secure
 - [ ] Room lighting appropriate
 
@@ -231,16 +206,14 @@ curl http://verbumcare-server.local:3000/health
 
 ### If network discovery fails:
 ```bash
-# Find M2 Mac IP:
-# On M2 Mac:
-ifconfig | grep "inet " | grep -v 127.0.0.1
+# Find pn51-e1 IP:
+# On pn51-e1:
+ip addr show | grep "inet " | grep -v 127.0.0.1
+# OR
+hostname -I
 
-# Update Intel Mac backend/.env with actual IP:
-WHISPER_URL=http://192.168.x.x:8080
-OLLAMA_URL=http://192.168.x.x:11434
-
-# Restart backend:
-docker-compose restart backend
+# Update iPad app with actual IP:
+# In app settings, use: https://192.168.x.x/api
 ```
 
 ### If AI services fail:
@@ -248,16 +221,29 @@ docker-compose restart backend
 - Demo continues with synthetic results
 - Audience won't notice if you don't mention it
 
-### If M2 Mac runs out of memory:
-1. Close PowerPoint temporarily
-2. Process the voice recording
-3. Reopen PowerPoint
-4. Continue demo
+### If Llama 3.1 or faster-whisper stops responding:
+1. Check service status
+2. Restart services if needed:
+   ```bash
+   # Restart Ollama (if using systemd)
+   systemctl restart ollama
 
-### If Docker fails on Intel Mac:
-- Restart Docker Desktop
-- Re-run `./intel-mac-start.sh`
-- Wait 2 minutes
+   # Restart faster-whisper
+   # Use your specific restart command
+   ```
+3. Backend will fall back to mock data if services don't respond
+
+### If Docker fails on pn51-e1:
+- Restart Docker:
+  ```bash
+  systemctl restart docker  # or sudo service docker restart
+  ```
+- Re-run docker-compose:
+  ```bash
+  docker-compose down
+  docker-compose up -d
+  ```
+- Wait 1-2 minutes for startup
 
 ---
 
@@ -265,14 +251,14 @@ docker-compose restart backend
 
 When all items are checked:
 - [ ] **All systems green** ✅
-- [ ] **Memory comfortable on both machines** ✅
+- [ ] **pn51-e1 server healthy** ✅
 - [ ] **Network connectivity verified** ✅
 - [ ] **End-to-end test successful** ✅
 - [ ] **Presenter confident** ✅
 
 **Demo start time:** ________________
 
-**Expected processing time per recording:** 22-30 seconds
+**Expected processing time per recording:** 20-30 seconds
 
 **Good luck! 🎯**
 
@@ -280,26 +266,26 @@ When all items are checked:
 
 ## 📞 Quick Reference
 
-**Intel Mac Services:**
-- Backend API: http://localhost:3000
-- Admin Portal: http://localhost:5173
-- Dashboard: http://localhost:5174
-
-**M2 Mac Services:**
-- Ollama: http://localhost:11434
-- Whisper: http://localhost:8080
+**pn51-e1 Services:**
+- Backend API: https://localhost/api (nginx reverse proxy)
+- PostgreSQL: localhost:5432
+- Llama 3.1 8B (Ollama): http://localhost:11434
+- faster-whisper: http://localhost:8080
+- Admin Portal: (if running)
+- Dashboard: (if running)
 
 **Network Names:**
-- Intel Mac: `verbumcare-server.local`
-- M2 Mac: `verbumcare-ai.local`
+- pn51-e1: `verbumcare-lab.local`
+
+**From iPad:**
+- API URL: `https://verbumcare-lab.local/api`
 
 **Stop Everything:**
 ```bash
-# Intel Mac:
+# On pn51-e1:
 docker-compose down
-pkill -f "npm run dev"
+pkill -f "npm run dev"  # if running admin portal/dashboard
 
-# M2 Mac:
-pkill ollama
-pkill whisper-server
+# Restart everything:
+docker-compose up -d
 ```

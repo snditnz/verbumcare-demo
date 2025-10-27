@@ -1,30 +1,45 @@
 # 🤖 VerbumCare Offline AI Integration - Implementation Complete
 
+> **⚠️ NOTE (Updated 2025-10-23)**: This document describes the legacy two-machine setup.
+> The current configuration uses a **single pn51-e1 server** running all services.
+>
+> **For current setup, see:**
+> - `.claude/session_memory.md` - Current architecture
+> - `PRE_DEMO_CHECKLIST.md` - Updated demo checklist
+>
+> **Legacy startup scripts (no longer used):**
+> - `m2-mac-start.sh` - Deprecated
+> - `intel-mac-start.sh` - Deprecated
+>
+> The information below is retained for historical reference.
+
 ---
 
-## 🎯 **LEAN DEMO CONFIGURATION** (Two-Machine Setup)
+## 🎯 **CURRENT DEMO CONFIGURATION** (Single-Machine Setup)
 
-### **Optimized Architecture for Resource Efficiency**
+### **Simplified All-in-One Architecture**
 
-This setup minimizes overhead and maximizes reliability by separating concerns across two machines:
+This setup consolidates all services on a single powerful server for maximum simplicity and reliability:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Portable WiFi Router (LAN-only, offline)                   │
-└────────────┬──────────────────────┬─────────────────────────┘
-             │                      │
-    ┌────────▼────────┐    ┌───────▼──────────┐
-    │ Intel Mac 16GB  │    │  M2 Mac 8GB      │
-    │   (SERVER)      │    │  (PRESENTATION   │
-    │                 │    │   + AI)          │
-    │ • Docker        │◄───┤                  │
-    │ • PostgreSQL    │    │ • PowerPoint     │
-    │ • Backend API   │    │ • Ollama         │
-    │ • Admin Portal  │    │ • Whisper        │
-    │ • Dashboard     │    │                  │
-    │                 │    │ Memory: 7GB peak │
-    │ Memory: ~5GB    │    └──────────────────┘
-    └─────────────────┘
+└────────────┬────────────────────────────────────────────────┘
+             │
+    ┌────────▼────────────┐
+    │   pn51-e1           │
+    │  (ALL-IN-ONE        │
+    │   SERVER)           │
+    │                     │
+    │ • Docker            │
+    │ • PostgreSQL        │
+    │ • Backend API       │
+    │ • Llama 3.1 8B      │
+    │ • faster-whisper    │
+    │ • Admin Portal (opt)│
+    │ • Dashboard (opt)   │
+    │                     │
+    └─────────────────────┘
              ▲
              │
        ┌─────┴──────┐
@@ -35,34 +50,32 @@ This setup minimizes overhead and maximizes reliability by separating concerns a
 
 ### **Why This Configuration:**
 
-**Intel Mac 16GB (Server):**
-- ✅ Runs all Docker services comfortably (~5GB total)
-- ✅ 11GB free for system and overhead
-- ✅ Stays running entire demo
-- ✅ No resource competition
+**pn51-e1 (All-in-One Server):**
+- ✅ Single machine reduces complexity
+- ✅ No cross-machine network latency
+- ✅ Simplified deployment and troubleshooting
+- ✅ All services on one system
 
-**M2 Mac 8GB (Presentation + AI):**
-- ✅ PowerPoint runs smoothly (no Docker overhead)
-- ✅ AI models load sequentially (peak 7GB)
-- ✅ 1GB free for system
-- ✅ Clean, focused role
+**AI Models:**
+- ✅ Llama 3.1 8B (upgraded from Llama 3)
+- ✅ faster-whisper (optimized implementation)
+- ✅ Efficient on-demand loading
 
 **Network:**
 - ✅ LAN-only (5-10ms latency negligible)
 - ✅ mDNS hostnames (no IP management)
 - ✅ Adds only ~2-3 seconds total overhead
 
-### **Processing Time: 22-30 seconds**
+### **Processing Time: 20-30 seconds**
 ```
 iPad upload:           1-2s
-Network transfer:      1s
-Whisper (M2):          8-12s
-Network return:        0.1s
-Llama (M2):            10-15s
+Network transfer:      <1s
+faster-whisper:        8-12s
+Llama 3.1 8B:          10-15s
 SOAP generation:       <0.1s
 Results to iPad:       0.1s
 ─────────────────────────
-TOTAL:                 22-30s ✅
+TOTAL:                 20-30s ✅
 ```
 
 ---
@@ -86,25 +99,19 @@ TOTAL:                 22-30s ✅
 
 ---
 
-## 🚀 Next Steps - Manual Configuration Required
+## 🚀 Configuration for pn51-e1 Setup
 
-### 1. Set mDNS Hostnames (One-Time Setup)
+### 1. Set mDNS Hostname (One-Time Setup)
 
-**On Intel Mac (Server):**
+**On pn51-e1 (Linux):**
 ```bash
-sudo scutil --set ComputerName "verbumcare-server"
-sudo scutil --set LocalHostName "verbumcare-server"
-# Accessible as: verbumcare-server.local
+# Set hostname
+sudo hostnamectl set-hostname verbumcare-lab
+
+# Accessible as: verbumcare-lab.local
 ```
 
-**On M2 Mac (AI + Presentation):**
-```bash
-sudo scutil --set ComputerName "verbumcare-ai"
-sudo scutil --set LocalHostName "verbumcare-ai"
-# Accessible as: verbumcare-ai.local
-```
-
-### 2. Update backend/.env (On Intel Mac)
+### 2. Update backend/.env (On pn51-e1)
 
 ```bash
 cd backend
@@ -114,37 +121,35 @@ cp .env .env.backup  # Backup existing
 Add these variables to `backend/.env`:
 
 ```env
-# Existing variables (keep these)
+# Database (running in Docker on same machine)
 DATABASE_URL=postgres://demo:demo123@localhost:5432/verbumcare_demo
 PORT=3000
 NODE_ENV=development
 
-# NEW: Remove or comment out OpenAI
-# OPENAI_API_KEY=your_openai_api_key_here
-
-# NEW: AI Service URLs (running on M2 Mac - use mDNS hostname)
-WHISPER_URL=http://verbumcare-ai.local:8080
+# AI Service URLs (running on localhost)
+WHISPER_URL=http://localhost:8080
 WHISPER_MODEL=large-v3
 WHISPER_LANGUAGE=ja
 
-OLLAMA_URL=http://verbumcare-ai.local:11434
-OLLAMA_MODEL=llama3:8b-q4_K_M
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:8b
 OLLAMA_NUM_CTX=2048
 OLLAMA_NUM_THREAD=8
 OLLAMA_TEMPERATURE=0.1
-
-# If mDNS fails, use M2 Mac's IP address instead:
-# WHISPER_URL=http://192.168.x.x:8080
-# OLLAMA_URL=http://192.168.x.x:11434
 ```
 
-### 2. Update backend/package.json
+### 3. Verify AI Services
 
-Remove OpenAI dependency:
-
+**Check Llama 3.1 8B:**
 ```bash
-cd backend
-npm uninstall openai
+curl http://localhost:11434/api/tags
+# Should show llama3.1:8b
+```
+
+**Check faster-whisper:**
+```bash
+curl http://localhost:8080/health
+# Should return 200 OK
 ```
 
 Add form-data dependency (for Whisper file uploads):
