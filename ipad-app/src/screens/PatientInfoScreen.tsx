@@ -529,8 +529,8 @@ export default function PatientInfoScreen({ navigation }: Props) {
                     {scheduleData.summary.completed}/{scheduleData.summary.total}
                   </Text>
                 </View>
-                <View style={styles.scheduleList}>
-                  {scheduleData.allItems.slice(0, 5).map((item: any) => (
+                <View style={styles.scheduleListGrid}>
+                  {scheduleData.allItems.map((item: any) => (
                     <View key={item.id} style={styles.scheduleItemCompact}>
                       <Ionicons
                         name={item.type === 'medication' ? 'medical' : 'calendar'}
@@ -547,11 +547,6 @@ export default function PatientInfoScreen({ navigation }: Props) {
                       )}
                     </View>
                   ))}
-                  {scheduleData.allItems.length > 5 && (
-                    <Text style={styles.scheduleMore}>
-                      +{scheduleData.allItems.length - 5} {language === 'ja' ? 'more' : 'more'}
-                    </Text>
-                  )}
                 </View>
               </Card>
             </TouchableOpacity>
@@ -612,24 +607,24 @@ export default function PatientInfoScreen({ navigation }: Props) {
               onPress={() => navigation.navigate('UpdatePatientInfo')}
               status={getActionStatus('patientInfo')}
             />
+
+            {/* Round Complete Button - Spans 2 columns */}
+            <TouchableOpacity
+              style={[
+                styles.roundCompleteButtonInGrid,
+                getActionStatus('review').completed && styles.roundCompleteButtonActive
+              ]}
+              onPress={() => navigation.navigate('ReviewConfirm')}
+            >
+              <Text style={[
+                styles.roundCompleteButtonText,
+                getActionStatus('review').completed && styles.roundCompleteButtonTextActive
+              ]}>
+                {t['action.roundComplete']}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-
-        {/* Round Complete Button - Language Specific Text, Reduced Height */}
-        <TouchableOpacity
-          style={[
-            styles.roundCompleteButton,
-            getActionStatus('review').completed && styles.roundCompleteButtonActive
-          ]}
-          onPress={() => navigation.navigate('ReviewConfirm')}
-        >
-          <Text style={[
-            styles.roundCompleteButtonText,
-            getActionStatus('review').completed && styles.roundCompleteButtonTextActive
-          ]}>
-            {t['action.roundComplete']}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -993,6 +988,11 @@ const styles = StyleSheet.create({
   scheduleList: {
     gap: SPACING.xs,
   },
+  scheduleListGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+  },
   scheduleItemCompact: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1000,6 +1000,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xs,
     borderBottomWidth: 1,
     borderBottomColor: `${COLORS.border}30`,
+    width: '48%', // 2 columns with gap
   },
   scheduleItemTime: {
     ...TYPOGRAPHY.caption,
