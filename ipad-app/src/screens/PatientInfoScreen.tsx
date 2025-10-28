@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, Modal, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle } from '@components';
+import { LanguageToggle, BLEIndicator } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { SESSION_CONFIG } from '@constants/config';
 import apiService from '@services/api';
+import bleService from '@services/ble';
+import { BLEConnectionStatus, BPReading } from '@types/ble';
 
 type RootStackParamList = {
   Dashboard: undefined;
@@ -45,9 +47,15 @@ export default function PatientInfoScreen({ navigation }: Props) {
     sessionMedications,
     sessionPatientUpdates,
     sessionIncidents,
+    setVitals,
+    setCompletedVitals,
   } = useAssessmentStore();
 
   const [scheduleData, setScheduleData] = useState<any>(null);
+  const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
+  const [bleReading, setBleReading] = useState<BPReading | null>(null);
+  const [showToast, setShowToast] = useState(false);
+  const [toastOpacity] = useState(new Animated.Value(0));
   const t = translations[language];
 
   // Load patient's schedule
@@ -65,6 +73,82 @@ export default function PatientInfoScreen({ navigation }: Props) {
       navigation.navigate('Dashboard' as any);
     }
   }, [currentPatient, navigation]);
+
+  // BLE initialization and lifecycle management
+  const initializeBLE = async () => {
+    bleService.setStatusCallback(setBleStatus);
+    bleService.setReadingCallback(handleBLEReading);
+
+    const hasPermission = await bleService.requestPermissions();
+    if (hasPermission) {
+      await bleService.startScan();
+    }
+  };
+
+  // Handle BLE reading - auto-save and show toast
+  const handleBLEReading = (reading: BPReading) => {
+    console.log('[PatientInfo] BLE reading received:', reading);
+
+    // Auto-save to session vitals
+    const vitalsData = {
+      blood_pressure_systolic: reading.systolic,
+      blood_pressure_diastolic: reading.diastolic,
+      heart_rate: reading.pulse,
+      measured_at: reading.timestamp,
+    };
+    setVitals(vitalsData);
+
+    // Store reading for toast display
+    setBleReading(reading);
+
+    // Show toast notification
+    setShowToast(true);
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+
+    // Auto-dismiss toast after 10 seconds
+    setTimeout(() => {
+      dismissToast();
+    }, 10000);
+  };
+
+  // Dismiss toast with animation
+  const dismissToast = () => {
+    Animated.timing(toastOpacity, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowToast(false);
+      setBleReading(null);
+    });
+  };
+
+  // Initialize BLE on mount, cleanup on unmount
+  useEffect(() => {
+    initializeBLE();
+
+    return () => {
+      bleService.stopScan();
+      bleService.disconnect();
+    };
+  }, []);
+
+  // Auto-reconnect when disconnected
+  useEffect(() => {
+    if (bleStatus === 'disconnected') {
+      // Wait 2 seconds before reconnecting
+      const reconnectTimer = setTimeout(() => {
+        console.log('[PatientInfo] Auto-reconnecting BLE...');
+        bleService.startScan();
+      }, 2000);
+
+      return () => clearTimeout(reconnectTimer);
+    }
+  }, [bleStatus]);
 
   if (!currentPatient) {
     return null;
@@ -202,6 +286,24 @@ export default function PatientInfoScreen({ navigation }: Props) {
     ? new Date(sessionVitals.measured_at).toDateString() === new Date().toDateString()
     : false;
 
+  // Toast action handlers
+  const handleSubmit = () => {
+    // Mark vitals as completed
+    setCompletedVitals(true);
+    dismissToast();
+  };
+
+  const handleVitalsNavigation = () => {
+    // Navigate to VitalsCapture screen (BP data already saved, will auto-populate)
+    dismissToast();
+    navigation.navigate('VitalsCapture');
+  };
+
+  const handleDismiss = () => {
+    // Just dismiss the toast (data already auto-saved)
+    dismissToast();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -215,7 +317,10 @@ export default function PatientInfoScreen({ navigation }: Props) {
           <Text style={styles.screenTitle}>{t['patientInfo.title']}</Text>
         </View>
         <View style={styles.headerRight}>
-          <LanguageToggle />
+          <View style={styles.headerRightContent}>
+            <BLEIndicator status={bleStatus} />
+            <LanguageToggle />
+          </View>
         </View>
       </View>
 
@@ -635,6 +740,64 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </View>
         </View>
       </ScrollView>
+
+      {/* BLE Toast Notification */}
+      {showToast && bleReading && (
+        <Animated.View style={[styles.toastContainer, { opacity: toastOpacity }]}>
+          <View style={styles.toastContent}>
+            <View style={styles.toastHeader}>
+              <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+              <Text style={styles.toastTitle}>
+                {language === 'ja' ? 'バイタルデータ追加' : 'Vitals Data Added'}
+              </Text>
+            </View>
+
+            <View style={styles.toastData}>
+              <View style={styles.toastDataRow}>
+                <Ionicons name="heart" size={20} color={COLORS.primary} />
+                <Text style={styles.toastDataText}>
+                  {language === 'ja' ? '血圧' : 'BP'}: {bleReading.systolic}/{bleReading.diastolic} mmHg
+                </Text>
+              </View>
+              <View style={styles.toastDataRow}>
+                <Ionicons name="pulse" size={20} color={COLORS.primary} />
+                <Text style={styles.toastDataText}>
+                  {language === 'ja' ? '脈拍' : 'Pulse'}: {bleReading.pulse} bpm
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.toastActions}>
+              <TouchableOpacity style={styles.toastButton} onPress={handleSubmit}>
+                <Ionicons name="checkmark-done" size={20} color={COLORS.white} />
+                <Text style={styles.toastButtonText}>
+                  {language === 'ja' ? '完了' : 'Submit'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.toastButton, styles.toastButtonSecondary]}
+                onPress={handleVitalsNavigation}
+              >
+                <Ionicons name="add-circle" size={20} color={COLORS.primary} />
+                <Text style={[styles.toastButtonText, styles.toastButtonTextSecondary]}>
+                  {language === 'ja' ? 'バイタル' : 'Vitals'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.toastButton, styles.toastButtonDismiss]}
+                onPress={handleDismiss}
+              >
+                <Ionicons name="close" size={20} color={COLORS.text.secondary} />
+                <Text style={[styles.toastButtonText, styles.toastButtonTextDismiss]}>
+                  {language === 'ja' ? '閉じる' : 'Dismiss'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -712,6 +875,11 @@ const styles = StyleSheet.create({
   headerRight: {
     flex: 1,
     alignItems: 'flex-end',
+  },
+  headerRightContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
   },
   screenTitle: {
     fontSize: TYPOGRAPHY.fontSize.xl,
@@ -1052,5 +1220,85 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     textAlign: 'center',
     marginTop: SPACING.xs,
+  },
+
+  // BLE Toast Notification Styles
+  toastContainer: {
+    position: 'absolute',
+    bottom: SPACING.xl,
+    left: SPACING.lg,
+    right: SPACING.lg,
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  toastContent: {
+    padding: SPACING.md,
+  },
+  toastHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  toastTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+    marginLeft: SPACING.sm,
+  },
+  toastData: {
+    marginBottom: SPACING.md,
+    paddingLeft: SPACING.md,
+  },
+  toastDataRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  toastDataText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.primary,
+    marginLeft: SPACING.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  toastActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  toastButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.xs,
+  },
+  toastButtonSecondary: {
+    backgroundColor: COLORS.white,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  toastButtonDismiss: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  toastButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.white,
+  },
+  toastButtonTextSecondary: {
+    color: COLORS.primary,
+  },
+  toastButtonTextDismiss: {
+    color: COLORS.text.secondary,
   },
 });

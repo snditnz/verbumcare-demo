@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Wristbands - VerbumCare</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #2C5F2D;
+            margin-bottom: 40px;
+        }
+        .qr-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .qr-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .qr-code {
+            margin-bottom: 20px;
+        }
+        .patient-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .patient-id {
+            font-size: 11px;
+            color: #999;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .print-button {
+            background: #2C5F2D;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 20px auto;
+            display: block;
+        }
+        .print-button:hover {
+            background: #234a23;
+        }
+        .wristband-view {
+            display: none;
+        }
+        @media print {
+            body {
+                background: white;
+                margin: 0;
+                padding: 10mm;
+            }
+            h1, .print-button, .qr-grid {
+                display: none !important;
+            }
+            .qr-code {
+                display: none !important;
+            }
+            .wristband-view {
+                display: block !important;
+            }
+            .wristband {
+                width: 250mm;
+                height: 25mm;
+                border: 2px dashed #999;
+                margin-bottom: 3mm;
+                padding: 2mm 3mm;
+                display: flex;
+                align-items: center;
+                gap: 3mm;
+                page-break-inside: avoid;
+                background: white;
+                box-sizing: border-box;
+            }
+            .wristband-qr {
+                flex-shrink: 0;
+                width: 20mm;
+                height: 20mm;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+            }
+            .wristband-qr img {
+                display: none !important;
+            }
+            .wristband-qr canvas {
+                display: block !important;
+                max-width: 20mm !important;
+                max-height: 20mm !important;
+                width: 20mm !important;
+                height: 20mm !important;
+            }
+            .wristband-qr > * {
+                display: none !important;
+            }
+            .wristband-qr > canvas {
+                display: block !important;
+            }
+            .wristband-info {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            .wristband-name {
+                font-size: 14pt;
+                font-weight: bold;
+                margin-bottom: 1mm;
+                color: #000;
+            }
+            .wristband-details {
+                font-size: 9pt;
+                color: #333;
+                margin-bottom: 0.5mm;
+            }
+            .wristband-id {
+                font-size: 8pt;
+                font-family: monospace;
+                color: #666;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>VerbumCare Patient Wristbands</h1>
+
+    <button class="print-button" onclick="window.print()">🖨️ Print Wristbands</button>
+
+    <div class="qr-grid">
+        <div class="qr-card">
+            <div class="qr-code" id="qr1"></div>
+            <div class="patient-name">山田 太郎</div>
+            <div class="patient-id">PAT-MRN001</div>
+        </div>
+
+        <div class="qr-card">
+            <div class="qr-code" id="qr2"></div>
+            <div class="patient-name">田中 優希</div>
+            <div class="patient-id">PAT-MRN002</div>
+        </div>
+
+        <div class="qr-card">
+            <div class="qr-code" id="qr3"></div>
+            <div class="patient-name">佐藤 健二</div>
+            <div class="patient-id">PAT-MRN003</div>
+        </div>
+
+        <div class="qr-card">
+            <div class="qr-code" id="qr4"></div>
+            <div class="patient-name">鈴木 愛子</div>
+            <div class="patient-id">PAT-MRN004</div>
+        </div>
+
+        <div class="qr-card">
+            <div class="qr-code" id="qr5"></div>
+            <div class="patient-name">渡辺 博</div>
+            <div class="patient-id">PAT-MRN005</div>
+        </div>
+    </div>
+
+    <!-- Wristband Print Layout (hidden on screen, shown when printing) -->
+    <div class="wristband-view">
+        <div class="wristband">
+            <div class="wristband-qr" id="wristband-qr1"></div>
+            <div class="wristband-info">
+                <div class="wristband-name">山田 太郎</div>
+                <div class="wristband-details">Room 305 | MRN001</div>
+                <div class="wristband-id">PAT-MRN001</div>
+            </div>
+        </div>
+
+        <div class="wristband">
+            <div class="wristband-qr" id="wristband-qr2"></div>
+            <div class="wristband-info">
+                <div class="wristband-name">田中 優希</div>
+                <div class="wristband-details">Room 307 | MRN002</div>
+                <div class="wristband-id">PAT-MRN002</div>
+            </div>
+        </div>
+
+        <div class="wristband">
+            <div class="wristband-qr" id="wristband-qr3"></div>
+            <div class="wristband-info">
+                <div class="wristband-name">佐藤 健二</div>
+                <div class="wristband-details">Room 309 | MRN003</div>
+                <div class="wristband-id">PAT-MRN003</div>
+            </div>
+        </div>
+
+        <div class="wristband">
+            <div class="wristband-qr" id="wristband-qr4"></div>
+            <div class="wristband-info">
+                <div class="wristband-name">鈴木 愛子</div>
+                <div class="wristband-details">Room 311 | MRN004</div>
+                <div class="wristband-id">PAT-MRN004</div>
+            </div>
+        </div>
+
+        <div class="wristband">
+            <div class="wristband-qr" id="wristband-qr5"></div>
+            <div class="wristband-info">
+                <div class="wristband-name">渡辺 博</div>
+                <div class="wristband-details">Room 315 | MRN005</div>
+                <div class="wristband-id">PAT-MRN005</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const patients = [
+            { qrData: 'PAT-MRN001', qrId: 'qr1', wristbandQrId: 'wristband-qr1' },
+            { qrData: 'PAT-MRN002', qrId: 'qr2', wristbandQrId: 'wristband-qr2' },
+            { qrData: 'PAT-MRN003', qrId: 'qr3', wristbandQrId: 'wristband-qr3' },
+            { qrData: 'PAT-MRN004', qrId: 'qr4', wristbandQrId: 'wristband-qr4' },
+            { qrData: 'PAT-MRN005', qrId: 'qr5', wristbandQrId: 'wristband-qr5' },
+        ];
+
+        patients.forEach(patient => {
+            // Generate QR Code for screen view
+            new QRCode(document.getElementById(patient.qrId), {
+                text: patient.qrData,
+                width: 200,
+                height: 200,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            // Generate QR Code for wristband (sized for printing at 20mm)
+            new QRCode(document.getElementById(patient.wristbandQrId), {
+                text: patient.qrData,
+                width: 75,
+                height: 75,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        });
+    </script>
+</body>
+</html>
