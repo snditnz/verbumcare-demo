@@ -434,8 +434,8 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </Card>
 
           {/* Allergies - Tappable */}
-          <TouchableOpacity onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'medical' })}>
-            <Card style={styles.infoTile}>
+          <TouchableOpacity style={styles.infoTile} onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'medical' })}>
+            <Card style={styles.infoTileCard}>
               <View style={styles.tileHeader}>
                 <Ionicons name="alert-circle" size={ICON_SIZES.md} color={COLORS.error} />
                 <Text style={styles.tileTitle}>{t['patientInfo.allergies']}</Text>
@@ -453,8 +453,8 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           {/* Key Notes - Tappable */}
-          <TouchableOpacity onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'keynotes' })}>
-            <Card style={styles.infoTile}>
+          <TouchableOpacity style={styles.infoTile} onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'keynotes' })}>
+            <Card style={styles.infoTileCard}>
               <View style={styles.tileHeader}>
                 <Ionicons name="information-circle" size={ICON_SIZES.md} color={COLORS.info} />
                 <Text style={styles.tileTitle}>{t['patientInfo.keyNotes']}</Text>
@@ -470,8 +470,8 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           {/* Kihon Checklist (Frailty) - Tappable */}
-          <TouchableOpacity onPress={() => navigation.navigate('KihonChecklist')}>
-            <Card style={styles.infoTile}>
+          <TouchableOpacity style={styles.infoTile} onPress={() => navigation.navigate('KihonChecklist')}>
+            <Card style={styles.infoTileCard}>
               <View style={styles.tileHeader}>
                 <Ionicons name="speedometer" size={ICON_SIZES.md} color={COLORS.primary} />
                 <Text style={styles.tileTitle}>{t['action.kihonChecklist']}</Text>
@@ -848,6 +848,9 @@ const styles = StyleSheet.create({
   infoTile: {
     flex: 1,
     minWidth: 0,
+  },
+  infoTileCard: {
+    flex: 1,
   },
   infoText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
