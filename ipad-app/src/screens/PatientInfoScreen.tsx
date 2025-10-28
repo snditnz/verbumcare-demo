@@ -608,6 +608,15 @@ export default function PatientInfoScreen({ navigation }: Props) {
               status={getActionStatus('patientInfo')}
             />
 
+            {/* Row 4 */}
+            <ActionButton
+              icon="mic"
+              label={language === 'ja' ? '記録' : 'Record'}
+              onPress={() => navigation.navigate('GeneralVoiceRecorder')}
+              status={{ completed: false, borderColor: COLORS.border }}
+              iconColor={COLORS.error}
+            />
+
             {/* Round Complete Button - Spans 2 columns */}
             <TouchableOpacity
               style={[
@@ -641,15 +650,16 @@ interface ActionButtonProps {
     badge?: string;
     borderColor: string;
   };
+  iconColor?: string;
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onPress, status }) => {
+const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onPress, status, iconColor }) => {
   return (
     <TouchableOpacity
       style={[styles.actionButton, { borderLeftWidth: 4, borderLeftColor: status.borderColor }]}
       onPress={onPress}
     >
-      <Ionicons name={icon as any} size={ICON_SIZES.xl} color={COLORS.primary} />
+      <Ionicons name={icon as any} size={ICON_SIZES.xl} color={iconColor || COLORS.primary} />
 
       {/* Checkmark overlay */}
       {status.completed && (
@@ -837,6 +847,7 @@ const styles = StyleSheet.create({
   },
   infoTile: {
     flex: 1,
+    minWidth: 0,
   },
   infoText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -955,13 +966,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   roundCompleteButtonInGrid: {
-    width: '100%', // Span both columns in the grid
+    width: '48%', // Single cell in the grid
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 55,
+    minHeight: 90,
     borderWidth: 2,
     borderColor: COLORS.success,
   },
