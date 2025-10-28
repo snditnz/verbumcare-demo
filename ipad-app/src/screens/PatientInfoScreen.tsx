@@ -954,6 +954,17 @@ const styles = StyleSheet.create({
     borderColor: COLORS.success,
     marginBottom: SPACING.md,
   },
+  roundCompleteButtonInGrid: {
+    width: '100%', // Span both columns in the grid
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 55,
+    borderWidth: 2,
+    borderColor: COLORS.success,
+  },
   roundCompleteButtonActive: {
     backgroundColor: COLORS.success,
     borderColor: COLORS.success,
