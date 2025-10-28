@@ -11,16 +11,17 @@ import { PatientUpdateDraft } from '@models/app';
 import { getEditedFields } from '@utils/patientDiff';
 
 type RootStackParamList = {
-  UpdatePatientInfo: undefined;
+  UpdatePatientInfo: { initialTab?: TabKey } | undefined;
   PatientInfo: undefined;
 };
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'UpdatePatientInfo'>;
+  route: any; // Route params to accept initialTab
 };
 
 // Tab definitions
-type TabKey = 'basic' | 'physical' | 'contact' | 'medical' | 'admission' | 'insurance';
+type TabKey = 'basic' | 'physical' | 'contact' | 'medical' | 'keynotes' | 'admission' | 'insurance';
 
 interface Tab {
   key: TabKey;
@@ -29,17 +30,18 @@ interface Tab {
   icon: keyof typeof Ionicons.glyphMap;
 }
 
-export default function UpdatePatientInfoScreen({ navigation }: Props) {
+export default function UpdatePatientInfoScreen({ navigation, route }: Props) {
   const { currentPatient, sessionPatientUpdates, setPatientUpdates, language, getOriginalPatient } = useAssessmentStore();
 
-  // Tab state - start with basic demographics
-  const [activeTab, setActiveTab] = useState<TabKey>('basic');
+  // Tab state - start with basic demographics or provided initialTab
+  const [activeTab, setActiveTab] = useState<TabKey>(route?.params?.initialTab || 'basic');
 
   // Define tabs
   const tabs: Tab[] = [
     { key: 'basic', titleJa: '基本情報', titleEn: 'Basic', icon: 'person' },
     { key: 'physical', titleJa: '身体測定', titleEn: 'Physical', icon: 'body' },
     { key: 'medical', titleJa: '医療情報', titleEn: 'Medical', icon: 'medical' },
+    { key: 'keynotes', titleJa: '特記事項', titleEn: 'Key Notes', icon: 'information-circle' },
     { key: 'contact', titleJa: '連絡先', titleEn: 'Contact', icon: 'call' },
     { key: 'admission', titleJa: '入院', titleEn: 'Admission', icon: 'bed' },
     { key: 'insurance', titleJa: '保険', titleEn: 'Insurance', icon: 'card' },
@@ -522,25 +524,36 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
             </Text>
           </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>
-              {language === 'ja' ? '特記事項' : 'Key Notes'}
-            </Text>
-            <TextInput
-              style={[styles.input, styles.textArea, { minHeight: 120 }]}
-              placeholder={language === 'ja' ? '特記事項を入力' : 'Enter key notes or important information'}
-              placeholderTextColor={COLORS.text.disabled}
-              value={keyNotes}
-              onChangeText={setKeyNotes}
-              multiline
-              numberOfLines={5}
-              textAlignVertical="top"
-            />
-          </View>
           </View>
         )}
 
-        {/* 5. ADMISSION INFORMATION TAB */}
+        {/* 5. KEY NOTES TAB */}
+        {activeTab === 'keynotes' && (
+          <View>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>
+                {language === 'ja' ? '特記事項' : 'Key Notes'}
+              </Text>
+              <TextInput
+                style={[styles.input, styles.textArea, { minHeight: 200 }]}
+                placeholder={language === 'ja' ? '特記事項を入力（重要な情報、ケアの注意点、患者の状態など）' : 'Enter key notes (important information, care considerations, patient status, etc.)'}
+                placeholderTextColor={COLORS.text.disabled}
+                value={keyNotes}
+                onChangeText={setKeyNotes}
+                multiline
+                numberOfLines={8}
+                textAlignVertical="top"
+              />
+              <Text style={styles.helperText}>
+                {language === 'ja'
+                  ? '※ 患者ケアに重要な情報を記録してください。この情報は患者情報画面で表示されます。'
+                  : '※ Record important information for patient care. This will be displayed on the patient information screen.'}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* 6. ADMISSION INFORMATION TAB */}
         {activeTab === 'admission' && (
           <View>
             <View style={styles.formGroup}>
@@ -559,7 +572,7 @@ export default function UpdatePatientInfoScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* 6. INSURANCE INFORMATION TAB */}
+        {/* 7. INSURANCE INFORMATION TAB */}
         {activeTab === 'insurance' && (
           <View>
             <Text style={styles.comingSoonText}>

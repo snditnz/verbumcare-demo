@@ -282,81 +282,87 @@ export default function PatientInfoScreen({ navigation }: Props) {
             )}
           </Card>
 
-          {/* Tile 3: Current Medications */}
-          <Card style={styles.compactTile}>
-            <View style={styles.tileHeader}>
-              <Ionicons name="medical" size={ICON_SIZES.md} color={COLORS.primary} />
-              <Text style={styles.tileTitle}>{t['patientInfo.currentMeds']}</Text>
-            </View>
-            {currentPatient.medications ? (
-              <ScrollView style={styles.medScrollView} showsVerticalScrollIndicator={false}>
-                {getMedicationsList().map((med, index) => (
-                  <View key={index} style={styles.medItem}>
-                    <Text style={styles.medBullet}>•</Text>
-                    <Text style={styles.medText}>{med}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : (
-              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
-            )}
-          </Card>
+          {/* Tile 3: Current Medications - Tappable */}
+          <TouchableOpacity onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'medical' })}>
+            <Card style={styles.compactTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="medical" size={ICON_SIZES.md} color={COLORS.primary} />
+                <Text style={styles.tileTitle}>{t['patientInfo.currentMeds']}</Text>
+              </View>
+              {currentPatient.medications ? (
+                <ScrollView style={styles.medScrollView} showsVerticalScrollIndicator={false}>
+                  {getMedicationsList().map((med, index) => (
+                    <View key={index} style={styles.medItem}>
+                      <Text style={styles.medBullet}>•</Text>
+                      <Text style={styles.medText}>{med}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+              )}
+            </Card>
+          </TouchableOpacity>
 
-          {/* Tile 4: Pain Score */}
-          <Card style={styles.compactTile}>
-            <View style={styles.tileHeader}>
-              <Ionicons name="pulse" size={ICON_SIZES.md} color={COLORS.primary} />
-              <Text style={styles.tileTitle}>{t['action.painAssessment']}</Text>
-            </View>
-            {sessionPainAssessment || currentPatient.latest_pain_score !== undefined ? (
-              <>
-                <Text style={styles.tileValue}>
-                  {sessionPainAssessment?.pain_score ?? currentPatient.latest_pain_score}/10
-                </Text>
-                <Text style={styles.tileSubtext}>
-                  {sessionPainAssessment
-                    ? new Date(sessionPainAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
-                    : currentPatient.latest_pain_date || 'N/A'
-                  }
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
-            )}
-          </Card>
+          {/* Tile 4: Pain Score - Tappable */}
+          <TouchableOpacity onPress={() => navigation.navigate('PainAssessment')}>
+            <Card style={styles.compactTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="pulse" size={ICON_SIZES.md} color={COLORS.primary} />
+                <Text style={styles.tileTitle}>{t['action.painAssessment']}</Text>
+              </View>
+              {sessionPainAssessment || currentPatient.latest_pain_score !== undefined ? (
+                <>
+                  <Text style={styles.tileValue}>
+                    {sessionPainAssessment?.pain_score ?? currentPatient.latest_pain_score}/10
+                  </Text>
+                  <Text style={styles.tileSubtext}>
+                    {sessionPainAssessment
+                      ? new Date(sessionPainAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                      : currentPatient.latest_pain_date || 'N/A'
+                    }
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+              )}
+            </Card>
+          </TouchableOpacity>
 
-          {/* Tile 5: Fall Risk */}
-          <Card style={styles.compactTile}>
-            <View style={styles.tileHeader}>
-              <Ionicons name="body" size={ICON_SIZES.md} color={COLORS.primary} />
-              <Text style={styles.tileTitle}>{t['action.fallRisk']}</Text>
-            </View>
-            {sessionFallRiskAssessment || currentPatient.latest_fall_risk_score !== undefined ? (
-              <>
-                <Text style={styles.tileValue}>
-                  {sessionFallRiskAssessment?.risk_score ?? currentPatient.latest_fall_risk_score}/8
-                </Text>
-                <Text style={styles.tileSubtext}>
-                  {language === 'ja'
-                    ? (sessionFallRiskAssessment?.risk_level === 'low' ? '低リスク' :
-                       sessionFallRiskAssessment?.risk_level === 'moderate' ? '中等度リスク' :
-                       sessionFallRiskAssessment?.risk_level === 'high' ? '高リスク' :
-                       currentPatient.latest_fall_risk_level === 'low' ? '低リスク' :
-                       currentPatient.latest_fall_risk_level === 'moderate' ? '中等度リスク' : '高リスク')
-                    : (sessionFallRiskAssessment?.risk_level ?? currentPatient.latest_fall_risk_level ?? 'N/A')
-                  }
-                </Text>
-                <Text style={styles.tileSubtext}>
-                  {sessionFallRiskAssessment
-                    ? new Date(sessionFallRiskAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
-                    : currentPatient.latest_fall_risk_date || 'N/A'
-                  }
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
-            )}
-          </Card>
+          {/* Tile 5: Fall Risk - Tappable */}
+          <TouchableOpacity onPress={() => navigation.navigate('FallRiskAssessment')}>
+            <Card style={styles.compactTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="body" size={ICON_SIZES.md} color={COLORS.primary} />
+                <Text style={styles.tileTitle}>{t['action.fallRisk']}</Text>
+              </View>
+              {sessionFallRiskAssessment || currentPatient.latest_fall_risk_score !== undefined ? (
+                <>
+                  <Text style={styles.tileValue}>
+                    {sessionFallRiskAssessment?.risk_score ?? currentPatient.latest_fall_risk_score}/8
+                  </Text>
+                  <Text style={styles.tileSubtext}>
+                    {language === 'ja'
+                      ? (sessionFallRiskAssessment?.risk_level === 'low' ? '低リスク' :
+                         sessionFallRiskAssessment?.risk_level === 'moderate' ? '中等度リスク' :
+                         sessionFallRiskAssessment?.risk_level === 'high' ? '高リスク' :
+                         currentPatient.latest_fall_risk_level === 'low' ? '低リスク' :
+                         currentPatient.latest_fall_risk_level === 'moderate' ? '中等度リスク' : '高リスク')
+                      : (sessionFallRiskAssessment?.risk_level ?? currentPatient.latest_fall_risk_level ?? 'N/A')
+                    }
+                  </Text>
+                  <Text style={styles.tileSubtext}>
+                    {sessionFallRiskAssessment
+                      ? new Date(sessionFallRiskAssessment.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')
+                      : currentPatient.latest_fall_risk_date || 'N/A'
+                    }
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+              )}
+            </Card>
+          </TouchableOpacity>
         </View>
 
         {/* Second Row: Vitals + Allergies + Key Notes + Kihon Checklist */}
@@ -427,75 +433,81 @@ export default function PatientInfoScreen({ navigation }: Props) {
             })()}
           </Card>
 
-          {/* Allergies */}
-          <Card style={styles.infoTile}>
-            <View style={styles.tileHeader}>
-              <Ionicons name="alert-circle" size={ICON_SIZES.md} color={COLORS.error} />
-              <Text style={styles.tileTitle}>{t['patientInfo.allergies']}</Text>
-            </View>
-            {currentPatient.allergies && currentPatient.allergies.length > 0 ? (
-              currentPatient.allergies.map((allergy, index) => (
-                <Text key={index} style={styles.infoText}>
-                  🚫 {allergy}
-                </Text>
-              ))
-            ) : (
-              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
-            )}
-          </Card>
+          {/* Allergies - Tappable */}
+          <TouchableOpacity onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'medical' })}>
+            <Card style={styles.infoTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="alert-circle" size={ICON_SIZES.md} color={COLORS.error} />
+                <Text style={styles.tileTitle}>{t['patientInfo.allergies']}</Text>
+              </View>
+              {currentPatient.allergies && currentPatient.allergies.length > 0 ? (
+                currentPatient.allergies.map((allergy, index) => (
+                  <Text key={index} style={styles.infoText}>
+                    🚫 {allergy}
+                  </Text>
+                ))
+              ) : (
+                <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+              )}
+            </Card>
+          </TouchableOpacity>
 
-          {/* Key Notes */}
-          <Card style={styles.infoTile}>
-            <View style={styles.tileHeader}>
-              <Ionicons name="information-circle" size={ICON_SIZES.md} color={COLORS.info} />
-              <Text style={styles.tileTitle}>{t['patientInfo.keyNotes']}</Text>
-            </View>
-            {currentPatient.key_notes ? (
-              <Text style={styles.infoText}>
-                {currentPatient.key_notes}
-              </Text>
-            ) : (
-              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
-            )}
-          </Card>
-
-          {/* Kihon Checklist (Frailty) */}
-          <Card style={styles.infoTile}>
-            <View style={styles.tileHeader}>
-              <Ionicons name="speedometer" size={ICON_SIZES.md} color={COLORS.primary} />
-              <Text style={styles.tileTitle}>{t['action.kihonChecklist']}</Text>
-            </View>
-            {sessionKihonChecklist ? (
-              <>
+          {/* Key Notes - Tappable */}
+          <TouchableOpacity onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'keynotes' })}>
+            <Card style={styles.infoTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="information-circle" size={ICON_SIZES.md} color={COLORS.info} />
+                <Text style={styles.tileTitle}>{t['patientInfo.keyNotes']}</Text>
+              </View>
+              {currentPatient.key_notes ? (
                 <Text style={styles.infoText}>
-                  {language === 'ja' ? 'スコア' : 'Score'}: {sessionKihonChecklist.total_score}/25
+                  {currentPatient.key_notes}
                 </Text>
-                <Text style={[
-                  styles.infoText,
-                  {
-                    color: sessionKihonChecklist.frailty_status === 'robust'
-                      ? COLORS.success
-                      : sessionKihonChecklist.frailty_status === 'prefrail'
-                      ? COLORS.warning
-                      : COLORS.error,
-                    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-                  }
-                ]}>
-                  {language === 'ja'
-                    ? (sessionKihonChecklist.frailty_status === 'robust' ? '健常' :
-                       sessionKihonChecklist.frailty_status === 'prefrail' ? 'プレフレイル' : 'フレイル')
-                    : (sessionKihonChecklist.frailty_status === 'robust' ? 'Robust' :
-                       sessionKihonChecklist.frailty_status === 'prefrail' ? 'Pre-frail' : 'Frail')
-                  }
-                </Text>
-                <Text style={styles.tileTimestamp}>
-                  {new Date(sessionKihonChecklist.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')}
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
-            )}
-          </Card>
+              ) : (
+                <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+              )}
+            </Card>
+          </TouchableOpacity>
+
+          {/* Kihon Checklist (Frailty) - Tappable */}
+          <TouchableOpacity onPress={() => navigation.navigate('KihonChecklist')}>
+            <Card style={styles.infoTile}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="speedometer" size={ICON_SIZES.md} color={COLORS.primary} />
+                <Text style={styles.tileTitle}>{t['action.kihonChecklist']}</Text>
+              </View>
+              {sessionKihonChecklist ? (
+                <>
+                  <Text style={styles.infoText}>
+                    {language === 'ja' ? 'スコア' : 'Score'}: {sessionKihonChecklist.total_score}/25
+                  </Text>
+                  <Text style={[
+                    styles.infoText,
+                    {
+                      color: sessionKihonChecklist.frailty_status === 'robust'
+                        ? COLORS.success
+                        : sessionKihonChecklist.frailty_status === 'prefrail'
+                        ? COLORS.warning
+                        : COLORS.error,
+                      fontWeight: TYPOGRAPHY.fontWeight.semibold,
+                    }
+                  ]}>
+                    {language === 'ja'
+                      ? (sessionKihonChecklist.frailty_status === 'robust' ? '健常' :
+                         sessionKihonChecklist.frailty_status === 'prefrail' ? 'プレフレイル' : 'フレイル')
+                      : (sessionKihonChecklist.frailty_status === 'robust' ? 'Robust' :
+                         sessionKihonChecklist.frailty_status === 'prefrail' : 'Pre-frail' : 'Frail')
+                    }
+                  </Text>
+                  <Text style={styles.tileTimestamp}>
+                    {new Date(sessionKihonChecklist.recorded_at).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.noDataText}>{t['common.noData'] || 'No data'}</Text>
+              )}
+            </Card>
+          </TouchableOpacity>
         </View>
 
         {/* Today's Schedule Section */}
