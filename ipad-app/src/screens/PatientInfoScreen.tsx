@@ -510,112 +510,109 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Today's Schedule Section */}
-        {scheduleData && scheduleData.allItems && scheduleData.allItems.length > 0 && (
-          <Card style={styles.scheduleSection}>
-            <View style={styles.scheduleSectionHeader}>
-              <Ionicons name="calendar-outline" size={ICON_SIZES.md} color={COLORS.primary} />
-              <Text style={styles.scheduleSectionTitle}>
-                {language === 'ja' ? '本日の予定' : "Today's Schedule"}
-              </Text>
-              <Text style={styles.scheduleCount}>
-                {scheduleData.summary.completed}/{scheduleData.summary.total}
-              </Text>
-            </View>
-            <View style={styles.scheduleList}>
-              {scheduleData.allItems.slice(0, 5).map((item: any) => (
-                <View key={item.id} style={styles.scheduleItemCompact}>
-                  <Ionicons
-                    name={item.type === 'medication' ? 'medical' : 'calendar'}
-                    size={16}
-                    color={item.completed ? COLORS.status.success : COLORS.primary}
-                  />
-                  <Text style={styles.scheduleItemTime}>{item.time?.substring(0, 5)}</Text>
-                  <Text style={styles.scheduleItemTitle} numberOfLines={1}>{item.title}</Text>
-                  {item.completed && (
-                    <Ionicons name="checkmark-circle" size={16} color={COLORS.status.success} />
-                  )}
-                  {item.isPRN && (
-                    <Text style={styles.prnBadgeSmall}>PRN</Text>
+        {/* Main Grid: Schedule (left, 3 rows) + Action Buttons (right, 3×2 grid) */}
+        <View style={styles.mainGrid}>
+          {/* Left Column: Today's Schedule (wider, takes 3 rows) */}
+          {scheduleData && scheduleData.allItems && scheduleData.allItems.length > 0 ? (
+            <TouchableOpacity
+              style={styles.scheduleColumn}
+              onPress={() => navigation.navigate('TodaySchedule')}
+              activeOpacity={0.8}
+            >
+              <Card style={styles.scheduleCard}>
+                <View style={styles.scheduleSectionHeader}>
+                  <Ionicons name="calendar-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+                  <Text style={styles.scheduleSectionTitle}>
+                    {language === 'ja' ? '本日の予定' : "Today's Schedule"}
+                  </Text>
+                  <Text style={styles.scheduleCount}>
+                    {scheduleData.summary.completed}/{scheduleData.summary.total}
+                  </Text>
+                </View>
+                <View style={styles.scheduleList}>
+                  {scheduleData.allItems.slice(0, 5).map((item: any) => (
+                    <View key={item.id} style={styles.scheduleItemCompact}>
+                      <Ionicons
+                        name={item.type === 'medication' ? 'medical' : 'calendar'}
+                        size={16}
+                        color={item.completed ? COLORS.status.success : COLORS.primary}
+                      />
+                      <Text style={styles.scheduleItemTime}>{item.time?.substring(0, 5)}</Text>
+                      <Text style={styles.scheduleItemTitle} numberOfLines={1}>{item.title}</Text>
+                      {item.completed && (
+                        <Ionicons name="checkmark-circle" size={16} color={COLORS.status.success} />
+                      )}
+                      {item.isPRN && (
+                        <Text style={styles.prnBadgeSmall}>PRN</Text>
+                      )}
+                    </View>
+                  ))}
+                  {scheduleData.allItems.length > 5 && (
+                    <Text style={styles.scheduleMore}>
+                      +{scheduleData.allItems.length - 5} {language === 'ja' ? 'more' : 'more'}
+                    </Text>
                   )}
                 </View>
-              ))}
-              {scheduleData.allItems.length > 5 && (
-                <Text style={styles.scheduleMore}>
-                  +{scheduleData.allItems.length - 5} {language === 'ja' ? 'more' : 'more'}
-                </Text>
-              )}
+              </Card>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.scheduleColumn}>
+              <Card style={styles.scheduleCard}>
+                <View style={styles.scheduleSectionHeader}>
+                  <Ionicons name="calendar-outline" size={ICON_SIZES.md} color={COLORS.primary} />
+                  <Text style={styles.scheduleSectionTitle}>
+                    {language === 'ja' ? '本日の予定' : "Today's Schedule"}
+                  </Text>
+                </View>
+                <Text style={styles.noDataText}>{t['common.noData'] || 'No scheduled items today'}</Text>
+              </Card>
             </View>
-          </Card>
-        )}
+          )}
 
-        {/* Action Buttons Grid - 3 columns, 4 rows */}
-        <View style={styles.actionsGrid}>
-          {/* Row 1 */}
-          <ActionButton
-            icon="fitness"
-            label={t['action.vitalSigns']}
-            onPress={() => navigation.navigate('VitalsCapture')}
-            status={getActionStatus('vitals')}
-          />
+          {/* Right Columns: Action Buttons (3 rows × 2 columns) */}
+          <View style={styles.actionsColumn}>
+            {/* Row 1 */}
+            <ActionButton
+              icon="fitness"
+              label={t['action.vitalSigns']}
+              onPress={() => navigation.navigate('VitalsCapture')}
+              status={getActionStatus('vitals')}
+            />
+            <ActionButton
+              icon="clipboard"
+              label={t['action.adlRecording']}
+              onPress={() => navigation.navigate('ADLVoice')}
+              status={getActionStatus('adl')}
+            />
 
-          <ActionButton
-            icon="clipboard"
-            label={t['action.adlRecording']}
-            onPress={() => navigation.navigate('ADLVoice')}
-            status={getActionStatus('adl')}
-          />
+            {/* Row 2 */}
+            <ActionButton
+              icon="medical"
+              label={t['action.medicineAdmin']}
+              onPress={() => navigation.navigate('MedicineAdmin')}
+              status={getActionStatus('medicine')}
+            />
+            <ActionButton
+              icon="nutrition"
+              label={language === 'ja' ? '栄養記録' : 'Nutrition'}
+              onPress={() => navigation.navigate('ComingSoon', { feature: language === 'ja' ? '栄養記録' : 'Nutrition' })}
+              status={{ completed: false, borderColor: COLORS.border }}
+            />
 
-          <ActionButton
-            icon="medical"
-            label={t['action.medicineAdmin']}
-            onPress={() => navigation.navigate('MedicineAdmin')}
-            status={getActionStatus('medicine')}
-          />
-
-          {/* Row 2 */}
-          <ActionButton
-            icon="nutrition"
-            label={language === 'ja' ? '栄養記録' : 'Nutrition'}
-            onPress={() => navigation.navigate('ComingSoon', { feature: language === 'ja' ? '栄養記録' : 'Nutrition' })}
-            status={{ completed: false, borderColor: COLORS.border }}
-          />
-
-          <ActionButton
-            icon="document-text"
-            label={language === 'ja' ? 'ケアプラン' : 'Care Plan'}
-            onPress={() => navigation.navigate('CarePlanHub')}
-            status={{ completed: false, borderColor: COLORS.border }}
-          />
-
-          <ActionButton
-            icon="pencil"
-            label={t['action.updatePatientInfo']}
-            onPress={() => navigation.navigate('UpdatePatientInfo')}
-            status={getActionStatus('patientInfo')}
-          />
-
-          {/* Row 3 */}
-          <ActionButton
-            icon="pulse"
-            label={t['action.painAssessment']}
-            onPress={() => navigation.navigate('PainAssessment')}
-            status={getActionStatus('pain')}
-          />
-
-          <ActionButton
-            icon="body"
-            label={t['action.fallRisk']}
-            onPress={() => navigation.navigate('FallRiskAssessment')}
-            status={getActionStatus('fallRisk')}
-          />
-
-          <ActionButton
-            icon="fitness"
-            label={t['action.kihonChecklist']}
-            onPress={() => navigation.navigate('KihonChecklist')}
-            status={getActionStatus('kihon')}
-          />
+            {/* Row 3 */}
+            <ActionButton
+              icon="document-text"
+              label={language === 'ja' ? 'ケアプラン' : 'Care Plan'}
+              onPress={() => navigation.navigate('CarePlanHub')}
+              status={{ completed: false, borderColor: COLORS.border }}
+            />
+            <ActionButton
+              icon="pencil"
+              label={t['action.updatePatientInfo']}
+              onPress={() => navigation.navigate('UpdatePatientInfo')}
+              status={getActionStatus('patientInfo')}
+            />
+          </View>
         </View>
 
         {/* Round Complete Button - Language Specific Text, Reduced Height */}
@@ -863,6 +860,28 @@ const styles = StyleSheet.create({
   },
 
   // Actions Grid - Compressed (3 columns, tighter spacing)
+  // Main Grid Layout: Schedule (left) + Actions (right)
+  mainGrid: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  scheduleColumn: {
+    flex: 0.4,
+    minHeight: 300,
+  },
+  scheduleCard: {
+    height: '100%',
+  },
+  actionsColumn: {
+    flex: 0.6,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.md,
+    alignContent: 'flex-start',
+  },
+
+  // Legacy actionsGrid (kept for compatibility, but not used in new layout)
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -871,7 +890,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   actionButton: {
-    width: '32%',
+    width: '48%', // Changed from 32% for 2-column layout
     minHeight: 90,
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.md,
