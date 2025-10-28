@@ -40,6 +40,54 @@ router.get('/', async (req, res) => {
         (SELECT b.assessed_at FROM barthel_assessments b
          WHERE b.patient_id = p.patient_id
          ORDER BY b.assessed_at DESC LIMIT 1) as latest_barthel_date,
+        (SELECT (na.structured_data->>'pain_score')::integer FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'pain'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_pain_score,
+        (SELECT na.assessment_datetime FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'pain'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_pain_date,
+        (SELECT (na.structured_data->>'risk_score')::integer FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'fall_risk'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_fall_risk_score,
+        (SELECT na.structured_data->>'risk_level' FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'fall_risk'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_fall_risk_level,
+        (SELECT na.assessment_datetime FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'fall_risk'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_fall_risk_date,
+        (SELECT (na.structured_data->>'total_score')::integer FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'kihon'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_kihon_score,
+        (SELECT na.structured_data->>'frailty_status' FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'kihon'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_kihon_status,
+        (SELECT na.assessment_datetime FROM nursing_assessments na
+         WHERE na.patient_id = p.patient_id AND na.assessment_type = 'kihon'
+         ORDER BY na.assessment_datetime DESC LIMIT 1) as latest_kihon_date,
+        (SELECT vs2.blood_pressure_systolic FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_bp_systolic,
+        (SELECT vs2.blood_pressure_diastolic FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_bp_diastolic,
+        (SELECT vs2.heart_rate FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_heart_rate,
+        (SELECT vs2.temperature_celsius FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_temperature,
+        (SELECT vs2.oxygen_saturation FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_oxygen_saturation,
+        (SELECT vs2.respiratory_rate FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_respiratory_rate,
+        (SELECT vs2.weight_kg FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id AND vs2.weight_kg IS NOT NULL
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_weight_kg,
+        (SELECT vs2.height_cm FROM vital_signs vs2
+         WHERE vs2.patient_id = p.patient_id AND vs2.height_cm IS NOT NULL
+         ORDER BY vs2.measured_at DESC LIMIT 1) as latest_height_cm,
         MAX(vs.measured_at) as latest_vitals_date,
         COUNT(DISTINCT mo.order_id) FILTER (WHERE mo.status = 'active' AND mo.prn = false) as active_medications,
         COUNT(DISTINCT ma.administration_id) FILTER (
