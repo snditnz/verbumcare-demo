@@ -496,7 +496,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
                       ? (sessionKihonChecklist.frailty_status === 'robust' ? '健常' :
                          sessionKihonChecklist.frailty_status === 'prefrail' ? 'プレフレイル' : 'フレイル')
                       : (sessionKihonChecklist.frailty_status === 'robust' ? 'Robust' :
-                         sessionKihonChecklist.frailty_status === 'prefrail' : 'Pre-frail' : 'Frail')
+                         sessionKihonChecklist.frailty_status === 'prefrail' ? 'Pre-frail' : 'Frail')
                     }
                   </Text>
                   <Text style={styles.tileTimestamp}>
