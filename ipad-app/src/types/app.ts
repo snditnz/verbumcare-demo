@@ -37,8 +37,10 @@ export interface Patient {
   risk_factors?: string[];
 
   // Physical measurements
-  height?: number; // cm
-  weight?: number; // kg
+  height?: number; // cm (legacy field)
+  weight?: number; // kg (legacy field)
+  height_cm?: string; // cm (from patient record)
+  weight_kg?: string; // kg (from patient record)
 
   // Medical information
   allergies?: string[]; // Array of individual allergies
@@ -53,9 +55,20 @@ export interface Patient {
   latest_fall_risk_score?: number; // 0-8
   latest_fall_risk_level?: 'low' | 'moderate' | 'high';
   latest_fall_risk_date?: string;
+  latest_kihon_score?: number; // 0-25
+  latest_kihon_status?: 'robust' | 'prefrail' | 'frail';
+  latest_kihon_date?: string;
 
-  // Vital signs history
+  // Latest vital signs (from most recent measurement)
   latest_vitals_date?: string;
+  latest_bp_systolic?: number;
+  latest_bp_diastolic?: number;
+  latest_heart_rate?: number;
+  latest_temperature?: number;
+  latest_oxygen_saturation?: number;
+  latest_respiratory_rate?: number;
+  latest_weight_kg?: number;
+  latest_height_cm?: number;
 }
 
 export interface VitalSigns {

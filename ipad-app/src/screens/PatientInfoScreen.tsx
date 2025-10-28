@@ -175,11 +175,11 @@ export default function PatientInfoScreen({ navigation }: Props) {
     ? `${currentPatient.family_name} ${currentPatient.given_name}`
     : `${currentPatient.family_name_en || currentPatient.family_name} ${currentPatient.given_name_en || currentPatient.given_name}`;
 
-  // Get latest height (from patient updates if available, otherwise from patient record)
-  const latestHeight = sessionPatientUpdates?.height ?? currentPatient.height;
+  // Get latest height (from session updates, historical vitals, or patient record)
+  const latestHeight = sessionPatientUpdates?.height ?? currentPatient.latest_height_cm ?? currentPatient.height_cm;
 
-  // Get latest weight (from vitals if available, otherwise from patient record)
-  const latestWeight = sessionVitals?.weight?.weight_kg ?? currentPatient.weight;
+  // Get latest weight (from session vitals, historical vitals, or patient record)
+  const latestWeight = sessionVitals?.weight?.weight_kg ?? currentPatient.latest_weight_kg ?? currentPatient.weight_kg;
 
   // Calculate BMI from latest height and weight
   const calculateBMI = () => {
@@ -367,43 +367,64 @@ export default function PatientInfoScreen({ navigation }: Props) {
               <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.tileTitle}>{t['review.vitals']}</Text>
             </View>
-            {hasVitalsToday && sessionVitals ? (
-              <>
-                {sessionVitals.blood_pressure_systolic && sessionVitals.blood_pressure_diastolic && (
-                  <Text style={styles.infoText}>
-                    BP: {sessionVitals.blood_pressure_systolic}/{sessionVitals.blood_pressure_diastolic} mmHg
-                  </Text>
-                )}
-                {sessionVitals.heart_rate && (
-                  <Text style={styles.infoText}>
-                    HR: {sessionVitals.heart_rate} bpm
-                  </Text>
-                )}
-                {sessionVitals.temperature_celsius && (
-                  <Text style={styles.infoText}>
-                    Temp: {sessionVitals.temperature_celsius}°C
-                  </Text>
-                )}
-                {sessionVitals.oxygen_saturation && (
-                  <Text style={styles.infoText}>
-                    SpO₂: {sessionVitals.oxygen_saturation}%
-                  </Text>
-                )}
-                {sessionVitals.respiratory_rate && (
-                  <Text style={styles.infoText}>
-                    RR: {sessionVitals.respiratory_rate}/min
-                  </Text>
-                )}
-                <Text style={styles.tileTimestamp}>
-                  {new Date(sessionVitals.measured_at).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
-              </>
-            ) : (
-              <Text style={styles.noDataText}>{t['patientInfo.noVitalsToday']}</Text>
-            )}
+            {(() => {
+              // Prefer session vitals if captured today
+              const vitals = hasVitalsToday && sessionVitals ? sessionVitals : null;
+              // Fall back to historical vitals from patient record
+              const hasBP = vitals?.blood_pressure_systolic || currentPatient.latest_bp_systolic;
+              const hasHR = vitals?.heart_rate || currentPatient.latest_heart_rate;
+              const hasTemp = vitals?.temperature_celsius || currentPatient.latest_temperature;
+              const hasSpO2 = vitals?.oxygen_saturation || currentPatient.latest_oxygen_saturation;
+              const hasRR = vitals?.respiratory_rate || currentPatient.latest_respiratory_rate;
+              const hasAnyVitals = hasBP || hasHR || hasTemp || hasSpO2 || hasRR;
+
+              if (!hasAnyVitals) {
+                return <Text style={styles.noDataText}>{t['patientInfo.noVitalsToday']}</Text>;
+              }
+
+              return (
+                <>
+                  {(vitals?.blood_pressure_systolic || currentPatient.latest_bp_systolic) && (
+                    <Text style={styles.infoText}>
+                      BP: {vitals?.blood_pressure_systolic || currentPatient.latest_bp_systolic}/{vitals?.blood_pressure_diastolic || currentPatient.latest_bp_diastolic} mmHg
+                    </Text>
+                  )}
+                  {(vitals?.heart_rate || currentPatient.latest_heart_rate) && (
+                    <Text style={styles.infoText}>
+                      HR: {vitals?.heart_rate || currentPatient.latest_heart_rate} bpm
+                    </Text>
+                  )}
+                  {(vitals?.temperature_celsius || currentPatient.latest_temperature) && (
+                    <Text style={styles.infoText}>
+                      Temp: {vitals?.temperature_celsius || currentPatient.latest_temperature}°C
+                    </Text>
+                  )}
+                  {(vitals?.oxygen_saturation || currentPatient.latest_oxygen_saturation) && (
+                    <Text style={styles.infoText}>
+                      SpO₂: {vitals?.oxygen_saturation || currentPatient.latest_oxygen_saturation}%
+                    </Text>
+                  )}
+                  {(vitals?.respiratory_rate || currentPatient.latest_respiratory_rate) && (
+                    <Text style={styles.infoText}>
+                      RR: {vitals?.respiratory_rate || currentPatient.latest_respiratory_rate}/min
+                    </Text>
+                  )}
+                  {vitals?.measured_at && (
+                    <Text style={styles.tileTimestamp}>
+                      {new Date(vitals.measured_at).toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  )}
+                  {!vitals && currentPatient.latest_vitals_date && (
+                    <Text style={styles.tileTimestamp}>
+                      {new Date(currentPatient.latest_vitals_date).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')}
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
           </Card>
 
           {/* Allergies */}
