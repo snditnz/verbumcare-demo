@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Patient, CarePlan, ProblemTemplate } from '@models';
+import { Patient, CarePlan, ProblemTemplate, TodaySchedule } from '@models';
 
 /**
  * Offline-first caching service using AsyncStorage
@@ -13,6 +13,8 @@ const CACHE_KEYS = {
   CARE_PLAN_PREFIX: '@verbumcare/care_plan/',
   PROBLEM_TEMPLATES: '@verbumcare/problem_templates',
   PROBLEM_TEMPLATES_VERSION: '@verbumcare/problem_templates_version',
+  TODAY_SCHEDULE_PREFIX: '@verbumcare/today_schedule/',
+  STAFF_SCHEDULE: '@verbumcare/staff_schedule',
   LAST_SYNC: '@verbumcare/last_sync',
   PENDING_SYNC: '@verbumcare/pending_sync',
   SESSION_DATA: '@verbumcare/session_data',
@@ -21,11 +23,12 @@ const CACHE_KEYS = {
 // Cache version - increment this when template structure changes
 const PROBLEM_TEMPLATES_VERSION = 2; // v2: Added multilingual support with {ja, en, zh} structure
 
-// Cache expiry: 1 hour for patients list, 5 minutes for individual patient
+// Cache expiry: Extended times for offline demo capability
 const CACHE_EXPIRY = {
-  PATIENTS_LIST: 60 * 60 * 1000, // 1 hour
-  PATIENT_DETAIL: 5 * 60 * 1000, // 5 minutes
+  PATIENTS_LIST: 8 * 60 * 60 * 1000, // 8 hours (for demo + travel time)
+  PATIENT_DETAIL: 8 * 60 * 60 * 1000, // 8 hours (match PATIENTS_LIST)
   BARTHEL: 24 * 60 * 60 * 1000, // 24 hours (doesn't change frequently)
+  SCHEDULE: 8 * 60 * 60 * 1000, // 8 hours (for demo + travel time)
 } as const;
 
 interface CachedData<T> {
@@ -422,6 +425,96 @@ class CacheService {
       console.log('Problem templates cache cleared');
     } catch (error) {
       console.error('Error clearing problem templates cache:', error);
+    }
+  }
+
+  /**
+   * Cache today's schedule for a specific patient
+   */
+  async cacheTodaySchedule(patientId: string, schedule: TodaySchedule): Promise<void> {
+    try {
+      const cached: CachedData<TodaySchedule> = {
+        data: schedule,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + CACHE_EXPIRY.SCHEDULE,
+      };
+      const key = `${CACHE_KEYS.TODAY_SCHEDULE_PREFIX}${patientId}`;
+      await AsyncStorage.setItem(key, JSON.stringify(cached));
+      console.log(`[Cache] Saved schedule for patient ${patientId}`);
+    } catch (error) {
+      console.error('Error caching today schedule:', error);
+    }
+  }
+
+  /**
+   * Get cached today's schedule for a patient
+   * Returns null if cache is expired or doesn't exist
+   */
+  async getCachedTodaySchedule(patientId: string): Promise<TodaySchedule | null> {
+    try {
+      const key = `${CACHE_KEYS.TODAY_SCHEDULE_PREFIX}${patientId}`;
+      const cached = await AsyncStorage.getItem(key);
+      if (!cached) return null;
+
+      const parsed: CachedData<TodaySchedule> = JSON.parse(cached);
+
+      // Check if cache is expired
+      if (Date.now() > parsed.expiresAt) {
+        console.log(`[Cache] Schedule expired for patient ${patientId}, removing`);
+        await AsyncStorage.removeItem(key);
+        return null;
+      }
+
+      console.log(`[Cache] Using cached schedule for patient ${patientId}`);
+      return parsed.data;
+    } catch (error) {
+      console.error('Error reading cached today schedule:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Cache staff schedule (all patients for a staff member)
+   */
+  async cacheStaffSchedule(staffId: string, schedule: any): Promise<void> {
+    try {
+      const cached: CachedData<any> = {
+        data: schedule,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + CACHE_EXPIRY.SCHEDULE,
+      };
+      const key = `${CACHE_KEYS.STAFF_SCHEDULE}_${staffId}`;
+      await AsyncStorage.setItem(key, JSON.stringify(cached));
+      console.log(`[Cache] Saved staff schedule for ${staffId}`);
+    } catch (error) {
+      console.error('Error caching staff schedule:', error);
+    }
+  }
+
+  /**
+   * Get cached staff schedule
+   * Returns null if cache is expired or doesn't exist
+   */
+  async getCachedStaffSchedule(staffId: string): Promise<any | null> {
+    try {
+      const key = `${CACHE_KEYS.STAFF_SCHEDULE}_${staffId}`;
+      const cached = await AsyncStorage.getItem(key);
+      if (!cached) return null;
+
+      const parsed: CachedData<any> = JSON.parse(cached);
+
+      // Check if cache is expired
+      if (Date.now() > parsed.expiresAt) {
+        console.log(`[Cache] Staff schedule expired for ${staffId}, removing`);
+        await AsyncStorage.removeItem(key);
+        return null;
+      }
+
+      console.log(`[Cache] Using cached staff schedule for ${staffId}`);
+      return parsed.data;
+    } catch (error) {
+      console.error('Error reading cached staff schedule:', error);
+      return null;
     }
   }
 

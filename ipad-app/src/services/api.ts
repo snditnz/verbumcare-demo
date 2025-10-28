@@ -489,20 +489,76 @@ class APIService {
   }
 
   async getTodaySchedule(patientId: string): Promise<TodaySchedule> {
-    const response = await this.client.get<APIResponse<TodaySchedule>>(
-      `/dashboard/today-schedule/${patientId}`
-    );
-    return response.data.data;
+    // OFFLINE-FIRST: Try cache first
+    const cached = await cacheService.getCachedTodaySchedule(patientId);
+    if (cached) {
+      console.log(`[API] Using cached schedule for patient ${patientId}`);
+
+      // Try to update in background (silently fail if offline)
+      this.client.get<APIResponse<TodaySchedule>>(`/dashboard/today-schedule/${patientId}`)
+        .then(response => {
+          cacheService.cacheTodaySchedule(patientId, response.data.data);
+          console.log(`[API] Background refresh: updated schedule for patient ${patientId}`);
+        })
+        .catch(error => {
+          console.log(`[API] Background refresh failed (offline?):`, error.message);
+        });
+
+      return cached;
+    }
+
+    // No cache - fetch from API and cache result
+    try {
+      const response = await this.client.get<APIResponse<TodaySchedule>>(
+        `/dashboard/today-schedule/${patientId}`
+      );
+      const schedule = response.data.data;
+      await cacheService.cacheTodaySchedule(patientId, schedule);
+      return schedule;
+    } catch (error: any) {
+      console.error(`[API] Failed to fetch schedule for patient ${patientId}:`, error.message);
+      throw error; // No fallback - user requirement: no mock data
+    }
   }
 
   async getAllTodaySchedule(staffId?: string): Promise<any> {
-    const response = await this.client.get<APIResponse<any>>(
-      '/dashboard/today-schedule-all',
-      {
-        params: { staff_id: staffId || DEMO_STAFF_ID }
-      }
-    );
-    return response.data.data;
+    const effectiveStaffId = staffId || DEMO_STAFF_ID;
+
+    // OFFLINE-FIRST: Try cache first
+    const cached = await cacheService.getCachedStaffSchedule(effectiveStaffId);
+    if (cached) {
+      console.log(`[API] Using cached staff schedule for ${effectiveStaffId}`);
+
+      // Try to update in background (silently fail if offline)
+      this.client.get<APIResponse<any>>('/dashboard/today-schedule-all', {
+        params: { staff_id: effectiveStaffId }
+      })
+        .then(response => {
+          cacheService.cacheStaffSchedule(effectiveStaffId, response.data.data);
+          console.log(`[API] Background refresh: updated staff schedule`);
+        })
+        .catch(error => {
+          console.log(`[API] Background refresh failed (offline?):`, error.message);
+        });
+
+      return cached;
+    }
+
+    // No cache - fetch from API and cache result
+    try {
+      const response = await this.client.get<APIResponse<any>>(
+        '/dashboard/today-schedule-all',
+        {
+          params: { staff_id: effectiveStaffId }
+        }
+      );
+      const schedule = response.data.data;
+      await cacheService.cacheStaffSchedule(effectiveStaffId, schedule);
+      return schedule;
+    } catch (error: any) {
+      console.error(`[API] Failed to fetch staff schedule:`, error.message);
+      throw error; // No fallback - user requirement: no mock data
+    }
   }
 }
 

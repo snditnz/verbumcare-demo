@@ -1,20 +1,52 @@
 import { io, Socket } from 'socket.io-client';
 import { API_CONFIG, FACILITY_ID } from '@constants/config';
 import { VoiceProcessingProgress } from '@models/api';
+import { networkService } from './networkService';
 
 type SocketCallback = (data: any) => void;
 
 class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, SocketCallback[]> = new Map();
+  private shouldConnect: boolean = true;
+
+  /**
+   * Initialize Socket.IO with network monitoring
+   * Only connects when network is available
+   */
+  initialize(): void {
+    // Listen for network changes
+    networkService.onConnectivityChange((isConnected) => {
+      if (isConnected && this.shouldConnect) {
+        console.log('[Socket] Network available, attempting connection...');
+        this.connect();
+      } else if (!isConnected) {
+        console.log('[Socket] Network unavailable, disconnecting...');
+        this.disconnect();
+      }
+    });
+
+    // Try initial connection if network is available
+    if (networkService.isConnected() && this.shouldConnect) {
+      this.connect();
+    } else {
+      console.log('[Socket] Skipping connection - no network available');
+    }
+  }
 
   connect(): void {
-    if (this.socket?.connected) {
-      console.log('✅ Socket already connected');
+    // Only connect if network is available
+    if (!networkService.isConnected()) {
+      console.log('[Socket] Skipping connection - no network');
       return;
     }
 
-    console.log('🔌 Connecting to Socket.IO:', API_CONFIG.WS_URL);
+    if (this.socket?.connected) {
+      console.log('[Socket] Already connected');
+      return;
+    }
+
+    console.log('[Socket] Connecting to:', API_CONFIG.WS_URL);
 
     this.socket = io(API_CONFIG.WS_URL, {
       path: '/socket.io',
@@ -22,29 +54,37 @@ class SocketService {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-      timeout: 20000,
+      timeout: 5000, // Reduced from 20s to 5s for faster failure
       forceNew: true,
       secure: true,
       rejectUnauthorized: false,
     });
 
     this.socket.on('connect', () => {
-      console.log('✅ Socket.IO connected:', this.socket?.id);
+      console.log('[Socket] ✅ Connected:', this.socket?.id);
       this.socket?.emit('join-facility', FACILITY_ID);
-      console.log('📍 Joined facility:', FACILITY_ID);
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('❌ Socket.IO disconnected:', reason);
+      // Only log if it's not an intentional disconnect
+      if (reason !== 'io client disconnect') {
+        console.log('[Socket] Disconnected:', reason);
+      }
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('⚠️  Socket.IO connection error:', error.message);
-      console.error('Full error:', error);
+      // SILENT ERROR: Only log in debug mode, don't show full error
+      // This prevents "Full error: Error: timeout" from appearing
+      if (__DEV__) {
+        console.log('[Socket] Connection failed (silent):', error.message);
+      }
     });
 
     this.socket.on('reconnect_attempt', (attempt) => {
-      console.log(`🔄 Socket.IO reconnect attempt ${attempt}/5`);
+      // Silent - only connect if network is available
+      if (!networkService.isConnected()) {
+        this.socket?.close();
+      }
     });
 
     // Setup event listeners

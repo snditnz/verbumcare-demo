@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { socketService } from './src/services';
+import { networkService } from './src/services/networkService';
 import { useCarePlanStore } from './src/stores/carePlanStore';
 import { useAuthStore } from './src/stores/authStore';
 import { COLORS } from './src/constants/theme';
@@ -83,12 +84,16 @@ export default function App() {
     // Check authentication status on app launch
     checkAuth();
 
-    // Connect Socket.IO on app launch for real-time voice processing updates
-    socketService.connect();
+    // Initialize network monitoring first
+    const initializeServices = async () => {
+      await networkService.initialize();
 
-    // Load problem templates from backend on app start
-    // This ensures templates are available when creating care plans
-    const loadTemplates = async () => {
+      // Initialize Socket.IO with network-aware connection
+      // Will only connect when network is available
+      socketService.initialize();
+
+      // Load problem templates from backend on app start
+      // This ensures templates are available when creating care plans
       try {
         await useCarePlanStore.getState().loadProblemTemplates();
       } catch (error) {
@@ -96,11 +101,13 @@ export default function App() {
         // App will continue with fallback templates
       }
     };
-    loadTemplates();
+
+    initializeServices();
 
     return () => {
-      // Cleanup Socket.IO connection when app unmounts
+      // Cleanup on app unmount
       socketService.disconnect();
+      networkService.cleanup();
     };
   }, []);
 

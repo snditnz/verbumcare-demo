@@ -11,8 +11,9 @@ import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { apiService } from '@services/api';
 import { cacheService } from '@services/cacheService';
-import { clearUserCache } from '@services/cacheWarmer';
+import { clearUserCache, warmAllDataForDemo } from '@services/cacheWarmer';
 import { Patient } from '@models';
+import { DEMO_STAFF_ID } from '@constants/config';
 
 const logoMark = require('../../VerbumCare-Logo-Mark.png');
 
@@ -39,6 +40,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleData, setScheduleData] = useState<any>(null); // TodaySchedule for selected patient
+  const [warmingCache, setWarmingCache] = useState(false);
 
   const t = translations[language];
 
@@ -161,6 +163,41 @@ export default function DashboardScreen({ navigation }: Props) {
     }
   };
 
+  const handleWarmCache = async () => {
+    try {
+      setWarmingCache(true);
+      console.log('🔥 Starting cache warming for offline demo...');
+
+      // Warm all data: patients, schedules, care plans, templates
+      const result = await warmAllDataForDemo(DEMO_STAFF_ID);
+
+      console.log('Cache warming result:', result);
+
+      if (result.success) {
+        const msg = language === 'ja'
+          ? `✅ キャッシュ準備完了！\n\n患者: ${result.details.patients}\nスケジュール: ${result.details.schedules}\nテンプレート: ${result.details.templates}\n\nオフラインでデモできます！`
+          : `✅ Cache warmed!\n\nPatients: ${result.details.patients}\nSchedules: ${result.details.schedules}\nTemplates: ${result.details.templates}\n\nReady for offline demo!`;
+
+        alert(msg);
+
+        // Reload dashboard to show cached data
+        await loadPatients();
+      } else {
+        const errorMsg = result.errors.join('\n');
+        alert(language === 'ja'
+          ? `⚠️ キャッシュ準備中にエラー:\n${errorMsg}`
+          : `⚠️ Cache warming errors:\n${errorMsg}`);
+      }
+    } catch (error: any) {
+      console.error('Error warming cache:', error);
+      alert(language === 'ja'
+        ? `❌ キャッシュ準備失敗: ${error.message}`
+        : `❌ Failed to warm cache: ${error.message}`);
+    } finally {
+      setWarmingCache(false);
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -224,6 +261,17 @@ export default function DashboardScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={handleWarmCache}
+            style={[styles.clearCacheButton, warmingCache && { opacity: 0.5 }]}
+            disabled={warmingCache}
+          >
+            {warmingCache ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <Ionicons name="cloud-download-outline" size={20} color={COLORS.white} />
+            )}
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleClearCache} style={styles.clearCacheButton}>
             <Ionicons name="refresh-outline" size={20} color={COLORS.white} />
           </TouchableOpacity>
