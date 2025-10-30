@@ -497,3 +497,316 @@ The BLE feature is **fully implemented** and **functional** based on server logs
 - Action buttons ✓ (handlers implemented)
 
 **For demo:** Fix syntax errors → reload app → BLE will work perfectly!
+
+---
+
+## Update: 2025-10-29 - BLE Reliability & Session History Fixes
+
+### Issues Addressed
+
+1. **BLE not working on PatientInfo after refactoring** - Connection initialized but callbacks not triggering
+2. **Invalid 2047 readings being saved** - SFLOAT sentinel values not filtered
+3. **Multiple readings saved at once** - Device memory batch not debounced
+4. **"Cannot read property length of null"** - Old persisted state migration issue
+5. **BLE timeout on second reading** - Auto-reconnect not working after timeout
+6. **Error spam** - "Operation was cancelled" flooding console
+
+### Fixes Implemented
+
+#### 1. Session History Migration (assessmentStore.ts)
+
+**Problem:** Old persisted state had `vitals: null`, new code expects `vitals: []`
+
+**Solution:** Added defensive array checks in 3 locations:
+
+```typescript
+// In setVitals - before spread operation
+const existingVitals = Array.isArray(currentSession.vitals) ? currentSession.vitals : [];
+const newVitalsArray = vitals ? [...existingVitals, vitals] : existingVitals;
+
+// In removeLastVital - before accessing length
+const existingVitals = Array.isArray(currentSession.vitals) ? currentSession.vitals : [];
+if (existingVitals.length === 0) return state;
+
+// In setCurrentPatient - before computing sessionVitals
+const vitalsArray = Array.isArray(sessionData.vitals) ? sessionData.vitals : [];
+sessionVitals: vitalsArray.length > 0 ? vitalsArray[vitalsArray.length - 1] : null,
+```
+
+#### 2. BLE Invalid Data Validation (ble.ts)
+
+**Problem:** Device transmits 2047 values when measurement fails or during inflation
+
+**Solution:** Added physiological range validation:
+
+```typescript
+// Validate readings are within physiological ranges
+// 2047 is a sentinel value in SFLOAT indicating invalid/missing data
+const isValidBP = systolic > 0 && systolic < 300 &&
+                  diastolic > 0 && diastolic < 200 &&
+                  systolic !== 2047 && diastolic !== 2047;
+
+const isValidPulse = pulse === 0 || (pulse > 0 && pulse < 250 && pulse !== 2047);
+```
+
+**Valid ranges:**
+- Systolic: 1-299 mmHg
+- Diastolic: 1-199 mmHg
+- Heart Rate: 0 (optional) or 1-249 bpm
+
+#### 3. BLE Batch Reading Debounce (ble.ts)
+
+**Problem:** A&D monitors transmit up to 30 stored readings in quick succession. All were being saved.
+
+**Example from logs:**
+```
+[BLE] ✅ Parsed BP reading: 161/99, pulse 71
+[BLE] ✅ Parsed BP reading: 122/68, pulse 52  // 171ms later
+[BLE] ✅ Parsed BP reading: 111/61, pulse 42  // 108ms later
+```
+
+**Solution:** 500ms debounce to save only the last (most recent) reading:
+
+```typescript
+// Store private properties
+private lastReading: BPReading | null = null;
+private readingDebounceTimer: NodeJS.Timeout | null = null;
+
+// In monitorBPCharacteristic
+this.lastReading = reading;
+
+if (this.readingDebounceTimer) {
+  clearTimeout(this.readingDebounceTimer);
+}
+
+// If no new readings in 500ms, send the last one
+this.readingDebounceTimer = setTimeout(() => {
+  if (this.lastReading) {
+    console.log('[BLE] 📤 Sending final reading from batch:', this.lastReading);
+    this.readingCallback?.(this.lastReading);
+    this.lastReading = null;
+  }
+}, 500);
+```
+
+**Result:** Only the most recent measurement is saved, older stored readings are ignored.
+
+#### 4. BLE Auto-Reconnect Fix (ble.ts)
+
+**Problem:** Connection timeout wasn't restarting scan, BLE stopped working after first reading
+
+**Before:**
+```typescript
+} catch (error) {
+  console.log('...resuming scan...');  // ❌ Log said "resuming" but didn't restart
+  // No actual restart code
+}
+```
+
+**After:**
+```typescript
+} catch (error) {
+  await this.disconnect();
+
+  // Restart scanning after connection failure
+  setTimeout(() => {
+    console.log('[BLE] Resuming scan...');
+    this.startScan();  // ✅ Actually restart
+  }, 2000);
+}
+```
+
+#### 5. Error Message Cleanup (ble.ts)
+
+**Problem:** "Operation was cancelled" errors flooding console on every disconnect
+
+**Solution:** Silently handle expected errors:
+
+```typescript
+const errorMsg = error.message || '';
+
+// Expected errors - silently handle
+if (errorMsg.includes('Operation was cancelled') ||
+    errorMsg.includes('Operation timed out')) {
+  console.log('[BLE] Device connection attempt ended (cancelled or timed out)');
+} else {
+  // Unexpected errors - log details
+  console.error('[BLE] Connection error:', error);
+}
+```
+
+#### 6. PatientInfo Initialization (PatientInfoScreen.tsx)
+
+**Problem:** BLE callbacks not working, state not cleaned up between loads
+
+**Solution:** Enhanced initialization with cleanup:
+
+```typescript
+const initializeBLE = async () => {
+  try {
+    console.log('[PatientInfo] Initializing BLE...');
+
+    // Ensure any previous state is cleaned up
+    await bleService.stopScan();
+    await bleService.disconnect();
+
+    // Set callbacks
+    bleService.setStatusCallback(setBleStatus);
+    bleService.setReadingCallback(handleBLEReading);
+
+    const hasPermission = await bleService.requestPermissions();
+    if (hasPermission) {
+      await bleService.startScan();
+    }
+  } catch (error) {
+    console.error('[PatientInfo] BLE initialization error:', error);
+    setBleStatus('error');
+  }
+};
+```
+
+Added comprehensive logging to track callback flow:
+```typescript
+const handleBLEReading = (reading: BPReading) => {
+  console.log('[PatientInfo] ✅ BLE reading callback triggered!');
+  console.log('[PatientInfo] Saving vitals to store...');
+  // ... save logic
+};
+```
+
+#### 7. Navigation Fix (VitalsCaptureScreen.tsx)
+
+**Fixed crash when submitting/skipping from VitalsCapture:**
+
+```typescript
+// Before: ❌ navigation.navigate('PatientInfo' as any)
+// After:  ✅ navigation.goBack()
+```
+
+#### 8. API Timeout Increase (config.ts)
+
+**Increased for demo reliability:**
+
+```typescript
+// Before: TIMEOUT: 30000  // 30 seconds
+// After:  TIMEOUT: 60000  // 60 seconds - increased for demo reliability
+```
+
+---
+
+### Testing Results
+
+**From logs after fixes:**
+
+```
+✅ BLE initialization working:
+LOG  [PatientInfo] Initializing BLE...
+LOG  [PatientInfo] BLE callbacks set
+LOG  [PatientInfo] Starting BLE scan...
+
+✅ Batch debounce working:
+LOG  [BLE] ✅ Parsed BP reading: 161/99, pulse 71
+LOG  [BLE] ✅ Parsed BP reading: 122/68, pulse 52
+LOG  [BLE] ✅ Parsed BP reading: 111/61, pulse 42
+LOG  [BLE] 📤 Sending final reading from batch: 111/61, pulse 42  // ← Only this saved!
+
+✅ Auto-reconnect working:
+LOG  [BLE] Device connection attempt ended (cancelled or timed out)
+LOG  [BLE] Waiting 2s before resuming scan...
+LOG  [BLE] Resuming scan...
+LOG  [BLE] ✅ Found matching A&D BP monitor: A&D_UA-651BLE_B6CC1C
+
+✅ Invalid data rejected:
+LOG  [BLE] 🔍 Extracted values - Systolic: 2047 Diastolic: 2047 Pulse: 2047
+LOG  [BLE] ⚠️ Invalid values - out of physiological range or sentinel value detected
+```
+
+**Consecutive readings now work reliably:**
+- Reading 1: 108/62, pulse 41 ✅
+- Reading 2: 92/51, pulse 48 ✅
+- Reading 3: 100/68, pulse 46 ✅
+- All captured without manual intervention!
+
+---
+
+### Session History Implementation
+
+**Dismiss button now reverts to previous reading within session:**
+
+**How it works:**
+1. Take first reading: Array: `[120/80]`, Display: **120/80**
+2. Take second reading: Array: `[120/80, 130/85]`, Display: **130/85**
+3. Press Dismiss: Array: `[120/80]`, Display: **120/80** ← Reverted!
+4. Press Dismiss again: Array: `[]`, Display: falls back to database
+
+**Implementation:**
+```typescript
+// In PatientInfoScreen handleDismiss
+const handleDismiss = () => {
+  removeLastVital();  // Removes last from array
+  console.log('[PatientInfo] Last BP reading removed from history');
+  dismissToast();
+};
+```
+
+**Store maintains array:**
+```typescript
+interface PatientSessionData {
+  vitals: VitalSigns[];  // Array instead of single value
+  // ...
+}
+```
+
+**Note:** History is session-scoped, cleared when session ends or navigating away from patient.
+
+---
+
+### Files Modified (Commit 72d5669)
+
+1. **ipad-app/src/services/ble.ts**
+   - Invalid data validation (2047 rejection)
+   - Physiological range validation
+   - 500ms batch debounce
+   - Auto-reconnect fix
+   - Error message cleanup
+   - Timer cleanup in disconnect/stopScan
+
+2. **ipad-app/src/stores/assessmentStore.ts**
+   - Defensive array checks in setVitals
+   - Defensive array checks in removeLastVital
+   - Defensive array checks in setCurrentPatient
+   - Migration support for old state
+
+3. **ipad-app/src/screens/PatientInfoScreen.tsx**
+   - Enhanced BLE initialization with cleanup
+   - Comprehensive logging
+   - Better error handling
+
+4. **ipad-app/src/screens/VitalsCaptureScreen.tsx**
+   - Fixed navigation crash (goBack instead of navigate)
+
+5. **ipad-app/src/constants/config.ts**
+   - API timeout: 30s → 60s
+
+---
+
+### Known Working Features
+
+✅ **Consecutive BP readings** - Works without manual reconnection
+✅ **Invalid data rejection** - 2047 values filtered automatically
+✅ **Batch handling** - Only most recent reading saved
+✅ **Session history** - Dismiss reverts to previous reading
+✅ **Auto-reconnect** - Scan restarts after timeout/disconnect
+✅ **Clean logs** - No error spam
+✅ **Navigation** - No crashes when navigating between screens
+
+---
+
+### Production Ready
+
+All BLE functionality is now stable and production-ready:
+- Handles device edge cases (invalid data, timeouts, memory batch)
+- Graceful error handling with proper recovery
+- Session-level data management with history
+- Clean console output for debugging
+- Reliable auto-reconnect for continuous monitoring
