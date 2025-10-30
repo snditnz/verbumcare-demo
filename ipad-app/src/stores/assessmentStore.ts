@@ -19,7 +19,7 @@ import {
 
 // Per-patient session data
 interface PatientSessionData {
-  vitals: VitalSigns | null;
+  vitals: VitalSigns[]; // Array to support session history
   medications: MedicationAdmin[];
   patientUpdates: PatientUpdateDraft | null;
   incidents: IncidentReport[];
@@ -56,6 +56,7 @@ interface AssessmentStore extends AssessmentSession {
   setCurrentPatient: (patient: Patient | null) => void;
   setCurrentStep: (step: WorkflowStep) => void;
   setVitals: (vitals: VitalSigns | null) => void;
+  removeLastVital: () => void; // Remove the most recent vital reading
   setADLRecordingId: (id: string | null) => void;
   setADLProcessedData: (data: any) => void;
   addIncidentPhoto: (photo: IncidentPhoto) => void;
@@ -91,11 +92,11 @@ const WORKFLOW_ORDER: WorkflowStep[] = [
 
 const getSessionDataForPatient = (state: AssessmentStore): PatientSessionData => {
   if (!state.currentPatient) {
-    return { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null, kihonChecklist: null };
+    return { vitals: [], medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null, kihonChecklist: null };
   }
 
   return state.patientSessions[state.currentPatient.patient_id] || {
-    vitals: null,
+    vitals: [],
     medications: [],
     patientUpdates: null,
     incidents: [],
@@ -115,7 +116,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
   // Initial state
   currentPatient: null,
   currentStep: 'patient-list',
-  vitals: null,
+  vitals: null, // Legacy field for backward compatibility
   adlRecordingId: null,
   adlProcessedData: null,
   incidentPhotos: [],
@@ -170,7 +171,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       // Compute session data for the new patient INSIDE this set() callback
       const sessionData: PatientSessionData = patient
         ? (preservedSessions[patient.patient_id] || {
-            vitals: null,
+            vitals: [],
             medications: [],
             patientUpdates: null,
             incidents: [],
@@ -179,7 +180,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
             fallRiskAssessment: null,
             kihonChecklist: null,
           })
-        : { vitals: null, medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null, kihonChecklist: null };
+        : { vitals: [], medications: [], patientUpdates: null, incidents: [], barthelIndex: null, painAssessment: null, fallRiskAssessment: null, kihonChecklist: null };
 
       console.log('[Store] Computed sessionData for patient:', patient?.patient_id, sessionData);
 
@@ -215,6 +216,9 @@ export const useAssessmentStore = create<AssessmentStore>()(
         console.log('[Store] 🔄 Applied session updates to patient data');
       }
 
+      // Ensure vitals is an array (migration from old state)
+      const vitalsArray = Array.isArray(sessionData.vitals) ? sessionData.vitals : [];
+
       return {
         ...state,
         currentPatient: updatedPatient,
@@ -222,7 +226,8 @@ export const useAssessmentStore = create<AssessmentStore>()(
         patientSessions: preservedSessions,  // Use preserved sessions
         originalPatientData: newOriginalPatientData,
         // Update all session-computed properties IN THE SAME UPDATE
-        sessionVitals: sessionData.vitals,
+        // Extract latest vital from array
+        sessionVitals: vitalsArray.length > 0 ? vitalsArray[vitalsArray.length - 1] : null,
         sessionMedications: sessionData.medications,
         sessionPatientUpdates: sessionData.patientUpdates,
         sessionIncidents: sessionData.incidents,
@@ -241,7 +246,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -251,9 +256,15 @@ export const useAssessmentStore = create<AssessmentStore>()(
         kihonChecklist: null,
       };
 
+      // Ensure currentSession.vitals is always an array (migration from old state)
+      const existingVitals = Array.isArray(currentSession.vitals) ? currentSession.vitals : [];
+
+      // Append new vital to history array (or set to empty if null)
+      const newVitalsArray = vitals ? [...existingVitals, vitals] : existingVitals;
+
       const newSession = {
         ...currentSession,
-        vitals,
+        vitals: newVitalsArray,
       };
 
       const newPatientSessions = {
@@ -263,13 +274,66 @@ export const useAssessmentStore = create<AssessmentStore>()(
 
       console.log('[setVitals] 🔵 Setting vitals for patient:', patientId);
       console.log('[setVitals] 🔵 New vitals:', vitals);
+      console.log('[setVitals] 🔵 Total vitals in history:', newVitalsArray.length);
 
       return {
         ...state, // ← CRITICAL: preserve all other state
         vitals, // Keep for backward compatibility with PatientInfoScreen
         patientSessions: newPatientSessions,
         // Compute session data IN THE SAME UPDATE to avoid async issues
-        sessionVitals: newSession.vitals,
+        // Extract latest vital from array
+        sessionVitals: newVitalsArray.length > 0 ? newVitalsArray[newVitalsArray.length - 1] : null,
+        sessionMedications: newSession.medications,
+        sessionPatientUpdates: newSession.patientUpdates,
+        sessionIncidents: newSession.incidents,
+        sessionBarthelIndex: newSession.barthelIndex,
+        sessionPainAssessment: newSession.painAssessment,
+        sessionFallRiskAssessment: newSession.fallRiskAssessment,
+        sessionKihonChecklist: newSession.kihonChecklist,
+      };
+    });
+  },
+
+  removeLastVital: () => {
+    set((state) => {
+      if (!state.currentPatient) return state;
+      const patientId = state.currentPatient.patient_id;
+      const currentSession = state.patientSessions[patientId];
+
+      if (!currentSession) {
+        console.log('[removeLastVital] No session found');
+        return state;
+      }
+
+      // Ensure vitals is an array (migration from old state)
+      const existingVitals = Array.isArray(currentSession.vitals) ? currentSession.vitals : [];
+
+      if (existingVitals.length === 0) {
+        console.log('[removeLastVital] No vitals to remove');
+        return state;
+      }
+
+      // Remove the last vital from the array
+      const newVitalsArray = existingVitals.slice(0, -1);
+
+      const newSession = {
+        ...currentSession,
+        vitals: newVitalsArray,
+      };
+
+      const newPatientSessions = {
+        ...state.patientSessions,
+        [patientId]: newSession,
+      };
+
+      console.log('[removeLastVital] 🗑️ Removed last vital for patient:', patientId);
+      console.log('[removeLastVital] 🗑️ Remaining vitals in history:', newVitalsArray.length);
+
+      return {
+        ...state,
+        patientSessions: newPatientSessions,
+        // Update computed property with new latest (or null if empty)
+        sessionVitals: newVitalsArray.length > 0 ? newVitalsArray[newVitalsArray.length - 1] : null,
         sessionMedications: newSession.medications,
         sessionPatientUpdates: newSession.patientUpdates,
         sessionIncidents: newSession.incidents,
@@ -303,7 +367,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -335,7 +399,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -379,7 +443,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -411,7 +475,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -449,7 +513,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -487,7 +551,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -526,7 +590,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       if (!state.currentPatient) return state;
       const patientId = state.currentPatient.patient_id;
       const currentSession = state.patientSessions[patientId] || {
-        vitals: null,
+        vitals: [],
         medications: [],
         patientUpdates: null,
         incidents: [],
@@ -602,7 +666,7 @@ export const useAssessmentStore = create<AssessmentStore>()(
       ...state,
       currentPatient: null,
       currentStep: 'patient-list',
-      vitals: null,
+      vitals: null, // Legacy field
       adlRecordingId: null,
       adlProcessedData: null,
       incidentPhotos: [],

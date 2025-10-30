@@ -276,8 +276,8 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               // Wait a moment for persist middleware to write to AsyncStorage
               await new Promise(resolve => setTimeout(resolve, 100));
 
-              // Navigate back to Patient Info hub
-              navigation.navigate('PatientInfo' as any);
+              // Navigate back to previous screen (PatientInfo)
+              navigation.goBack();
             },
           },
         ]
@@ -296,7 +296,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
         },
         {
           text: t['common.skip'],
-          onPress: () => navigation.navigate('PatientInfo' as any),
+          onPress: () => navigation.goBack(),
         },
       ]
     );

@@ -11,6 +11,8 @@ class BLEService {
   private readingCallback: ((reading: BPReading) => void) | null = null;
   private scanTimeoutId: NodeJS.Timeout | null = null;
   private receivedDataSuccessfully: boolean = false;
+  private lastReading: BPReading | null = null;
+  private readingDebounceTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.manager = new BleManager();
@@ -117,16 +119,27 @@ class BLEService {
       await this.monitorBPCharacteristic();
 
     } catch (error: any) {
-      // Connection timeout is normal - device may have gone to sleep after transmitting
-      if (error.message?.includes('Operation timed out')) {
-        console.log('[BLE] Device connection timed out (device may be asleep), resuming scan...');
+      const errorMsg = error.message || '';
+
+      // Expected errors - silently handle
+      if (errorMsg.includes('Operation was cancelled') ||
+          errorMsg.includes('Operation timed out')) {
+        console.log('[BLE] Device connection attempt ended (cancelled or timed out)');
       } else {
+        // Unexpected errors - log details
         console.error('[BLE] Connection error:', error);
         console.error('[BLE] Error details:', error.message, error.code);
       }
+
       this.statusCallback?.('disconnected');
       await this.disconnect();
-      // Don't retry - just let scanning continue
+
+      // Restart scanning after connection failure
+      console.log('[BLE] Waiting 2s before resuming scan...');
+      setTimeout(() => {
+        console.log('[BLE] Resuming scan...');
+        this.startScan();
+      }, 2000);
     }
   }
 
@@ -144,9 +157,11 @@ class BLEService {
         async (error, characteristic) => {
           if (error) {
             // Check if this is an expected disconnect after successful data receipt
+            const errorMsg = error.message || '';
             const isExpectedDisconnect = this.receivedDataSuccessfully ||
-              error.message?.includes('was disconnected') ||
-              error.message?.includes('Operation was cancelled');
+              errorMsg.includes('was disconnected') ||
+              errorMsg.includes('Operation was cancelled') ||
+              errorMsg.includes('Device disconnected');
 
             if (isExpectedDisconnect) {
               if (this.receivedDataSuccessfully) {
@@ -154,14 +169,21 @@ class BLEService {
                 this.receivedDataSuccessfully = false;
                 // Go back to scanning for next reading
                 await this.disconnect();
-                await this.startScan();
+                // Wait 3 seconds before resuming scan to allow device to be ready
+                console.log('[BLE] Waiting 3s before resuming scan for next reading...');
+                setTimeout(() => {
+                  this.startScan();
+                }, 3000);
               }
+              // Silently ignore expected disconnects
               return;
             }
 
-            // Only log unexpected errors
-            console.error('[BLE] ❌ Unexpected monitor error:', error);
-            console.error('[BLE] Error details:', error.message, error.code);
+            // Only log truly unexpected errors (not cancellation/disconnect errors)
+            if (!errorMsg.includes('cancel') && !errorMsg.includes('disconnect')) {
+              console.error('[BLE] ❌ Unexpected monitor error:', error);
+              console.error('[BLE] Error details:', error.message, error.code);
+            }
             return;
           }
 
@@ -171,7 +193,25 @@ class BLEService {
             if (reading) {
               console.log('[BLE] ✅ Parsed BP reading:', reading);
               this.receivedDataSuccessfully = true; // Mark successful receipt
-              this.readingCallback?.(reading);
+
+              // Store this reading and debounce - only save the last reading from a batch
+              this.lastReading = reading;
+
+              // Clear existing timer
+              if (this.readingDebounceTimer) {
+                clearTimeout(this.readingDebounceTimer);
+              }
+
+              // Set new timer - if no new readings in 500ms, this is the final reading
+              this.readingDebounceTimer = setTimeout(() => {
+                if (this.lastReading) {
+                  console.log('[BLE] 📤 Sending final reading from batch:', this.lastReading);
+                  this.readingCallback?.(this.lastReading);
+                  this.lastReading = null;
+                }
+                this.readingDebounceTimer = null;
+              }, 500);
+
               // Device will disconnect shortly - this is normal for A&D BP monitors
             } else {
               console.log('[BLE] ⚠️ Failed to parse BP data');
@@ -249,7 +289,15 @@ class BLEService {
 
       console.log('[BLE] 🔍 Extracted values - Systolic:', systolic, 'Diastolic:', diastolic, 'Pulse:', pulse);
 
-      if (systolic > 0 && diastolic > 0) {
+      // Validate readings are within physiological ranges
+      // 2047 is a sentinel value in SFLOAT indicating invalid/missing data
+      const isValidBP = systolic > 0 && systolic < 300 &&
+                        diastolic > 0 && diastolic < 200 &&
+                        systolic !== 2047 && diastolic !== 2047;
+
+      const isValidPulse = pulse === 0 || (pulse > 0 && pulse < 250 && pulse !== 2047);
+
+      if (isValidBP && isValidPulse) {
         const reading = {
           systolic,
           diastolic,
@@ -260,7 +308,8 @@ class BLEService {
         return reading;
       }
 
-      console.log('[BLE] ⚠️ Invalid values (must be > 0)');
+      console.log('[BLE] ⚠️ Invalid values - out of physiological range or sentinel value detected');
+      console.log('[BLE] BP valid:', isValidBP, 'Pulse valid:', isValidPulse);
       return null;
     } catch (error) {
       console.error('[BLE] ❌ Parse BP data error:', error);
@@ -274,10 +323,18 @@ class BLEService {
       clearTimeout(this.scanTimeoutId);
       this.scanTimeoutId = null;
     }
+    if (this.readingDebounceTimer) {
+      clearTimeout(this.readingDebounceTimer);
+      this.readingDebounceTimer = null;
+    }
     await this.manager.stopDeviceScan();
   }
 
   async disconnect(): Promise<void> {
+    if (this.readingDebounceTimer) {
+      clearTimeout(this.readingDebounceTimer);
+      this.readingDebounceTimer = null;
+    }
     if (this.device) {
       try {
         await this.device.cancelConnection();

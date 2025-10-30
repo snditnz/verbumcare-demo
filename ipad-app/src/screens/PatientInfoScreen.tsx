@@ -48,7 +48,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     sessionPatientUpdates,
     sessionIncidents,
     setVitals,
-    setCompletedVitals,
+    removeLastVital,
   } = useAssessmentStore();
 
   const [scheduleData, setScheduleData] = useState<any>(null);
@@ -76,43 +76,71 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
   // BLE initialization and lifecycle management
   const initializeBLE = async () => {
-    bleService.setStatusCallback(setBleStatus);
-    bleService.setReadingCallback(handleBLEReading);
+    try {
+      console.log('[PatientInfo] Initializing BLE...');
 
-    const hasPermission = await bleService.requestPermissions();
-    if (hasPermission) {
-      await bleService.startScan();
+      // Ensure any previous state is cleaned up
+      await bleService.stopScan();
+      await bleService.disconnect();
+
+      // Set callbacks
+      bleService.setStatusCallback(setBleStatus);
+      bleService.setReadingCallback(handleBLEReading);
+      console.log('[PatientInfo] BLE callbacks set');
+
+      const hasPermission = await bleService.requestPermissions();
+      console.log('[PatientInfo] BLE permissions:', hasPermission);
+
+      if (hasPermission) {
+        console.log('[PatientInfo] Starting BLE scan...');
+        await bleService.startScan();
+      } else {
+        console.error('[PatientInfo] BLE permissions denied or Bluetooth not available');
+        setBleStatus('error');
+      }
+    } catch (error) {
+      console.error('[PatientInfo] BLE initialization error:', error);
+      setBleStatus('error');
     }
   };
 
   // Handle BLE reading - auto-save and show toast
   const handleBLEReading = (reading: BPReading) => {
-    console.log('[PatientInfo] BLE reading received:', reading);
+    console.log('[PatientInfo] ✅ BLE reading callback triggered!');
+    console.log('[PatientInfo] Reading data:', reading);
 
-    // Auto-save to session vitals
-    const vitalsData = {
-      blood_pressure_systolic: reading.systolic,
-      blood_pressure_diastolic: reading.diastolic,
-      heart_rate: reading.pulse,
-      measured_at: reading.timestamp,
-    };
-    setVitals(vitalsData);
+    try {
+      // Auto-save to session vitals
+      const vitalsData = {
+        blood_pressure_systolic: reading.systolic,
+        blood_pressure_diastolic: reading.diastolic,
+        heart_rate: reading.pulse,
+        measured_at: reading.timestamp,
+      };
 
-    // Store reading for toast display
-    setBleReading(reading);
+      console.log('[PatientInfo] Saving vitals to store...');
+      setVitals(vitalsData);
+      console.log('[PatientInfo] Vitals saved successfully');
 
-    // Show toast notification
-    setShowToast(true);
-    Animated.timing(toastOpacity, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+      // Store reading for toast display
+      setBleReading(reading);
+      console.log('[PatientInfo] Showing toast notification...');
 
-    // Auto-dismiss toast after 10 seconds
-    setTimeout(() => {
-      dismissToast();
-    }, 10000);
+      // Show toast notification
+      setShowToast(true);
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+
+      // Auto-dismiss toast after 10 seconds
+      setTimeout(() => {
+        dismissToast();
+      }, 10000);
+    } catch (error) {
+      console.error('[PatientInfo] Error handling BLE reading:', error);
+    }
   };
 
   // Dismiss toast with animation
@@ -137,18 +165,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     };
   }, []);
 
-  // Auto-reconnect when disconnected
-  useEffect(() => {
-    if (bleStatus === 'disconnected') {
-      // Wait 2 seconds before reconnecting
-      const reconnectTimer = setTimeout(() => {
-        console.log('[PatientInfo] Auto-reconnecting BLE...');
-        bleService.startScan();
-      }, 2000);
-
-      return () => clearTimeout(reconnectTimer);
-    }
-  }, [bleStatus]);
+  // BLE service handles auto-reconnect internally, no need to do it here
 
   if (!currentPatient) {
     return null;
@@ -288,8 +305,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
   // Toast action handlers
   const handleSubmit = () => {
-    // Mark vitals as completed
-    setCompletedVitals(true);
+    // Vitals already saved automatically in BLE handler
     dismissToast();
   };
 
@@ -300,7 +316,9 @@ export default function PatientInfoScreen({ navigation }: Props) {
   };
 
   const handleDismiss = () => {
-    // Just dismiss the toast (data already auto-saved)
+    // Remove the last BP reading from session history
+    removeLastVital();
+    console.log('[PatientInfo] Last BP reading removed from history');
     dismissToast();
   };
 
@@ -472,12 +490,13 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
         {/* Second Row: Vitals + Allergies + Key Notes + Kihon Checklist */}
         <View style={styles.infoRow}>
-          {/* Vitals */}
-          <Card style={styles.infoTile}>
-            <View style={styles.tileHeader}>
-              <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
-              <Text style={styles.tileTitle}>{t['review.vitals']}</Text>
-            </View>
+          {/* Vitals - Tappable */}
+          <TouchableOpacity style={styles.infoTile} onPress={() => navigation.navigate('VitalsCapture')}>
+            <Card style={styles.infoTileCard}>
+              <View style={styles.tileHeader}>
+                <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
+                <Text style={styles.tileTitle}>{t['review.vitals']}</Text>
+              </View>
             {(() => {
               // Prefer session vitals if captured today
               const vitals = hasVitalsToday && sessionVitals ? sessionVitals : null;
@@ -536,7 +555,8 @@ export default function PatientInfoScreen({ navigation }: Props) {
                 </>
               );
             })()}
-          </Card>
+            </Card>
+          </TouchableOpacity>
 
           {/* Allergies - Tappable */}
           <TouchableOpacity style={styles.infoTile} onPress={() => navigation.navigate('UpdatePatientInfo' as any, { initialTab: 'medical' })}>
