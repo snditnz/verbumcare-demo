@@ -78,6 +78,80 @@ class APIService {
     return response.data.data;
   }
 
+  /**
+   * Get vitals history for a patient with optional filtering
+   * @param patientId - Patient UUID
+   * @param startDate - Start date for filtering (ISO string)
+   * @param endDate - End date for filtering (ISO string)
+   * @param vitalTypes - Optional comma-separated vital types (e.g., 'hr,temp,bp')
+   * @param limit - Maximum number of results
+   * @param offset - Pagination offset
+   */
+  async getVitalsHistory(
+    patientId: string,
+    startDate?: string,
+    endDate?: string,
+    vitalTypes?: string,
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<APIVitalSigns[]> {
+    const params: any = { limit, offset };
+
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    if (vitalTypes) params.vital_types = vitalTypes;
+
+    const response = await this.client.get<APIResponse<APIVitalSigns[]>>(
+      `/vitals/patient/${patientId}`,
+      { params }
+    );
+
+    return response.data.data;
+  }
+
+  /**
+   * Get statistics for a specific vital type over a date range
+   * @param patientId - Patient UUID
+   * @param startDate - Start date (ISO string)
+   * @param endDate - End date (ISO string)
+   * @param vitalType - Vital type (e.g., 'hr', 'bp_systolic', 'temp')
+   */
+  async getVitalsStatistics(
+    patientId: string,
+    startDate: string,
+    endDate: string,
+    vitalType: string = 'hr'
+  ): Promise<{
+    vital_type: string;
+    min: number;
+    max: number;
+    avg: number;
+    stddev: number | null;
+    count: number;
+    trend: 'increasing' | 'decreasing' | 'stable';
+    trend_data: {
+      first_half_avg: number | null;
+      second_half_avg: number | null;
+    };
+    date_range: {
+      start: string;
+      end: string;
+    };
+  }> {
+    const response = await this.client.get(
+      `/vitals/patient/${patientId}/statistics`,
+      {
+        params: {
+          start_date: startDate,
+          end_date: endDate,
+          vital_type: vitalType,
+        },
+      }
+    );
+
+    return response.data.data;
+  }
+
   async uploadVoiceRecording(
     audioUri: string,
     patientId: string,

@@ -20,6 +20,7 @@ import PatientInfoScreen from './src/screens/PatientInfoScreen';
 
 // Assessment screens
 import VitalsCaptureScreen from './src/screens/VitalsCaptureScreen';
+import { VitalsGraphScreen } from './src/screens/VitalsGraphScreen';
 import ADLVoiceScreen from './src/screens/ADLVoiceScreen';
 import GeneralVoiceRecorderScreen from './src/screens/GeneralVoiceRecorderScreen';
 import MedicineAdminScreen from './src/screens/MedicineAdminScreen';
@@ -53,6 +54,7 @@ export type RootStackParamList = {
   PatientScan: undefined;
   PatientInfo: undefined;
   VitalsCapture: undefined;
+  VitalsGraph: { patientId: string; vitalType?: 'heart_rate' | 'blood_pressure' | 'temperature' | 'spo2' };
   ADLVoice: undefined;
   GeneralVoiceRecorder: undefined;
   MedicineAdmin: undefined;
@@ -174,6 +176,11 @@ export default function App() {
             name="VitalsCapture"
             component={VitalsCaptureScreen}
             options={{ title: 'Vital Signs' }}
+          />
+          <Stack.Screen
+            name="VitalsGraph"
+            component={VitalsGraphScreen}
+            options={{ title: 'Vitals History' }}
           />
           <Stack.Screen
             name="ADLVoice"

@@ -17,6 +17,7 @@ type RootStackParamList = {
   PatientList: undefined;
   PatientInfo: undefined;
   VitalsCapture: undefined;
+  VitalsGraph: { patientId: string; vitalType?: 'heart_rate' | 'blood_pressure' | 'temperature' | 'spo2' };
   ADLVoice: undefined;
   MedicineAdmin: undefined;
   UpdatePatientInfo: undefined;
@@ -551,6 +552,21 @@ export default function PatientInfoScreen({ navigation }: Props) {
                     <Text style={styles.tileTimestamp}>
                       {new Date(currentPatient.latest_vitals_date).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'en-US')}
                     </Text>
+                  )}
+                  {/* View History Link */}
+                  {hasAnyVitals && (
+                    <TouchableOpacity
+                      style={styles.viewHistoryButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        navigation.navigate('VitalsGraph' as any, {
+                          patientId: currentPatient.patient_id,
+                          vitalType: 'heart_rate',
+                        });
+                      }}
+                    >
+                      <Text style={styles.viewHistoryText}>View History →</Text>
+                    </TouchableOpacity>
                   )}
                 </>
               );
@@ -1320,5 +1336,18 @@ const styles = StyleSheet.create({
   },
   toastButtonTextDismiss: {
     color: COLORS.text.secondary,
+  },
+  viewHistoryButton: {
+    marginTop: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    backgroundColor: COLORS.primary + '15', // 15% opacity
+    borderRadius: BORDER_RADIUS.sm,
+    alignSelf: 'flex-start',
+  },
+  viewHistoryText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
   },
 });

@@ -8,25 +8,86 @@ router.get('/patient/:patientId', async (req, res) => {
   try {
     const language = detectLanguage(req);
     const { patientId } = req.params;
-    const { limit = 50, offset = 0 } = req.query;
+    const { limit = 50, offset = 0, start_date, end_date, vital_types } = req.query;
+
+    // Build dynamic WHERE clause
+    let whereConditions = ['vs.patient_id = $1'];
+    let queryParams = [patientId];
+    let paramIndex = 2;
+
+    // Add date range filtering if provided
+    if (start_date) {
+      whereConditions.push(`vs.measured_at >= $${paramIndex}`);
+      queryParams.push(start_date);
+      paramIndex++;
+    }
+
+    if (end_date) {
+      whereConditions.push(`vs.measured_at <= $${paramIndex}`);
+      queryParams.push(end_date);
+      paramIndex++;
+    }
+
+    // Build SELECT clause based on vital_types filter
+    let selectClause = 'vs.*';
+    if (vital_types) {
+      // Parse comma-separated vital types (e.g., "hr,temp,bp")
+      const types = vital_types.split(',').map(t => t.trim());
+      const vitalColumns = [];
+
+      // Always include base columns
+      vitalColumns.push('vs.vital_sign_id', 'vs.patient_id', 'vs.measured_at', 'vs.input_method', 'vs.device_id', 'vs.recorded_by', 'vs.created_at');
+
+      // Add specific vital columns based on filter
+      if (types.includes('hr') || types.includes('heart_rate')) {
+        vitalColumns.push('vs.heart_rate');
+      }
+      if (types.includes('bp') || types.includes('blood_pressure')) {
+        vitalColumns.push('vs.blood_pressure_systolic', 'vs.blood_pressure_diastolic');
+      }
+      if (types.includes('temp') || types.includes('temperature')) {
+        vitalColumns.push('vs.temperature_celsius');
+      }
+      if (types.includes('spo2') || types.includes('oxygen_saturation')) {
+        vitalColumns.push('vs.oxygen_saturation');
+      }
+      if (types.includes('rr') || types.includes('respiratory_rate')) {
+        vitalColumns.push('vs.respiratory_rate');
+      }
+      if (types.includes('glucose') || types.includes('blood_glucose')) {
+        vitalColumns.push('vs.blood_glucose_mg_dl');
+      }
+      if (types.includes('weight')) {
+        vitalColumns.push('vs.weight_kg');
+      }
+      if (types.includes('pain')) {
+        vitalColumns.push('vs.pain_score');
+      }
+
+      selectClause = vitalColumns.join(', ');
+    }
 
     const query = `
       SELECT
-        vs.*,
+        ${selectClause},
         s.family_name as recorded_by_name,
         s.given_name as recorded_by_given_name
       FROM vital_signs vs
       JOIN staff s ON vs.recorded_by = s.staff_id
-      WHERE vs.patient_id = $1
+      WHERE ${whereConditions.join(' AND ')}
       ORDER BY vs.measured_at DESC
-      LIMIT $2 OFFSET $3
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    const result = await db.query(query, [patientId, limit, offset]);
+    queryParams.push(limit, offset);
+
+    const result = await db.query(query, queryParams);
 
     res.json({
       success: true,
       data: result.rows,
+      count: result.rows.length,
+      filters: { start_date, end_date, vital_types },
       language,
       message: getTranslation('success', language)
     });
@@ -36,6 +97,7 @@ router.get('/patient/:patientId', async (req, res) => {
     res.status(500).json({
       success: false,
       error: getTranslation('error', language),
+      details: error.message,
       language
     });
   }
@@ -310,6 +372,146 @@ router.post('/iot', async (req, res) => {
     res.status(500).json({
       success: false,
       error: getTranslation('error', language),
+      language
+    });
+  }
+});
+
+// Get statistics for patient vitals over a date range
+router.get('/patient/:patientId/statistics', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { patientId } = req.params;
+    const { start_date, end_date, vital_type = 'hr' } = req.query;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error: 'start_date and end_date are required',
+        language
+      });
+    }
+
+    // Map vital_type to database column
+    const vitalColumnMap = {
+      'hr': 'heart_rate',
+      'heart_rate': 'heart_rate',
+      'bp_systolic': 'blood_pressure_systolic',
+      'bp_diastolic': 'blood_pressure_diastolic',
+      'temp': 'temperature_celsius',
+      'temperature': 'temperature_celsius',
+      'spo2': 'oxygen_saturation',
+      'oxygen_saturation': 'oxygen_saturation',
+      'rr': 'respiratory_rate',
+      'respiratory_rate': 'respiratory_rate',
+      'glucose': 'blood_glucose_mg_dl',
+      'blood_glucose': 'blood_glucose_mg_dl',
+      'weight': 'weight_kg',
+      'pain': 'pain_score',
+    };
+
+    const column = vitalColumnMap[vital_type];
+    if (!column) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid vital_type: ${vital_type}. Valid types: ${Object.keys(vitalColumnMap).join(', ')}`,
+        language
+      });
+    }
+
+    // Calculate statistics
+    const query = `
+      SELECT
+        MIN(${column}) as min,
+        MAX(${column}) as max,
+        ROUND(AVG(${column})::numeric, 1) as avg,
+        COUNT(*) as count,
+        ROUND(STDDEV(${column})::numeric, 2) as stddev
+      FROM vital_signs
+      WHERE patient_id = $1
+        AND ${column} IS NOT NULL
+        AND measured_at >= $2
+        AND measured_at <= $3
+    `;
+
+    const result = await db.query(query, [patientId, start_date, end_date]);
+    const stats = result.rows[0];
+
+    // Calculate trend (compare first half vs second half)
+    const trendQuery = `
+      WITH date_range AS (
+        SELECT
+          $2::timestamp as start_date,
+          $3::timestamp as end_date
+      ),
+      midpoint AS (
+        SELECT start_date + (end_date - start_date) / 2 as mid_date
+        FROM date_range
+      ),
+      first_half AS (
+        SELECT ROUND(AVG(${column})::numeric, 1) as avg
+        FROM vital_signs, midpoint
+        WHERE patient_id = $1
+          AND ${column} IS NOT NULL
+          AND measured_at >= $2
+          AND measured_at < mid_date
+      ),
+      second_half AS (
+        SELECT ROUND(AVG(${column})::numeric, 1) as avg
+        FROM vital_signs, midpoint
+        WHERE patient_id = $1
+          AND ${column} IS NOT NULL
+          AND measured_at >= (SELECT mid_date FROM midpoint)
+          AND measured_at <= $3
+      )
+      SELECT
+        first_half.avg as first_half_avg,
+        second_half.avg as second_half_avg
+      FROM first_half, second_half
+    `;
+
+    const trendResult = await db.query(trendQuery, [patientId, start_date, end_date]);
+    const trendData = trendResult.rows[0];
+
+    let trend = 'stable';
+    if (trendData.first_half_avg && trendData.second_half_avg) {
+      const percentChange = ((trendData.second_half_avg - trendData.first_half_avg) / trendData.first_half_avg) * 100;
+      if (percentChange > 5) {
+        trend = 'increasing';
+      } else if (percentChange < -5) {
+        trend = 'decreasing';
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        vital_type,
+        min: parseFloat(stats.min),
+        max: parseFloat(stats.max),
+        avg: parseFloat(stats.avg),
+        stddev: stats.stddev ? parseFloat(stats.stddev) : null,
+        count: parseInt(stats.count),
+        trend,
+        trend_data: {
+          first_half_avg: trendData.first_half_avg ? parseFloat(trendData.first_half_avg) : null,
+          second_half_avg: trendData.second_half_avg ? parseFloat(trendData.second_half_avg) : null,
+        },
+        date_range: {
+          start: start_date,
+          end: end_date
+        }
+      },
+      language,
+      message: getTranslation('success', language)
+    });
+  } catch (error) {
+    console.error('Error calculating vital statistics:', error);
+    const language = detectLanguage(req);
+    res.status(500).json({
+      success: false,
+      error: getTranslation('error', language),
+      details: error.message,
       language
     });
   }
