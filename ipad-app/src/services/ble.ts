@@ -13,6 +13,7 @@ class BLEService {
   private receivedDataSuccessfully: boolean = false;
   private lastReading: BPReading | null = null;
   private readingDebounceTimer: NodeJS.Timeout | null = null;
+  private readingListeners: Array<(reading: BPReading) => void> = [];
 
   constructor() {
     this.manager = new BleManager();
@@ -24,6 +25,18 @@ class BLEService {
 
   setReadingCallback(callback: (reading: BPReading) => void): void {
     this.readingCallback = callback;
+  }
+
+  // Subscribe to BLE reading events (persistent across screen unmounts)
+  onReading(callback: (reading: BPReading) => void): () => void {
+    this.readingListeners.push(callback);
+    // Return unsubscribe function
+    return () => {
+      const index = this.readingListeners.indexOf(callback);
+      if (index > -1) {
+        this.readingListeners.splice(index, 1);
+      }
+    };
   }
 
   async requestPermissions(): Promise<boolean> {
@@ -206,6 +219,15 @@ class BLEService {
               this.readingDebounceTimer = setTimeout(() => {
                 if (this.lastReading) {
                   console.log('[BLE] 📤 Sending final reading from batch:', this.lastReading);
+                  // Notify all persistent listeners first
+                  this.readingListeners.forEach(listener => {
+                    try {
+                      listener(this.lastReading!);
+                    } catch (error) {
+                      console.error('[BLE] Error in reading listener:', error);
+                    }
+                  });
+                  // Then call callback if it exists (for backwards compatibility)
                   this.readingCallback?.(this.lastReading);
                   this.lastReading = null;
                 }

@@ -324,9 +324,30 @@ class APIService {
     }
   ): Promise<void> {
     try {
+      // Handle vitals with smart deduplication
+      let vitalsForSession = sessionData.vitals;
+
+      if (sessionData.vitals) {
+        const vitals = sessionData.vitals as any; // Cast to access metadata
+
+        // Check if vitals were already saved via BLE
+        if (vitals._savedToBackend && vitals._backendVitalId) {
+          console.log('[API] Vitals already saved via BLE, checking for changes...');
+
+          // Check if vitals were modified (compare key fields)
+          // For now, we'll skip vitals submission if already saved via BLE
+          // The backend session system should link to existing vital records
+          vitalsForSession = undefined;
+
+          console.log('[API] Skipping vitals save - already persisted via BLE with ID:', vitals._backendVitalId);
+        } else {
+          console.log('[API] Vitals not saved via BLE, will save with session');
+        }
+      }
+
       // Save session data to backend
       const { session_id } = await this.saveSessionData(patientId, {
-        vitals: sessionData.vitals,
+        vitals: vitalsForSession,
         barthel_index: sessionData.barthelIndex,
         medications: sessionData.medications,
         patient_updates: sessionData.patientUpdates,

@@ -147,7 +147,7 @@ export const VitalDetailedGraph: React.FC<Props> = ({
       <LineChart
         data={chartData}
         width={CHART_WIDTH}
-        height={300}
+        height={150}
         yAxisSuffix=" bpm"
         yAxisInterval={1}
         chartConfig={{

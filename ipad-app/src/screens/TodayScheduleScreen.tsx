@@ -19,7 +19,7 @@ type Props = {
 };
 
 export default function TodayScheduleScreen({ navigation }: Props) {
-  const { language } = useAssessmentStore();
+  const { language, setCurrentPatient } = useAssessmentStore();
   const [scheduleData, setScheduleData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -37,6 +37,55 @@ export default function TodayScheduleScreen({ navigation }: Props) {
       console.error('[TodaySchedule] Failed to load schedule:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleScheduleItemPress = async (item: any) => {
+    console.log('[TodaySchedule] Item pressed:', item.type, item.id, item.patientId);
+
+    // Skip if already completed
+    if (item.completed) {
+      console.log('[TodaySchedule] Item already completed, showing details only');
+      // TODO: Could show a detail modal or confirmation screen
+      return;
+    }
+
+    try {
+      // Fetch patient data
+      const patient = await apiService.getPatient(item.patientId);
+      console.log('[TodaySchedule] Fetched patient:', patient?.family_name, patient?.given_name);
+
+      // Set current patient in store
+      setCurrentPatient(patient);
+
+      // Navigate based on item type
+      switch (item.type) {
+        case 'medication':
+          navigation.navigate('MedicineAdmin' as any);
+          break;
+
+        case 'vitals':
+          navigation.navigate('VitalsCapture' as any);
+          break;
+
+        case 'assessment':
+          // For assessments, go to Patient Info hub where they can select specific assessment
+          navigation.navigate('PatientInfo' as any);
+          break;
+
+        case 'service':
+          // For services, go to Patient Info hub
+          navigation.navigate('PatientInfo' as any);
+          break;
+
+        default:
+          console.warn('[TodaySchedule] Unknown item type:', item.type);
+          // Default to Patient Info hub
+          navigation.navigate('PatientInfo' as any);
+      }
+    } catch (error) {
+      console.error('[TodaySchedule] Failed to navigate:', error);
+      // TODO: Show error toast/alert to user
     }
   };
 
@@ -70,17 +119,42 @@ export default function TodayScheduleScreen({ navigation }: Props) {
     }
   };
 
+  const isItemOverdue = (item: any) => {
+    // If already completed or PRN, not overdue
+    if (item.completed || item.isPRN || item.status === 'prn') {
+      return false;
+    }
+
+    // Check if scheduled time has passed
+    if (item.time) {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      const currentTimeInMinutes = currentHours * 60 + currentMinutes;
+
+      const [hours, minutes] = item.time.split(':').map(Number);
+      const scheduledTimeInMinutes = hours * 60 + minutes;
+
+      // Consider overdue if more than 30 minutes past scheduled time
+      const OVERDUE_THRESHOLD_MINUTES = 30;
+      return currentTimeInMinutes > scheduledTimeInMinutes + OVERDUE_THRESHOLD_MINUTES;
+    }
+
+    return false;
+  };
+
   const renderScheduleItem = (item: any) => {
     const iconColor = getColorForType(item.type);
+    const overdue = isItemOverdue(item);
 
     return (
       <TouchableOpacity
         key={item.id}
-        style={styles.scheduleCard}
-        onPress={() => {
-          // TODO: Navigate to relevant screen based on type
-          console.log('Navigate to:', item.type, item.id);
-        }}
+        style={[
+          styles.scheduleCard,
+          overdue && styles.scheduleCardOverdue
+        ]}
+        onPress={() => handleScheduleItemPress(item)}
       >
         <View style={styles.scheduleCardHeader}>
           <View style={styles.scheduleCardLeft}>
@@ -90,6 +164,14 @@ export default function TodayScheduleScreen({ navigation }: Props) {
                 <Text style={styles.scheduleTime}>{item.time}</Text>
                 {item.room && (
                   <Text style={styles.roomBadge}>{item.room}</Text>
+                )}
+                {overdue && (
+                  <View style={styles.overdueBadge}>
+                    <Ionicons name="alert-circle" size={14} color={COLORS.white} />
+                    <Text style={styles.overdueText}>
+                      {language === 'ja' ? '遅延' : 'LATE'}
+                    </Text>
+                  </View>
                 )}
               </View>
               <Text style={styles.scheduleTitle}>{item.title}</Text>
@@ -103,6 +185,8 @@ export default function TodayScheduleScreen({ navigation }: Props) {
               <Ionicons name="checkmark-circle" size={24} color={COLORS.status.success} />
             ) : item.status === 'prn' ? (
               <Text style={styles.prnBadge}>PRN</Text>
+            ) : overdue ? (
+              <Ionicons name="alert-circle" size={24} color={COLORS.error} />
             ) : (
               <Ionicons name="chevron-forward" size={20} color={COLORS.text.disabled} />
             )}
@@ -420,5 +504,25 @@ const styles = StyleSheet.create({
   column: {
     flex: 1,
     minWidth: 250,
+  },
+  scheduleCardOverdue: {
+    borderColor: COLORS.error,
+    borderWidth: 2,
+    backgroundColor: `${COLORS.error}08`, // Very light red tint
+  },
+  overdueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.error,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
+    gap: 4,
+  },
+  overdueText: {
+    ...TYPOGRAPHY.caption,
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.white,
   },
 });
