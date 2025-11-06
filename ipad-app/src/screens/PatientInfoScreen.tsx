@@ -7,10 +7,12 @@ import { LanguageToggle, BLEIndicator } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
-import { SESSION_CONFIG } from '@constants/config';
+import { SESSION_CONFIG, DEMO_STAFF_ID } from '@constants/config';
 import apiService from '@services/api';
 import bleService from '@services/ble';
 import { BLEConnectionStatus, BPReading } from '@types/ble';
+
+const api = apiService;
 
 type RootStackParamList = {
   Dashboard: undefined;
@@ -112,7 +114,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
   };
 
   // Handle BLE reading - auto-save and show toast
-  const handleBLEReading = (reading: BPReading) => {
+  const handleBLEReading = async (reading: BPReading) => {
     console.log('[PatientInfo] ✅ BLE reading callback triggered!');
     console.log('[PatientInfo] Reading data:', reading);
 
@@ -128,6 +130,26 @@ export default function PatientInfoScreen({ navigation }: Props) {
       console.log('[PatientInfo] Saving vitals to store...');
       setVitals(vitalsData);
       console.log('[PatientInfo] Vitals saved successfully');
+
+      // Persist to backend immediately
+      if (currentPatient) {
+        console.log('[PatientInfo] Persisting vitals to backend...');
+        try {
+          await api.recordVitals({
+            patient_id: currentPatient.patient_id,
+            blood_pressure_systolic: reading.systolic,
+            blood_pressure_diastolic: reading.diastolic,
+            heart_rate: reading.pulse,
+            measured_at: reading.timestamp.toISOString(),
+            input_method: 'iot_sensor',
+            recorded_by: DEMO_STAFF_ID,
+          });
+          console.log('[PatientInfo] ✅ Vitals persisted to backend successfully');
+        } catch (backendError) {
+          console.error('[PatientInfo] ❌ Failed to persist vitals to backend:', backendError);
+          // Don't block UI - vitals are still saved locally
+        }
+      }
 
       // Store reading for toast display
       setBleReading(reading);

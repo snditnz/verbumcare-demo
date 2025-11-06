@@ -24,7 +24,7 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS, SPACING } from '@/constants/theme';
 import { useVitalsHistoryStore } from '@/stores/vitalsHistoryStore';
@@ -64,6 +64,15 @@ export const VitalsGraphScreen: React.FC = () => {
     vitalsHistory.loadHistory(patientId, vitalType);
     vitalsHistory.loadStatistics(patientId, vitalType);
   }, [patientId, vitalType]);
+
+  // Reload data when screen gains focus (e.g., after adding new vitals)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[VitalsGraph] Screen focused, reloading data...');
+      vitalsHistory.loadHistory(patientId, vitalType);
+      vitalsHistory.loadStatistics(patientId, vitalType);
+    }, [patientId, vitalType])
+  );
 
   // Get chart data
   const chartData = vitalsHistory.getChartData();
