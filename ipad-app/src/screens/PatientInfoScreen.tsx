@@ -84,10 +84,12 @@ export default function PatientInfoScreen({ navigation }: Props) {
       await bleService.stopScan();
       await bleService.disconnect();
 
-      // Set callbacks
+      // Set status callback
       bleService.setStatusCallback(setBleStatus);
-      bleService.setReadingCallback(handleBLEReading);
-      console.log('[PatientInfo] BLE callbacks set');
+
+      // Use persistent listener instead of callback
+      const unsubscribe = bleService.onReading(handleBLEReading);
+      console.log('[PatientInfo] BLE persistent listener registered');
 
       const hasPermission = await bleService.requestPermissions();
       console.log('[PatientInfo] BLE permissions:', hasPermission);
@@ -99,9 +101,13 @@ export default function PatientInfoScreen({ navigation }: Props) {
         console.error('[PatientInfo] BLE permissions denied or Bluetooth not available');
         setBleStatus('error');
       }
+
+      // Return cleanup function
+      return unsubscribe;
     } catch (error) {
       console.error('[PatientInfo] BLE initialization error:', error);
       setBleStatus('error');
+      return () => {}; // Return no-op cleanup
     }
   };
 
@@ -158,9 +164,17 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
   // Initialize BLE on mount, cleanup on unmount
   useEffect(() => {
-    initializeBLE();
+    let unsubscribeBLE: (() => void) | undefined;
+
+    initializeBLE().then(unsubscribe => {
+      unsubscribeBLE = unsubscribe;
+    });
 
     return () => {
+      console.log('[PatientInfo] Screen unmounting, cleaning up...');
+      if (unsubscribeBLE) {
+        unsubscribeBLE();
+      }
       bleService.stopScan();
       bleService.disconnect();
     };

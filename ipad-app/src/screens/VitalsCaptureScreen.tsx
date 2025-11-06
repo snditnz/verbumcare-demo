@@ -91,10 +91,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
       }
     }
 
-    initializeBLE();
+    let unsubscribeBLE: (() => void) | undefined;
+
+    initializeBLE().then(unsubscribe => {
+      unsubscribeBLE = unsubscribe;
+    });
 
     return () => {
-      console.log('[VitalsCapture] Screen unmounting, stopping BLE scan...');
+      console.log('[VitalsCapture] Screen unmounting, cleaning up...');
+      if (unsubscribeBLE) {
+        unsubscribeBLE();
+      }
       bleService.stopScan();
       bleService.disconnect();
     };
@@ -119,7 +126,10 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
 
   const initializeBLE = async () => {
     bleService.setStatusCallback(setBleStatus);
-    bleService.setReadingCallback((newReading) => {
+
+    // Use persistent listener instead of callback
+    const unsubscribe = bleService.onReading((newReading) => {
+      console.log('[VitalsCapture] 📥 Received BLE reading:', newReading);
       setReading(newReading);
     });
 
@@ -127,6 +137,9 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     if (hasPermission) {
       await bleService.startScan();
     }
+
+    // Return cleanup function
+    return unsubscribe;
   };
 
   // Create patient demographics for assessment
