@@ -37,7 +37,7 @@ import { APIVitalSigns } from '@/models/api';
 type RootStackParamList = {
   VitalsGraph: {
     patientId: string;
-    vitalType?: 'heart_rate' | 'blood_pressure' | 'temperature' | 'spo2';
+    vitalType?: 'heart_rate' | 'blood_pressure' | 'temperature' | 'spo2' | 'respiratory_rate' | 'blood_glucose' | 'weight' | 'consciousness';
   };
 };
 
@@ -50,8 +50,15 @@ export const VitalsGraphScreen: React.FC = () => {
   const { patientId, vitalType = 'heart_rate' } = route.params;
 
   // Stores
-  const vitalsHistory = useVitalsHistoryStore();
+  const vitalsHistoryStore = useVitalsHistoryStore();
   const { currentPatient } = useAssessmentStore();
+
+  // Subscribe to store state changes
+  const vitalsHistory = useVitalsHistoryStore((state) => state.vitalsHistory);
+  const isLoading = useVitalsHistoryStore((state) => state.isLoading);
+  const error = useVitalsHistoryStore((state) => state.error);
+  const statistics = useVitalsHistoryStore((state) => state.statistics);
+  const currentVitalType = useVitalsHistoryStore((state) => state.currentVitalType);
 
   // Local state
   const [selectedReading, setSelectedReading] = useState<APIVitalSigns | null>(null);
@@ -59,23 +66,17 @@ export const VitalsGraphScreen: React.FC = () => {
   // Patient should match the patientId parameter
   const patient = currentPatient?.patient_id === patientId ? currentPatient : null;
 
-  // Load data on mount and when date range changes
-  useEffect(() => {
-    vitalsHistory.loadHistory(patientId, vitalType);
-    vitalsHistory.loadStatistics(patientId, vitalType);
-  }, [patientId, vitalType]);
-
-  // Reload data when screen gains focus (e.g., after adding new vitals)
+  // Reload data when screen gains focus (includes initial mount)
   useFocusEffect(
     React.useCallback(() => {
       console.log('[VitalsGraph] Screen focused, reloading data...');
-      vitalsHistory.loadHistory(patientId, vitalType);
-      vitalsHistory.loadStatistics(patientId, vitalType);
+      vitalsHistoryStore.loadHistory(patientId, vitalType);
+      vitalsHistoryStore.loadStatistics(patientId, vitalType);
     }, [patientId, vitalType])
   );
 
-  // Get chart data
-  const chartData = vitalsHistory.getChartData();
+  // Get chart data (recomputed when vitalsHistory changes)
+  const chartData = vitalsHistoryStore.getChartData();
 
   // Get vital type display info
   const getVitalInfo = () => {
@@ -88,6 +89,14 @@ export const VitalsGraphScreen: React.FC = () => {
         return { title: 'Temperature', unit: '°C' };
       case 'spo2':
         return { title: 'Oxygen Saturation', unit: '%' };
+      case 'respiratory_rate':
+        return { title: 'Respiratory Rate', unit: '/min' };
+      case 'blood_glucose':
+        return { title: 'Blood Glucose', unit: 'mg/dL' };
+      case 'weight':
+        return { title: 'Weight', unit: 'kg' };
+      case 'consciousness':
+        return { title: 'Consciousness (JCS)', unit: '' };
       default:
         return { title: 'Vital Signs', unit: '' };
     }
@@ -102,7 +111,7 @@ export const VitalsGraphScreen: React.FC = () => {
 
   // Handle date range change
   const handleDateRangeChange = (preset: '7d' | '30d' | '90d' | 'all') => {
-    vitalsHistory.setDateRangePreset(preset);
+    vitalsHistoryStore.setDateRangePreset(preset);
   };
 
   return (
@@ -127,26 +136,26 @@ export const VitalsGraphScreen: React.FC = () => {
       {/* Content */}
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Statistics Card */}
-        {vitalsHistory.statistics && !vitalsHistory.isLoading && (
+        {statistics && !isLoading && (
           <VitalStatsCard
-            min={vitalsHistory.statistics.min}
-            max={vitalsHistory.statistics.max}
-            avg={vitalsHistory.statistics.avg}
-            trend={vitalsHistory.statistics.trend}
+            min={statistics.min}
+            max={statistics.max}
+            avg={statistics.avg}
+            trend={statistics.trend}
             unit={vitalInfo.unit}
-            count={vitalsHistory.statistics.count}
+            count={statistics.count}
             label={`${vitalInfo.title} Statistics`}
           />
         )}
 
         {/* Date Range Selector */}
         <DateRangeSelector
-          selectedPreset={vitalsHistory.selectedPreset}
+          selectedPreset={vitalsHistoryStore.selectedPreset}
           onPresetChange={handleDateRangeChange}
         />
 
         {/* Loading State */}
-        {vitalsHistory.isLoading && (
+        {isLoading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingText}>Loading vitals history...</Text>
@@ -154,15 +163,15 @@ export const VitalsGraphScreen: React.FC = () => {
         )}
 
         {/* Error State */}
-        {vitalsHistory.error && !vitalsHistory.isLoading && (
+        {error && !isLoading && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorText}>{vitalsHistory.error}</Text>
+            <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity
               style={styles.retryButton}
               onPress={() => {
-                vitalsHistory.loadHistory(patientId, vitalType);
-                vitalsHistory.loadStatistics(patientId, vitalType);
+                vitalsHistoryStore.loadHistory(patientId, vitalType);
+                vitalsHistoryStore.loadStatistics(patientId, vitalType);
               }}
               activeOpacity={0.7}
             >
@@ -172,7 +181,7 @@ export const VitalsGraphScreen: React.FC = () => {
         )}
 
         {/* Graph */}
-        {!vitalsHistory.isLoading && !vitalsHistory.error && chartData.length > 0 && (
+        {!isLoading && !error && chartData.length > 0 && (
           <VitalDetailedGraph
             data={chartData}
             vitalType={vitalType}
@@ -184,9 +193,9 @@ export const VitalsGraphScreen: React.FC = () => {
         )}
 
         {/* Data Table */}
-        {!vitalsHistory.isLoading && !vitalsHistory.error && vitalsHistory.vitalsHistory.length > 0 && (
+        {!isLoading && !error && vitalsHistory.length > 0 && (
           <View style={styles.dataTableContainer}>
-            <Text style={styles.dataTableTitle}>Reading Details ({vitalsHistory.vitalsHistory.length} total)</Text>
+            <Text style={styles.dataTableTitle}>Reading Details ({vitalsHistory.length} total)</Text>
 
             {/* Table Header */}
             <View style={styles.tableHeader}>
@@ -197,7 +206,7 @@ export const VitalsGraphScreen: React.FC = () => {
             </View>
 
             {/* Table Rows */}
-            {vitalsHistory.vitalsHistory.map((reading, index) => {
+            {vitalsHistory.map((reading, index) => {
               const value = vitalType === 'heart_rate' ? reading.heart_rate :
                            vitalType === 'blood_pressure' ? `${reading.blood_pressure_systolic}/${reading.blood_pressure_diastolic}` :
                            vitalType === 'temperature' ? reading.temperature_celsius :
@@ -237,7 +246,7 @@ export const VitalsGraphScreen: React.FC = () => {
         )}
 
         {/* Empty State */}
-        {!vitalsHistory.isLoading && !vitalsHistory.error && chartData.length === 0 && (
+        {!isLoading && !error && chartData.length === 0 && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📊</Text>
             <Text style={styles.emptyTitle}>No Data Available</Text>

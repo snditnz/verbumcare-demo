@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, Modal, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -59,6 +59,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
   const [bleReading, setBleReading] = useState<BPReading | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastOpacity] = useState(new Animated.Value(0));
+  const [showVitalsDashboard, setShowVitalsDashboard] = useState(false);
   const t = translations[language];
 
   // Load patient's schedule
@@ -113,10 +114,21 @@ export default function PatientInfoScreen({ navigation }: Props) {
     }
   };
 
+  // Track last saved reading to prevent duplicates
+  const lastSavedTimestamp = useRef<number>(0);
+
   // Handle BLE reading - auto-save and show toast
   const handleBLEReading = async (reading: BPReading) => {
     console.log('[PatientInfo] ✅ BLE reading callback triggered!');
     console.log('[PatientInfo] Reading data:', reading);
+
+    // Deduplicate: Skip if this exact reading was already saved within last 5 seconds
+    const readingTime = reading.timestamp.getTime();
+    if (Math.abs(readingTime - lastSavedTimestamp.current) < 5000) {
+      console.log('[PatientInfo] ⚠️ Duplicate reading detected, skipping save');
+      return;
+    }
+    lastSavedTimestamp.current = readingTime;
 
     try {
       // Auto-save to session vitals
@@ -595,13 +607,10 @@ export default function PatientInfoScreen({ navigation }: Props) {
                       style={styles.viewHistoryButton}
                       onPress={(e) => {
                         e.stopPropagation();
-                        navigation.navigate('VitalsGraph' as any, {
-                          patientId: currentPatient.patient_id,
-                          vitalType: 'heart_rate',
-                        });
+                        setShowVitalsDashboard(true);
                       }}
                     >
-                      <Text style={styles.viewHistoryText}>View History →</Text>
+                      <Text style={styles.viewHistoryText}>View All History →</Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -870,6 +879,176 @@ export default function PatientInfoScreen({ navigation }: Props) {
           </View>
         </Animated.View>
       )}
+
+      {/* Vitals Dashboard Modal */}
+      <Modal
+        visible={showVitalsDashboard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowVitalsDashboard(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowVitalsDashboard(false)}
+        >
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {language === 'ja' ? 'バイタルサイン履歴' : 'Vitals History'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowVitalsDashboard(false)}>
+                <Ionicons name="close" size={ICON_SIZES.lg} color={COLORS.text.primary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.vitalsGrid}>
+                {/* Blood Pressure */}
+                {(sessionVitals?.blood_pressure_systolic || currentPatient.latest_bp_systolic) && (
+                  <TouchableOpacity
+                    style={styles.vitalCard}
+                    onPress={() => {
+                      setShowVitalsDashboard(false);
+                      navigation.navigate('VitalsGraph' as any, {
+                        patientId: currentPatient.patient_id,
+                        vitalType: 'blood_pressure',
+                      });
+                    }}
+                  >
+                    <View style={styles.vitalCardHeader}>
+                      <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
+                      <Text style={styles.vitalCardTitle}>
+                        {language === 'ja' ? '血圧' : 'Blood Pressure'}
+                      </Text>
+                    </View>
+                    <Text style={styles.vitalCardValue}>
+                      {sessionVitals?.blood_pressure_systolic || currentPatient.latest_bp_systolic}/
+                      {sessionVitals?.blood_pressure_diastolic || currentPatient.latest_bp_diastolic}
+                    </Text>
+                    <Text style={styles.vitalCardUnit}>mmHg</Text>
+                    <View style={styles.vitalCardAction}>
+                      <Text style={styles.vitalCardActionText}>View Details →</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Heart Rate */}
+                {(sessionVitals?.heart_rate || currentPatient.latest_heart_rate) && (
+                  <TouchableOpacity
+                    style={styles.vitalCard}
+                    onPress={() => {
+                      setShowVitalsDashboard(false);
+                      navigation.navigate('VitalsGraph' as any, {
+                        patientId: currentPatient.patient_id,
+                        vitalType: 'heart_rate',
+                      });
+                    }}
+                  >
+                    <View style={styles.vitalCardHeader}>
+                      <Ionicons name="pulse" size={ICON_SIZES.md} color={COLORS.primary} />
+                      <Text style={styles.vitalCardTitle}>
+                        {language === 'ja' ? '脈拍' : 'Heart Rate'}
+                      </Text>
+                    </View>
+                    <Text style={styles.vitalCardValue}>
+                      {sessionVitals?.heart_rate || currentPatient.latest_heart_rate}
+                    </Text>
+                    <Text style={styles.vitalCardUnit}>bpm</Text>
+                    <View style={styles.vitalCardAction}>
+                      <Text style={styles.vitalCardActionText}>View Details →</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Temperature */}
+                {(sessionVitals?.temperature_celsius || currentPatient.latest_temperature) && (
+                  <TouchableOpacity
+                    style={styles.vitalCard}
+                    onPress={() => {
+                      setShowVitalsDashboard(false);
+                      navigation.navigate('VitalsGraph' as any, {
+                        patientId: currentPatient.patient_id,
+                        vitalType: 'temperature',
+                      });
+                    }}
+                  >
+                    <View style={styles.vitalCardHeader}>
+                      <Ionicons name="thermometer" size={ICON_SIZES.md} color={COLORS.primary} />
+                      <Text style={styles.vitalCardTitle}>
+                        {language === 'ja' ? '体温' : 'Temperature'}
+                      </Text>
+                    </View>
+                    <Text style={styles.vitalCardValue}>
+                      {sessionVitals?.temperature_celsius || currentPatient.latest_temperature}
+                    </Text>
+                    <Text style={styles.vitalCardUnit}>°C</Text>
+                    <View style={styles.vitalCardAction}>
+                      <Text style={styles.vitalCardActionText}>View Details →</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* SpO2 */}
+                {(sessionVitals?.oxygen_saturation || currentPatient.latest_oxygen_saturation) && (
+                  <TouchableOpacity
+                    style={styles.vitalCard}
+                    onPress={() => {
+                      setShowVitalsDashboard(false);
+                      navigation.navigate('VitalsGraph' as any, {
+                        patientId: currentPatient.patient_id,
+                        vitalType: 'spo2',
+                      });
+                    }}
+                  >
+                    <View style={styles.vitalCardHeader}>
+                      <Ionicons name="water" size={ICON_SIZES.md} color={COLORS.primary} />
+                      <Text style={styles.vitalCardTitle}>
+                        {language === 'ja' ? '酸素飽和度' : 'Oxygen Saturation'}
+                      </Text>
+                    </View>
+                    <Text style={styles.vitalCardValue}>
+                      {sessionVitals?.oxygen_saturation || currentPatient.latest_oxygen_saturation}
+                    </Text>
+                    <Text style={styles.vitalCardUnit}>%</Text>
+                    <View style={styles.vitalCardAction}>
+                      <Text style={styles.vitalCardActionText}>View Details →</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Respiratory Rate */}
+                {(sessionVitals?.respiratory_rate || currentPatient.latest_respiratory_rate) && (
+                  <TouchableOpacity
+                    style={styles.vitalCard}
+                    onPress={() => {
+                      setShowVitalsDashboard(false);
+                      navigation.navigate('VitalsGraph' as any, {
+                        patientId: currentPatient.patient_id,
+                        vitalType: 'respiratory_rate',
+                      });
+                    }}
+                  >
+                    <View style={styles.vitalCardHeader}>
+                      <Ionicons name="fitness" size={ICON_SIZES.md} color={COLORS.primary} />
+                      <Text style={styles.vitalCardTitle}>
+                        {language === 'ja' ? '呼吸数' : 'Respiratory Rate'}
+                      </Text>
+                    </View>
+                    <Text style={styles.vitalCardValue}>
+                      {sessionVitals?.respiratory_rate || currentPatient.latest_respiratory_rate}
+                    </Text>
+                    <Text style={styles.vitalCardUnit}>/min</Text>
+                    <View style={styles.vitalCardAction}>
+                      <Text style={styles.vitalCardActionText}>View Details →</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1383,6 +1562,83 @@ const styles = StyleSheet.create({
   },
   viewHistoryText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    maxWidth: 800,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+  },
+  modalBody: {
+    padding: SPACING.lg,
+  },
+  vitalsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.md,
+  },
+  vitalCard: {
+    width: '48%',
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  vitalCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  vitalCardTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  vitalCardValue: {
+    fontSize: TYPOGRAPHY.fontSize['3xl'],
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+    marginBottom: SPACING.xs,
+  },
+  vitalCardUnit: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+    marginBottom: SPACING.md,
+  },
+  vitalCardAction: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  vitalCardActionText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.primary,
   },

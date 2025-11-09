@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
@@ -24,6 +24,10 @@ import {
 type RootStackParamList = {
   VitalsCapture: undefined;
   ADLVoice: undefined;
+  VitalsGraph: {
+    patientId: string;
+    vitalType: 'heart_rate' | 'blood_pressure' | 'temperature' | 'spo2' | 'respiratory_rate' | 'blood_glucose' | 'weight' | 'consciousness';
+  };
 };
 
 type Props = {
@@ -49,6 +53,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   const [glucoseTestType, setGlucoseTestType] = useState<GlucoseTestType>('random');
   const [weight, setWeight] = useState('');
   const [jcsLevel, setJcsLevel] = useState<JCSLevel | null>(null);
+  const [jcsInfoVisible, setJcsInfoVisible] = useState(false);
 
   const t = translations[language];
 
@@ -352,6 +357,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '血圧' : 'BP'}
               </Text>
+              {currentPatient && (
+                <TouchableOpacity
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'blood_pressure',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
             <View style={styles.bpRow}>
               <TextInput
@@ -382,6 +398,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '脈拍' : 'Pulse'}
               </Text>
+              {currentPatient && (
+                <TouchableOpacity
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'heart_rate',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
             <TextInput
               keyboardType="numeric"
@@ -401,6 +428,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '体温' : 'Temp'}
               </Text>
+              {currentPatient && (
+                <TouchableOpacity
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'temperature',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
             <TextInput
               keyboardType="decimal-pad"
@@ -418,6 +456,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
             <View style={styles.cardHeader}>
               <Ionicons name="water" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.cardLabel}>SpO₂</Text>
+              {currentPatient && (
+                <TouchableOpacity
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'spo2',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
             <TextInput
               keyboardType="numeric"
@@ -437,6 +486,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '呼吸数' : 'RR'}
               </Text>
+              {currentPatient && (
+                <TouchableOpacity
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'respiratory_rate',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
             <TextInput
               keyboardType="numeric"
@@ -459,6 +519,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {t['vitals.bloodGlucose']}
               </Text>
+              {currentPatient && (
+                <TouchableOpacity
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'blood_glucose',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
             <TextInput
               keyboardType="numeric"
@@ -500,6 +571,17 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {t['vitals.weight']}
               </Text>
+              {currentPatient && (
+                <TouchableOpacity
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'weight',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
             </View>
             <TextInput
               keyboardType="numeric"
@@ -533,25 +615,109 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {t['vitals.consciousness']}
               </Text>
-            </View>
-            <View style={styles.jcsButtons}>
-              {[0, 1, 2, 3, 10, 20, 30, 100, 200, 300].map((level) => (
+              <TouchableOpacity
+                style={styles.infoIcon}
+                onPress={() => setJcsInfoVisible(true)}
+              >
+                <Ionicons name="information-circle-outline" size={ICON_SIZES.sm} color={COLORS.text.secondary} />
+              </TouchableOpacity>
+              {currentPatient && (
                 <TouchableOpacity
-                  key={level}
+                  style={styles.historyIcon}
+                  onPress={() => navigation.navigate('VitalsGraph', {
+                    patientId: currentPatient.patient_id,
+                    vitalType: 'consciousness',
+                  })}
+                >
+                  <Ionicons name="stats-chart-outline" size={ICON_SIZES.sm} color={COLORS.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.jcsButtonsContainer}>
+              {/* Row 1: 0 (Alert) */}
+              <View style={styles.jcsRow}>
+                <TouchableOpacity
                   style={[
                     styles.jcsButton,
-                    jcsLevel === level && styles.jcsButtonSelected,
+                    styles.jcsButtonFull,
+                    jcsLevel === 0 && styles.jcsButtonSelected,
                   ]}
-                  onPress={() => setJcsLevel(level as JCSLevel)}
+                  onPress={() => setJcsLevel(0)}
                 >
                   <Text style={[
                     styles.jcsButtonText,
-                    jcsLevel === level && styles.jcsButtonTextSelected,
+                    jcsLevel === 0 && styles.jcsButtonTextSelected,
                   ]}>
-                    {level}
+                    0
                   </Text>
                 </TouchableOpacity>
-              ))}
+              </View>
+
+              {/* Row 2: 1- (Stimulated) */}
+              <View style={styles.jcsRow}>
+                <Text style={styles.jcsCategory}>1-</Text>
+                {[1, 2, 3].map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.jcsButton,
+                      jcsLevel === level && styles.jcsButtonSelected,
+                    ]}
+                    onPress={() => setJcsLevel(level as JCSLevel)}
+                  >
+                    <Text style={[
+                      styles.jcsButtonText,
+                      jcsLevel === level && styles.jcsButtonTextSelected,
+                    ]}>
+                      {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Row 3: 2- (Pain response) */}
+              <View style={styles.jcsRow}>
+                <Text style={styles.jcsCategory}>2-</Text>
+                {[10, 20, 30].map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.jcsButton,
+                      jcsLevel === level && styles.jcsButtonSelected,
+                    ]}
+                    onPress={() => setJcsLevel(level as JCSLevel)}
+                  >
+                    <Text style={[
+                      styles.jcsButtonText,
+                      jcsLevel === level && styles.jcsButtonTextSelected,
+                    ]}>
+                      {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Row 4: 3- (Unresponsive) */}
+              <View style={styles.jcsRow}>
+                <Text style={styles.jcsCategory}>3-</Text>
+                {[100, 200, 300].map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.jcsButton,
+                      jcsLevel === level && styles.jcsButtonSelected,
+                    ]}
+                    onPress={() => setJcsLevel(level as JCSLevel)}
+                  >
+                    <Text style={[
+                      styles.jcsButtonText,
+                      jcsLevel === level && styles.jcsButtonTextSelected,
+                    ]}>
+                      {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
             {consciousnessAssessment && (
               <Text style={styles.jcsLabel}>
@@ -575,6 +741,69 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
           {t['common.next']}
         </Button>
       </View>
+
+      {/* JCS Info Modal */}
+      <Modal
+        visible={jcsInfoVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setJcsInfoVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setJcsInfoVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {language === 'ja' ? 'Japan Coma Scale (JCS)' : 'Japan Coma Scale (JCS)'}
+              </Text>
+              <TouchableOpacity onPress={() => setJcsInfoVisible(false)}>
+                <Ionicons name="close" size={ICON_SIZES.lg} color={COLORS.text.primary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <View style={styles.jcsInfoSection}>
+                <Text style={styles.jcsInfoCategory}>0 - {language === 'ja' ? '覚醒している' : 'Alert'}</Text>
+                <Text style={styles.jcsInfoDescription}>
+                  {language === 'ja' ? '意識清明' : 'Fully conscious, alert, and oriented'}
+                </Text>
+              </View>
+
+              <View style={styles.jcsInfoSection}>
+                <Text style={styles.jcsInfoCategory}>1 (1-3) - {language === 'ja' ? '刺激に応じて覚醒する' : 'Stimulated'}</Text>
+                <Text style={styles.jcsInfoDescription}>
+                  {language === 'ja' ? '刺激しないでも覚醒している状態' : 'Awake without stimulation, but consciousness impaired'}
+                </Text>
+                <Text style={styles.jcsInfoItem}>1: {language === 'ja' ? 'だいたい意識清明だが今ひとつはっきりしない' : 'Almost fully conscious but not quite clear'}</Text>
+                <Text style={styles.jcsInfoItem}>2: {language === 'ja' ? '見当識障害がある' : 'Disoriented'}</Text>
+                <Text style={styles.jcsInfoItem}>3: {language === 'ja' ? '自分の名前、生年月日が言えない' : 'Cannot recall own name or birthdate'}</Text>
+              </View>
+
+              <View style={styles.jcsInfoSection}>
+                <Text style={styles.jcsInfoCategory}>2 (10-30) - {language === 'ja' ? '痛み刺激で覚醒する' : 'Pain Response'}</Text>
+                <Text style={styles.jcsInfoDescription}>
+                  {language === 'ja' ? '刺激すると覚醒する状態' : 'Aroused by stimulation'}
+                </Text>
+                <Text style={styles.jcsInfoItem}>10: {language === 'ja' ? '普通の呼びかけで容易に開眼する' : 'Easily opens eyes to normal voice'}</Text>
+                <Text style={styles.jcsInfoItem}>20: {language === 'ja' ? '大きな声または体を揺さぶることにより開眼する' : 'Opens eyes to loud voice or shaking'}</Text>
+                <Text style={styles.jcsInfoItem}>30: {language === 'ja' ? '痛み刺激を加えつつ呼びかけを繰り返すと辛うじて開眼する' : 'Opens eyes only with repeated painful stimulation'}</Text>
+              </View>
+
+              <View style={styles.jcsInfoSection}>
+                <Text style={styles.jcsInfoCategory}>3 (100-300) - {language === 'ja' ? '痛み刺激にも覚醒しない' : 'Unresponsive'}</Text>
+                <Text style={styles.jcsInfoDescription}>
+                  {language === 'ja' ? '刺激をしても覚醒しない状態' : 'Does not wake up with stimulation'}
+                </Text>
+                <Text style={styles.jcsInfoItem}>100: {language === 'ja' ? '痛みに対し払いのける動作をする' : 'Responds to pain with movement'}</Text>
+                <Text style={styles.jcsInfoItem}>200: {language === 'ja' ? '痛み刺激で少し手足を動かしたり顔をしかめる' : 'Slight movement or grimaces to pain'}</Text>
+                <Text style={styles.jcsInfoItem}>300: {language === 'ja' ? '痛み刺激に全く反応しない' : 'No response to pain'}</Text>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -637,6 +866,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
     marginBottom: SPACING.md,
+    position: 'relative',
+  },
+  historyIcon: {
+    marginLeft: 'auto',
+    padding: SPACING.xs,
   },
   cardLabel: {
     fontSize: TYPOGRAPHY.fontSize.lg,
@@ -725,12 +959,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING.xs,
   },
-  jcsButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  infoIcon: {
+    padding: SPACING.xs,
+  },
+  jcsButtonsContainer: {
     gap: SPACING.xs,
     marginTop: SPACING.sm,
     marginBottom: SPACING.sm,
+  },
+  jcsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  jcsCategory: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.secondary,
+    minWidth: 24,
   },
   jcsButton: {
     paddingHorizontal: SPACING.sm,
@@ -739,7 +985,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     borderWidth: 1,
     borderColor: COLORS.border,
-    minWidth: 40,
+    flex: 1,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  jcsButtonFull: {
+    flex: 1,
   },
   jcsButtonSelected: {
     backgroundColor: COLORS.primary,
@@ -760,5 +1011,56 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     textAlign: 'center',
     marginTop: SPACING.xs,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    maxWidth: 600,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.text.primary,
+  },
+  modalBody: {
+    padding: SPACING.lg,
+    gap: SPACING.lg,
+  },
+  jcsInfoSection: {
+    gap: SPACING.xs,
+  },
+  jcsInfoCategory: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+    marginBottom: SPACING.xs,
+  },
+  jcsInfoDescription: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.text.secondary,
+    marginBottom: SPACING.xs,
+  },
+  jcsInfoItem: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.primary,
+    paddingLeft: SPACING.md,
   },
 });
