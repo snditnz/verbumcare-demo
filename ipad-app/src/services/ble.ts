@@ -136,8 +136,9 @@ class BLEService {
 
       // Expected errors - silently handle
       if (errorMsg.includes('Operation was cancelled') ||
-          errorMsg.includes('Operation timed out')) {
-        console.log('[BLE] Device connection attempt ended (cancelled or timed out)');
+          errorMsg.includes('Operation timed out') ||
+          errorMsg.includes('is not connected')) {
+        console.log('[BLE] Device connection attempt ended (cancelled, timed out, or disconnected)');
       } else {
         // Unexpected errors - log details
         console.error('[BLE] Connection error:', error);

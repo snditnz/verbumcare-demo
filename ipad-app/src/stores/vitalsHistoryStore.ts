@@ -160,6 +160,7 @@ export const useVitalsHistoryStore = create<VitalsHistoryStore>((set, get) => ({
         vitalTypeParam
       );
 
+      console.log(`[VitalsHistoryStore] Loaded ${vitals.length} vitals for patient ${patientId}`);
       set({
         vitalsHistory: vitals,
         isLoading: false,
@@ -279,7 +280,7 @@ export const useVitalsHistoryStore = create<VitalsHistoryStore>((set, get) => ({
     const state = get();
     const { vitalsHistory, currentVitalType } = state;
 
-    return vitalsHistory
+    const chartData = vitalsHistory
       .map((reading) => {
         const value = extractVitalValue(reading, currentVitalType);
         if (value === null) return null;
@@ -292,5 +293,8 @@ export const useVitalsHistoryStore = create<VitalsHistoryStore>((set, get) => ({
       })
       .filter((point): point is VitalChartDataPoint => point !== null)
       .sort((a, b) => a.x.getTime() - b.x.getTime()); // Sort by date ascending
+
+    console.log(`[VitalsHistoryStore] getChartData: ${chartData.length} points from ${vitalsHistory.length} readings`);
+    return chartData;
   },
 }));
