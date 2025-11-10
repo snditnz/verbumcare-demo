@@ -292,6 +292,9 @@ class APIService {
         weight: undefined,
         consciousness: undefined,
       } as any;
+
+      console.log('[API] Original vitals:', JSON.stringify(vitals, null, 2));
+      console.log('[API] Transformed vitals for backend:', JSON.stringify(transformedVitals, null, 2));
     }
 
     const response = await this.client.post<APIResponse<{ session_id: string }>>(
@@ -348,18 +351,37 @@ class APIService {
       if (sessionData.vitals) {
         const vitals = sessionData.vitals as any; // Cast to access metadata
 
-        // Check if vitals were already saved via BLE
+        // Check if BLE vitals (BP/HR) were already saved
         if (vitals._savedToBackend && vitals._backendVitalId) {
-          console.log('[API] Vitals already saved via BLE, checking for changes...');
+          console.log('[API] BLE vitals (BP/HR) already saved via BLE with ID:', vitals._backendVitalId);
+          console.log('[API] Checking for manual vitals (temperature, SpO2, RR, glucose, weight)...');
 
-          // Check if vitals were modified (compare key fields)
-          // For now, we'll skip vitals submission if already saved via BLE
-          // The backend session system should link to existing vital records
-          vitalsForSession = undefined;
+          // Only submit manual vitals that weren't captured by BLE
+          // BLE only captures BP and HR, so we need to save the rest
+          const hasManualVitals =
+            vitals.temperature_celsius !== undefined ||
+            vitals.oxygen_saturation !== undefined ||
+            vitals.respiratory_rate !== undefined ||
+            vitals.blood_glucose !== undefined ||
+            vitals.weight !== undefined;
 
-          console.log('[API] Skipping vitals save - already persisted via BLE with ID:', vitals._backendVitalId);
+          if (hasManualVitals) {
+            console.log('[API] Manual vitals found, will save them separately');
+            // Create a new vitals object with only manual fields
+            vitalsForSession = {
+              temperature_celsius: vitals.temperature_celsius,
+              oxygen_saturation: vitals.oxygen_saturation,
+              respiratory_rate: vitals.respiratory_rate,
+              blood_glucose: vitals.blood_glucose,
+              weight: vitals.weight,
+              measured_at: vitals.measured_at,
+            } as VitalSigns;
+          } else {
+            console.log('[API] No manual vitals found, skipping vitals submission');
+            vitalsForSession = undefined;
+          }
         } else {
-          console.log('[API] Vitals not saved via BLE, will save with session');
+          console.log('[API] Vitals not saved via BLE, will save all vitals with session');
         }
       }
 
