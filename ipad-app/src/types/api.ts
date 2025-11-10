@@ -21,9 +21,13 @@ export interface APIVitalSigns {
   respiratory_rate?: number;
   oxygen_saturation?: number;
   pain_score?: number;
+  blood_glucose_mg_dl?: number;
+  weight_kg?: number;
+  height_cm?: number;
   input_method: 'manual' | 'iot_sensor' | 'voice';
   device_id?: string;
   recorded_by: string;
+  recorded_by_name?: string;
 }
 
 export interface VoiceUploadResponse {

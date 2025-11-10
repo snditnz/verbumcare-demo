@@ -277,12 +277,30 @@ class APIService {
       incidents?: IncidentReport[];
     }
   ): Promise<{ session_id: string }> {
+    // Transform vitals to flatten nested objects for backend compatibility
+    let transformedVitals = sessionData.vitals;
+    if (sessionData.vitals) {
+      const vitals = sessionData.vitals;
+      transformedVitals = {
+        ...vitals,
+        // Flatten blood_glucose object to blood_glucose_mg_dl
+        blood_glucose_mg_dl: vitals.blood_glucose?.value,
+        // Flatten weight object to weight_kg
+        weight_kg: vitals.weight?.weight_kg,
+        // Remove nested objects (backend doesn't expect these)
+        blood_glucose: undefined,
+        weight: undefined,
+        consciousness: undefined,
+      } as any;
+    }
+
     const response = await this.client.post<APIResponse<{ session_id: string }>>(
       `/patients/${patientId}/session`,
       {
         staff_id: DEMO_STAFF_ID,
         session_device_id: 'ipad-demo',
         ...sessionData,
+        vitals: transformedVitals,
       }
     );
     return response.data.data;
