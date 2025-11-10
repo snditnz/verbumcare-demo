@@ -32,6 +32,8 @@ interface VitalReading {
   vital_sign_id: string;
   measured_at: string;
   heart_rate?: number;
+  blood_pressure_systolic?: number;
+  blood_pressure_diastolic?: number;
   patient_id: string;
   recorded_by?: string;
   recorded_by_name?: string;
@@ -96,6 +98,8 @@ export const VitalDetailedGraph: React.FC<Props> = ({
   }
 
   // Prepare data for LineChart
+  const isBP = vitalType === 'blood_pressure';
+
   const chartData = {
     labels: data.map((point, index) => {
       // Show date label for every 2nd point to avoid overcrowding
@@ -105,20 +109,36 @@ export const VitalDetailedGraph: React.FC<Props> = ({
       }
       return '';
     }),
-    datasets: [
+    datasets: isBP ? [
+      {
+        data: data.map(point => point.y), // Systolic
+        color: (opacity = 1) => `rgba(255, 87, 34, ${opacity})`, // Deep Orange for systolic
+        strokeWidth: 2,
+      },
+      {
+        data: data.map(point => point.reading.blood_pressure_diastolic || 0), // Diastolic
+        color: (opacity = 1) => `rgba(33, 150, 243, ${opacity})`, // Blue for diastolic
+        strokeWidth: 2,
+      },
+    ] : [
       {
         data: data.map(point => point.y),
         color: (opacity = 1) => `rgba(255, 87, 34, ${opacity})`, // Deep Orange
         strokeWidth: 2,
       },
     ],
+    legend: isBP ? ['Systolic', 'Diastolic'] : undefined,
   };
 
-  // Get thresholds for heart rate
-  const thresholds = getHeartRateThresholds(patientGender);
+  // Get thresholds based on vital type
+  const thresholds = vitalType === 'blood_pressure'
+    ? { normalMin: 90, normalMax: 140, warningMin: 80, warningMax: 160, criticalMin: 0, criticalMax: 200 }
+    : getHeartRateThresholds(patientGender);
 
   // Calculate Y-axis range with padding
-  const allValues = data.map(point => point.y);
+  const allValues = vitalType === 'blood_pressure'
+    ? data.flatMap(point => [point.y, point.reading.blood_pressure_diastolic || 0])
+    : data.map(point => point.y);
   const minValue = Math.min(...allValues, thresholds.normalMin - 10);
   const maxValue = Math.max(...allValues, thresholds.normalMax + 10);
 
@@ -131,7 +151,9 @@ export const VitalDetailedGraph: React.FC<Props> = ({
       <View style={styles.legendContainer}>
         <View style={styles.legendItem}>
           <View style={[styles.legendColor, { backgroundColor: COLORS.success }]} />
-          <Text style={styles.legendText}>Normal ({thresholds.normalMin}-{thresholds.normalMax} bpm)</Text>
+          <Text style={styles.legendText}>
+            Normal ({thresholds.normalMin}-{thresholds.normalMax} {vitalType === 'blood_pressure' ? 'mmHg' : 'bpm'})
+          </Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendColor, { backgroundColor: COLORS.warning }]} />
@@ -148,7 +170,7 @@ export const VitalDetailedGraph: React.FC<Props> = ({
         data={chartData}
         width={CHART_WIDTH}
         height={150}
-        yAxisSuffix=" bpm"
+        yAxisSuffix={vitalType === 'blood_pressure' ? '' : ' bpm'}
         yAxisInterval={1}
         chartConfig={{
           backgroundColor: COLORS.surface,

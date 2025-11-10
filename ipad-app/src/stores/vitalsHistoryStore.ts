@@ -101,6 +101,9 @@ const extractVitalValue = (reading: APIVitalSigns, vitalType: string): number | 
     case 'hr':
     case 'heart_rate':
       return reading.heart_rate || null;
+    case 'blood_pressure':
+      // For BP graph, use systolic as the primary value
+      return reading.blood_pressure_systolic || null;
     case 'bp_systolic':
       return reading.blood_pressure_systolic || null;
     case 'bp_diastolic':
@@ -151,13 +154,32 @@ export const useVitalsHistoryStore = create<VitalsHistoryStore>((set, get) => ({
       const { start, end } = state.dateRange;
 
       // Map vital type to API parameter
-      const vitalTypeParam = type === 'hr' || type === 'heart_rate' ? 'hr' : type;
+      let vitalTypeParam = type;
+      if (type === 'hr' || type === 'heart_rate') {
+        vitalTypeParam = 'hr';
+      } else if (type === 'blood_pressure') {
+        // For BP history, we don't pass a specific vital_types filter
+        // This will return all vitals, and we'll filter them client-side
+        vitalTypeParam = '';
+      } else if (type === 'temperature') {
+        vitalTypeParam = 'temp';
+      } else if (type === 'spo2') {
+        vitalTypeParam = 'spo2';
+      } else if (type === 'respiratory_rate') {
+        vitalTypeParam = 'rr';
+      } else if (type === 'blood_glucose') {
+        vitalTypeParam = 'glucose';
+      } else if (type === 'weight') {
+        vitalTypeParam = 'weight';
+      } else if (type === 'consciousness') {
+        vitalTypeParam = 'consciousness';
+      }
 
       const vitals = await apiService.getVitalsHistory(
         patientId,
         start.toISOString(),
         end.toISOString(),
-        vitalTypeParam
+        vitalTypeParam || undefined
       );
 
       console.log(`[VitalsHistoryStore] Loaded ${vitals.length} vitals for patient ${patientId}`);
@@ -185,7 +207,25 @@ export const useVitalsHistoryStore = create<VitalsHistoryStore>((set, get) => ({
       const { start, end } = state.dateRange;
 
       // Map vital type to API parameter
-      const vitalTypeParam = type === 'hr' || type === 'heart_rate' ? 'hr' : type;
+      let vitalTypeParam = type;
+      if (type === 'hr' || type === 'heart_rate') {
+        vitalTypeParam = 'hr';
+      } else if (type === 'blood_pressure') {
+        // For BP, use bp_systolic for statistics
+        vitalTypeParam = 'bp_systolic';
+      } else if (type === 'temperature') {
+        vitalTypeParam = 'temp';
+      } else if (type === 'spo2') {
+        vitalTypeParam = 'spo2';
+      } else if (type === 'respiratory_rate') {
+        vitalTypeParam = 'rr';
+      } else if (type === 'blood_glucose') {
+        vitalTypeParam = 'glucose';
+      } else if (type === 'weight') {
+        vitalTypeParam = 'weight';
+      } else if (type === 'consciousness') {
+        vitalTypeParam = 'consciousness';
+      }
 
       const stats = await apiService.getVitalsStatistics(
         patientId,
@@ -285,11 +325,14 @@ export const useVitalsHistoryStore = create<VitalsHistoryStore>((set, get) => ({
         const value = extractVitalValue(reading, currentVitalType);
         if (value === null) return null;
 
-        return {
+        // For blood pressure, also include diastolic value
+        const dataPoint: VitalChartDataPoint = {
           x: new Date(reading.measured_at),
           y: value,
           reading,
         };
+
+        return dataPoint;
       })
       .filter((point): point is VitalChartDataPoint => point !== null)
       .sort((a, b) => a.x.getTime() - b.x.getTime()); // Sort by date ascending

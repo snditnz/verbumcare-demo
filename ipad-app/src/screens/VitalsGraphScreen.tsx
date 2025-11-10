@@ -33,6 +33,7 @@ import { VitalDetailedGraph } from '@/components/vitals/VitalDetailedGraph';
 import { VitalStatsCard } from '@/components/vitals/VitalStatsCard';
 import { DateRangeSelector } from '@/components/vitals/DateRangeSelector';
 import { APIVitalSigns } from '@/models/api';
+import apiService from '@/services/api';
 
 type RootStackParamList = {
   VitalsGraph: {
@@ -62,6 +63,7 @@ export const VitalsGraphScreen: React.FC = () => {
 
   // Local state
   const [selectedReading, setSelectedReading] = useState<APIVitalSigns | null>(null);
+  const [diastolicStats, setDiastolicStats] = useState<any>(null);
 
   // Patient should match the patientId parameter
   const patient = currentPatient?.patient_id === patientId ? currentPatient : null;
@@ -72,6 +74,24 @@ export const VitalsGraphScreen: React.FC = () => {
       console.log('[VitalsGraph] Screen focused, reloading data...');
       vitalsHistoryStore.loadHistory(patientId, vitalType);
       vitalsHistoryStore.loadStatistics(patientId, vitalType);
+
+      // For BP, also load diastolic statistics
+      if (vitalType === 'blood_pressure') {
+        const loadDiastolicStats = async () => {
+          try {
+            const stats = await apiService.getVitalsStatistics(
+              patientId,
+              vitalsHistoryStore.dateRange.start.toISOString(),
+              vitalsHistoryStore.dateRange.end.toISOString(),
+              'bp_diastolic'
+            );
+            setDiastolicStats(stats);
+          } catch (error) {
+            console.error('Failed to load diastolic statistics:', error);
+          }
+        };
+        loadDiastolicStats();
+      }
     }, [patientId, vitalType])
   );
 
@@ -135,8 +155,57 @@ export const VitalsGraphScreen: React.FC = () => {
 
       {/* Content */}
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Statistics Card */}
-        {statistics && !isLoading && (
+        {/* Statistics Card(s) */}
+        {vitalType === 'blood_pressure' && statistics && diastolicStats && !isLoading ? (
+          <View style={styles.bpStatsContainer}>
+            <Text style={styles.bpStatsHeader}>Blood Pressure Statistics</Text>
+            <View style={styles.bpStatsRow}>
+              {/* Systolic */}
+              <View style={styles.bpStatsSection}>
+                <Text style={styles.bpStatsLabel}>Systolic</Text>
+                <View style={styles.bpStatsValues}>
+                  <View style={styles.bpStatItem}>
+                    <Text style={styles.bpStatLabel}>Min</Text>
+                    <Text style={styles.bpStatValue}>{statistics.min}</Text>
+                  </View>
+                  <View style={styles.bpStatItem}>
+                    <Text style={styles.bpStatLabel}>Avg</Text>
+                    <Text style={[styles.bpStatValue, styles.bpStatValueLarge]}>{statistics.avg.toFixed(1)}</Text>
+                  </View>
+                  <View style={styles.bpStatItem}>
+                    <Text style={styles.bpStatLabel}>Max</Text>
+                    <Text style={styles.bpStatValue}>{statistics.max}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Divider */}
+              <View style={styles.bpStatsDivider} />
+
+              {/* Diastolic */}
+              <View style={styles.bpStatsSection}>
+                <Text style={styles.bpStatsLabel}>Diastolic</Text>
+                <View style={styles.bpStatsValues}>
+                  <View style={styles.bpStatItem}>
+                    <Text style={styles.bpStatLabel}>Min</Text>
+                    <Text style={styles.bpStatValue}>{diastolicStats.min}</Text>
+                  </View>
+                  <View style={styles.bpStatItem}>
+                    <Text style={styles.bpStatLabel}>Avg</Text>
+                    <Text style={[styles.bpStatValue, styles.bpStatValueLarge]}>{diastolicStats.avg.toFixed(1)}</Text>
+                  </View>
+                  <View style={styles.bpStatItem}>
+                    <Text style={styles.bpStatLabel}>Max</Text>
+                    <Text style={styles.bpStatValue}>{diastolicStats.max}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.bpStatsFooter}>
+              Based on {statistics.count} reading{statistics.count !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        ) : statistics && !isLoading ? (
           <VitalStatsCard
             min={statistics.min}
             max={statistics.max}
@@ -146,7 +215,7 @@ export const VitalsGraphScreen: React.FC = () => {
             count={statistics.count}
             label={`${vitalInfo.title} Statistics`}
           />
-        )}
+        ) : null}
 
         {/* Date Range Selector */}
         <DateRangeSelector
@@ -535,6 +604,73 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // BP Stats Styles
+  bpStatsContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: SPACING.md,
+    marginHorizontal: SPACING.lg,
+    marginVertical: SPACING.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  bpStatsHeader: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  bpStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  bpStatsSection: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  bpStatsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  bpStatsValues: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  bpStatItem: {
+    alignItems: 'center',
+  },
+  bpStatLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginBottom: 2,
+  },
+  bpStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  bpStatValueLarge: {
+    fontSize: 24,
+    color: COLORS.primary,
+  },
+  bpStatsDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+    marginHorizontal: SPACING.md,
+  },
+  bpStatsFooter: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+    fontStyle: 'italic',
   },
   // Data Table Styles
   dataTableContainer: {
