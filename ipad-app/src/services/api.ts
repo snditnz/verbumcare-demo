@@ -351,37 +351,13 @@ class APIService {
       if (sessionData.vitals) {
         const vitals = sessionData.vitals as any; // Cast to access metadata
 
-        // Check if BLE vitals (BP/HR) were already saved
+        // Check if vitals were already saved to backend (either BLE or manual)
         if (vitals._savedToBackend && vitals._backendVitalId) {
-          console.log('[API] BLE vitals (BP/HR) already saved via BLE with ID:', vitals._backendVitalId);
-          console.log('[API] Checking for manual vitals (temperature, SpO2, RR, glucose, weight)...');
-
-          // Only submit manual vitals that weren't captured by BLE
-          // BLE only captures BP and HR, so we need to save the rest
-          const hasManualVitals =
-            vitals.temperature_celsius !== undefined ||
-            vitals.oxygen_saturation !== undefined ||
-            vitals.respiratory_rate !== undefined ||
-            vitals.blood_glucose !== undefined ||
-            vitals.weight !== undefined;
-
-          if (hasManualVitals) {
-            console.log('[API] Manual vitals found, will save them separately');
-            // Create a new vitals object with only manual fields
-            vitalsForSession = {
-              temperature_celsius: vitals.temperature_celsius,
-              oxygen_saturation: vitals.oxygen_saturation,
-              respiratory_rate: vitals.respiratory_rate,
-              blood_glucose: vitals.blood_glucose,
-              weight: vitals.weight,
-              measured_at: vitals.measured_at,
-            } as VitalSigns;
-          } else {
-            console.log('[API] No manual vitals found, skipping vitals submission');
-            vitalsForSession = undefined;
-          }
+          console.log('[API] Vitals already saved to backend with ID:', vitals._backendVitalId);
+          console.log('[API] Skipping vitals submission to prevent duplicate');
+          vitalsForSession = undefined;
         } else {
-          console.log('[API] Vitals not saved via BLE, will save all vitals with session');
+          console.log('[API] Vitals not yet saved, will save all vitals with session');
         }
       }
 

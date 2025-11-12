@@ -24,6 +24,7 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS, SPACING } from '@/constants/theme';
@@ -34,6 +35,8 @@ import { VitalStatsCard } from '@/components/vitals/VitalStatsCard';
 import { DateRangeSelector } from '@/components/vitals/DateRangeSelector';
 import { APIVitalSigns } from '@/models/api';
 import apiService from '@/services/api';
+import { translations } from '@/constants/translations';
+import { LanguageToggle } from '@/components';
 
 type RootStackParamList = {
   VitalsGraph: {
@@ -52,7 +55,8 @@ export const VitalsGraphScreen: React.FC = () => {
 
   // Stores
   const vitalsHistoryStore = useVitalsHistoryStore();
-  const { currentPatient } = useAssessmentStore();
+  const { currentPatient, language } = useAssessmentStore();
+  const t = translations[language];
 
   // Subscribe to store state changes
   const vitalsHistory = useVitalsHistoryStore((state) => state.vitalsHistory);
@@ -102,21 +106,21 @@ export const VitalsGraphScreen: React.FC = () => {
   const getVitalInfo = () => {
     switch (vitalType) {
       case 'heart_rate':
-        return { title: 'Heart Rate', unit: 'bpm' };
+        return { title: t['vitals.heartRate'], unit: 'bpm' };
       case 'blood_pressure':
-        return { title: 'Blood Pressure', unit: 'mmHg' };
+        return { title: t['vitals.bloodPressure'], unit: 'mmHg' };
       case 'temperature':
-        return { title: 'Temperature', unit: '°C' };
+        return { title: t['vitals.temperature'], unit: '°C' };
       case 'spo2':
-        return { title: 'Oxygen Saturation', unit: '%' };
+        return { title: t['vitals.oxygenSaturation'], unit: '%' };
       case 'respiratory_rate':
-        return { title: 'Respiratory Rate', unit: '/min' };
+        return { title: t['vitals.respiratoryRate'], unit: '/min' };
       case 'blood_glucose':
-        return { title: 'Blood Glucose', unit: 'mg/dL' };
+        return { title: t['vitals.bloodGlucose'], unit: 'mg/dL' };
       case 'weight':
-        return { title: 'Weight', unit: 'kg' };
+        return { title: t['vitals.weight'], unit: 'kg' };
       case 'consciousness':
-        return { title: 'Consciousness (JCS)', unit: '' };
+        return { title: t['vitals.consciousness'], unit: '' };
       default:
         return { title: 'Vital Signs', unit: '' };
     }
@@ -143,14 +147,16 @@ export const VitalsGraphScreen: React.FC = () => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+          <Text style={styles.backText}>{t['common.back']}</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{vitalInfo.title} History</Text>
+          <Text style={styles.headerTitle}>{vitalInfo.title} {t['vitals.history']}</Text>
           <Text style={styles.headerSubtitle}>
             {patient?.family_name} {patient?.given_name}
           </Text>
         </View>
+        <LanguageToggle />
       </View>
 
       {/* Content */}
@@ -158,22 +164,22 @@ export const VitalsGraphScreen: React.FC = () => {
         {/* Statistics Card(s) */}
         {vitalType === 'blood_pressure' && statistics && diastolicStats && !isLoading ? (
           <View style={styles.bpStatsContainer}>
-            <Text style={styles.bpStatsHeader}>Blood Pressure Statistics</Text>
+            <Text style={styles.bpStatsHeader}>{t['vitals.bloodPressure']} {t['vitals.statistics']}</Text>
             <View style={styles.bpStatsRow}>
               {/* Systolic */}
               <View style={styles.bpStatsSection}>
-                <Text style={styles.bpStatsLabel}>Systolic</Text>
+                <Text style={styles.bpStatsLabel}>{t['vitals.systolic']}</Text>
                 <View style={styles.bpStatsValues}>
                   <View style={styles.bpStatItem}>
-                    <Text style={styles.bpStatLabel}>Min</Text>
+                    <Text style={styles.bpStatLabel}>{t['vitals.min']}</Text>
                     <Text style={styles.bpStatValue}>{statistics.min}</Text>
                   </View>
                   <View style={styles.bpStatItem}>
-                    <Text style={styles.bpStatLabel}>Avg</Text>
+                    <Text style={styles.bpStatLabel}>{t['vitals.avg']}</Text>
                     <Text style={[styles.bpStatValue, styles.bpStatValueLarge]}>{statistics.avg.toFixed(1)}</Text>
                   </View>
                   <View style={styles.bpStatItem}>
-                    <Text style={styles.bpStatLabel}>Max</Text>
+                    <Text style={styles.bpStatLabel}>{t['vitals.max']}</Text>
                     <Text style={styles.bpStatValue}>{statistics.max}</Text>
                   </View>
                 </View>
@@ -184,25 +190,25 @@ export const VitalsGraphScreen: React.FC = () => {
 
               {/* Diastolic */}
               <View style={styles.bpStatsSection}>
-                <Text style={styles.bpStatsLabel}>Diastolic</Text>
+                <Text style={styles.bpStatsLabel}>{t['vitals.diastolic']}</Text>
                 <View style={styles.bpStatsValues}>
                   <View style={styles.bpStatItem}>
-                    <Text style={styles.bpStatLabel}>Min</Text>
+                    <Text style={styles.bpStatLabel}>{t['vitals.min']}</Text>
                     <Text style={styles.bpStatValue}>{diastolicStats.min}</Text>
                   </View>
                   <View style={styles.bpStatItem}>
-                    <Text style={styles.bpStatLabel}>Avg</Text>
+                    <Text style={styles.bpStatLabel}>{t['vitals.avg']}</Text>
                     <Text style={[styles.bpStatValue, styles.bpStatValueLarge]}>{diastolicStats.avg.toFixed(1)}</Text>
                   </View>
                   <View style={styles.bpStatItem}>
-                    <Text style={styles.bpStatLabel}>Max</Text>
+                    <Text style={styles.bpStatLabel}>{t['vitals.max']}</Text>
                     <Text style={styles.bpStatValue}>{diastolicStats.max}</Text>
                   </View>
                 </View>
               </View>
             </View>
             <Text style={styles.bpStatsFooter}>
-              Based on {statistics.count} reading{statistics.count !== 1 ? 's' : ''}
+              {(t['vitals.basedOnReadings'] || '').replace('{count}', statistics.count.toString())}
             </Text>
           </View>
         ) : statistics && !isLoading ? (
@@ -227,7 +233,7 @@ export const VitalsGraphScreen: React.FC = () => {
         {isLoading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.loadingText}>Loading vitals history...</Text>
+            <Text style={styles.loadingText}>{t['vitals.loading']}</Text>
           </View>
         )}
 
@@ -244,7 +250,7 @@ export const VitalsGraphScreen: React.FC = () => {
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryButtonText}>{t['vitals.retry']}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -257,31 +263,44 @@ export const VitalsGraphScreen: React.FC = () => {
             patientAge={patient?.age}
             patientGender={patient?.gender}
             onDataPointPress={handleDataPointPress}
-            title={`${vitalInfo.title} Trend`}
+            title={`${vitalInfo.title} ${t['vitals.trend']}`}
+            t={t}
+            dateRangePreset={vitalsHistoryStore.selectedPreset}
           />
         )}
 
         {/* Data Table */}
-        {!isLoading && !error && vitalsHistory.length > 0 && (
+        {!isLoading && !error && vitalsHistory && vitalsHistory.length > 0 && (
           <View style={styles.dataTableContainer}>
-            <Text style={styles.dataTableTitle}>Reading Details ({vitalsHistory.length} total)</Text>
+            <Text style={styles.dataTableTitle}>{t['vitals.readingDetails']} ({(t['vitals.totalReadings'] || '').replace('{count}', vitalsHistory.length.toString())})</Text>
 
             {/* Table Header */}
             <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, styles.colDateTime]}>Date & Time</Text>
-              <Text style={[styles.tableHeaderText, styles.colValue]}>Value</Text>
-              <Text style={[styles.tableHeaderText, styles.colMethod]}>Method</Text>
-              <Text style={[styles.tableHeaderText, styles.colRecordedBy]}>Recorded By</Text>
+              <Text style={[styles.tableHeaderText, styles.colDateTime]}>{t['vitals.dateTime']}</Text>
+              <Text style={[styles.tableHeaderText, styles.colValue]}>{t['vitals.value']}</Text>
+              <Text style={[styles.tableHeaderText, styles.colMethod]}>{t['vitals.method']}</Text>
+              <Text style={[styles.tableHeaderText, styles.colRecordedBy]}>{t['vitals.recordedBy']}</Text>
             </View>
 
             {/* Table Rows */}
             {vitalsHistory.map((reading, index) => {
-              const value = vitalType === 'heart_rate' ? reading.heart_rate :
-                           vitalType === 'blood_pressure' ? `${reading.blood_pressure_systolic}/${reading.blood_pressure_diastolic}` :
-                           vitalType === 'temperature' ? reading.temperature_celsius :
-                           vitalType === 'spo2' ? reading.oxygen_saturation : null;
+              // Check if the specific vital type has a value
+              let value: string | number | null = null;
 
-              if (!value) return null;
+              if (vitalType === 'heart_rate') {
+                value = reading.heart_rate;
+              } else if (vitalType === 'blood_pressure') {
+                // Only show BP if both systolic and diastolic are present
+                if (reading.blood_pressure_systolic != null && reading.blood_pressure_diastolic != null) {
+                  value = `${reading.blood_pressure_systolic}/${reading.blood_pressure_diastolic}`;
+                }
+              } else if (vitalType === 'temperature') {
+                value = reading.temperature_celsius;
+              } else if (vitalType === 'spo2') {
+                value = reading.oxygen_saturation;
+              }
+
+              if (value == null) return null;
 
               return (
                 <TouchableOpacity
@@ -302,8 +321,8 @@ export const VitalsGraphScreen: React.FC = () => {
                     {value} {vitalInfo.unit}
                   </Text>
                   <Text style={[styles.tableCell, styles.colMethod]}>
-                    {reading.input_method === 'iot_sensor' ? 'BLE' :
-                     reading.input_method === 'voice' ? 'Voice' : 'Manual'}
+                    {reading.input_method === 'iot_sensor' ? t['vitals.ble'] :
+                     reading.input_method === 'voice' ? t['vitals.voice'] : t['vitals.manual']}
                   </Text>
                   <Text style={[styles.tableCell, styles.colRecordedBy]} numberOfLines={1}>
                     {reading.recorded_by_name || 'N/A'}
@@ -318,12 +337,12 @@ export const VitalsGraphScreen: React.FC = () => {
         {!isLoading && !error && chartData.length === 0 && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📊</Text>
-            <Text style={styles.emptyTitle}>No Data Available</Text>
+            <Text style={styles.emptyTitle}>{t['vitals.noData']}</Text>
             <Text style={styles.emptyText}>
-              No {vitalInfo.title.toLowerCase()} readings found for this time period.
+              {(t['vitals.noDataDescription'] || '').replace('{vital}', vitalInfo.title.toLowerCase())}
             </Text>
             <Text style={styles.emptyHint}>
-              Try selecting a different date range or capture new vitals.
+              {t['vitals.noDataHint']}
             </Text>
           </View>
         )}
@@ -343,23 +362,46 @@ export const VitalsGraphScreen: React.FC = () => {
             onPress={() => setSelectedReading(null)}
           >
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{vitalInfo.title} Reading</Text>
+              <Text style={styles.modalTitle}>{vitalInfo.title} {t['vitals.reading']}</Text>
 
               <View style={styles.modalBody}>
-                {/* Heart Rate Value */}
-                {selectedReading.heart_rate && (
-                  <View style={styles.modalValueContainer}>
-                    <Text style={styles.modalValue}>
-                      {selectedReading.heart_rate}{' '}
-                      <Text style={styles.modalUnit}>bpm</Text>
-                    </Text>
-                  </View>
-                )}
+                {/* Vital Value Display */}
+                {(() => {
+                  let value, unit;
+                  if (vitalType === 'heart_rate' && selectedReading.heart_rate) {
+                    value = selectedReading.heart_rate;
+                    unit = 'bpm';
+                  } else if (vitalType === 'blood_pressure' && selectedReading.blood_pressure_systolic) {
+                    value = `${selectedReading.blood_pressure_systolic}/${selectedReading.blood_pressure_diastolic}`;
+                    unit = 'mmHg';
+                  } else if (vitalType === 'temperature' && selectedReading.temperature_celsius) {
+                    value = selectedReading.temperature_celsius;
+                    unit = '°C';
+                  } else if (vitalType === 'spo2' && selectedReading.oxygen_saturation) {
+                    value = selectedReading.oxygen_saturation;
+                    unit = '%';
+                  } else if (vitalType === 'respiratory_rate' && selectedReading.respiratory_rate) {
+                    value = selectedReading.respiratory_rate;
+                    unit = '/min';
+                  }
+
+                  if (value != null) {
+                    return (
+                      <View style={styles.modalValueContainer}>
+                        <Text style={styles.modalValue}>
+                          {value}{' '}
+                          <Text style={styles.modalUnit}>{unit}</Text>
+                        </Text>
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Details */}
                 <View style={styles.modalDetails}>
                   <View style={styles.modalDetailRow}>
-                    <Text style={styles.modalDetailLabel}>Date & Time:</Text>
+                    <Text style={styles.modalDetailLabel}>{t['vitals.dateTime']}:</Text>
                     <Text style={styles.modalDetailValue}>
                       {new Date(selectedReading.measured_at).toLocaleString()}
                     </Text>
@@ -367,7 +409,7 @@ export const VitalsGraphScreen: React.FC = () => {
 
                   {selectedReading.recorded_by_name && (
                     <View style={styles.modalDetailRow}>
-                      <Text style={styles.modalDetailLabel}>Recorded by:</Text>
+                      <Text style={styles.modalDetailLabel}>{t['vitals.recordedBy']}:</Text>
                       <Text style={styles.modalDetailValue}>
                         {selectedReading.recorded_by_name}
                       </Text>
@@ -375,19 +417,19 @@ export const VitalsGraphScreen: React.FC = () => {
                   )}
 
                   <View style={styles.modalDetailRow}>
-                    <Text style={styles.modalDetailLabel}>Method:</Text>
+                    <Text style={styles.modalDetailLabel}>{t['vitals.method']}:</Text>
                     <Text style={styles.modalDetailValue}>
                       {selectedReading.input_method === 'iot_sensor'
-                        ? 'BLE Device'
+                        ? t['vitals.bleDevice']
                         : selectedReading.input_method === 'voice'
-                        ? 'Voice'
-                        : 'Manual'}
+                        ? t['vitals.voice']
+                        : t['vitals.manual']}
                     </Text>
                   </View>
 
                   {selectedReading.device_id && (
                     <View style={styles.modalDetailRow}>
-                      <Text style={styles.modalDetailLabel}>Device:</Text>
+                      <Text style={styles.modalDetailLabel}>{t['vitals.device']}:</Text>
                       <Text style={styles.modalDetailValue}>
                         {selectedReading.device_id}
                       </Text>
@@ -397,7 +439,7 @@ export const VitalsGraphScreen: React.FC = () => {
                   {/* Show BP if available */}
                   {selectedReading.blood_pressure_systolic && (
                     <View style={styles.modalDetailRow}>
-                      <Text style={styles.modalDetailLabel}>Blood Pressure:</Text>
+                      <Text style={styles.modalDetailLabel}>{t['vitals.bloodPressure']}:</Text>
                       <Text style={styles.modalDetailValue}>
                         {selectedReading.blood_pressure_systolic}/
                         {selectedReading.blood_pressure_diastolic} mmHg
@@ -412,7 +454,7 @@ export const VitalsGraphScreen: React.FC = () => {
                 onPress={() => setSelectedReading(null)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.modalCloseButtonText}>Close</Text>
+                <Text style={styles.modalCloseButtonText}>{t['vitals.close']}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -438,9 +480,12 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
     padding: SPACING.sm,
   },
-  backButtonText: {
+  backText: {
     fontSize: 16,
     color: COLORS.primary,
     fontWeight: '600',

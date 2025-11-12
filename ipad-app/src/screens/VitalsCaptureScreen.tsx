@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -6,9 +6,11 @@ import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle, BLEIndicator } from '@components';
 import { Button, Card, Input, StatusIndicator } from '@components/ui';
 import { bleService } from '@services';
+import apiService from '@services/api';
 import { BLEConnectionStatus, BPReading } from '@models/ble';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { DEMO_STAFF_ID } from '@constants/config';
 import {
   assessVitalSigns,
   PatientDemographics,
@@ -55,46 +57,138 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   const [jcsLevel, setJcsLevel] = useState<JCSLevel | null>(null);
   const [jcsInfoVisible, setJcsInfoVisible] = useState(false);
 
+  // Manual entry flags for duplicate detection control (per vital type)
+  const [isManualBP, setIsManualBP] = useState(false);
+  const [isManualPulse, setIsManualPulse] = useState(false);
+  const [isManualTemp, setIsManualTemp] = useState(false);
+  const [isManualSpO2, setIsManualSpO2] = useState(false);
+  const [isManualRR, setIsManualRR] = useState(false);
+  const [isManualGlucose, setIsManualGlucose] = useState(false);
+  const [isManualWeight, setIsManualWeight] = useState(false);
+
+  // Track original values loaded from session to detect changes
+  const [originalValues, setOriginalValues] = useState<{
+    systolic?: number;
+    diastolic?: number;
+    pulse?: number;
+    temperature?: number;
+    spo2?: number;
+    respiratoryRate?: number;
+    bloodGlucose?: number;
+    weight?: number;
+    jcsLevel?: number;
+  }>({});
+
   const t = translations[language];
+
+  // Wrapper functions to auto-check Manual checkbox when user types
+  const handleSystolicChange = (value: string) => {
+    setSystolic(value);
+    setIsManualBP(true);
+  };
+
+  const handleDiastolicChange = (value: string) => {
+    setDiastolic(value);
+    setIsManualBP(true);
+  };
+
+  const handlePulseChange = (value: string) => {
+    setPulse(value);
+    setIsManualPulse(true);
+  };
+
+  const handleTemperatureChange = (value: string) => {
+    setTemperature(value);
+    setIsManualTemp(true);
+  };
+
+  const handleSpo2Change = (value: string) => {
+    setSpo2(value);
+    setIsManualSpO2(true);
+  };
+
+  const handleRespiratoryRateChange = (value: string) => {
+    setRespiratoryRate(value);
+    setIsManualRR(true);
+  };
+
+  const handleBloodGlucoseChange = (value: string) => {
+    setBloodGlucose(value);
+    setIsManualGlucose(true);
+  };
+
+  const handleWeightChange = (value: string) => {
+    setWeight(value);
+    setIsManualWeight(true);
+  };
 
   // Get latest height (from patient updates if available, otherwise from patient record)
   const latestHeight = sessionPatientUpdates?.height ?? currentPatient?.height;
 
+  // Use ref to track if we've loaded initial vitals (persists across re-renders)
+  const hasLoadedRef = useRef(false);
+
   useEffect(() => {
-    console.log('[VitalsCapture] Screen mounted');
+    console.log('[VitalsCapture] Screen mounted, hasLoadedRef:', hasLoadedRef.current);
     console.log('[VitalsCapture] currentPatient:', currentPatient?.patient_id);
-    console.log('[VitalsCapture] sessionVitals:', sessionVitals);
 
     setCurrentStep('vitals-capture');
 
-    // Load existing vitals if they exist
-    if (sessionVitals) {
-      console.log('[VitalsCapture] Loading existing vitals into form');
-      if (sessionVitals.blood_pressure_systolic) setSystolic(sessionVitals.blood_pressure_systolic.toString());
-      if (sessionVitals.blood_pressure_diastolic) setDiastolic(sessionVitals.blood_pressure_diastolic.toString());
-      if (sessionVitals.heart_rate) setPulse(sessionVitals.heart_rate.toString());
-      if (sessionVitals.temperature_celsius) setTemperature(sessionVitals.temperature_celsius.toString());
-      if (sessionVitals.oxygen_saturation) setSpo2(sessionVitals.oxygen_saturation.toString());
-      if (sessionVitals.respiratory_rate) setRespiratoryRate(sessionVitals.respiratory_rate.toString());
-
-      // Load extended vitals
-      if (sessionVitals.blood_glucose) {
-        setBloodGlucose(sessionVitals.blood_glucose.value.toString());
-        setGlucoseTestType(sessionVitals.blood_glucose.test_type);
-      }
-      if (sessionVitals.weight) {
-        setWeight(sessionVitals.weight.weight_kg.toString());
-      }
-      if (sessionVitals.consciousness) {
-        setJcsLevel(sessionVitals.consciousness.jcs_level);
-      }
-    } else {
-      console.log('[VitalsCapture] No existing vitals found');
-      // Pre-fill weight from patient record if available
-      if (currentPatient?.weight) {
-        setWeight(currentPatient.weight.toString());
-      }
+    // Only load from database ONCE on initial mount
+    if (hasLoadedRef.current) {
+      console.log('[VitalsCapture] Already loaded vitals, skipping');
+      return;
     }
+
+    const loadLatestVitals = async () => {
+      if (!currentPatient?.patient_id) return;
+
+      try {
+        const history = await apiService.getVitalsHistory(
+          currentPatient.patient_id,
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          new Date().toISOString()
+        );
+
+        console.log('[VitalsCapture] Loaded vitals history:', history.length, 'entries');
+
+        const latestBP = history.find(v => v.blood_pressure_systolic != null && v.blood_pressure_diastolic != null && v.input_method !== 'manual');
+        const latestHR = history.find(v => v.heart_rate != null && v.input_method !== 'manual');
+        const latestTemp = history.find(v => v.temperature_celsius != null);
+        const latestSpO2 = history.find(v => v.oxygen_saturation != null);
+        const latestRR = history.find(v => v.respiratory_rate != null);
+        const latestGlucose = history.find(v => v.blood_glucose_mg_dl != null);
+        const latestWeight = history.find(v => v.weight_kg != null);
+
+        if (latestBP) {
+          setSystolic(latestBP.blood_pressure_systolic!.toString());
+          setDiastolic(latestBP.blood_pressure_diastolic!.toString());
+        }
+        if (latestHR) setPulse(latestHR.heart_rate!.toString());
+        if (latestTemp) setTemperature(latestTemp.temperature_celsius!.toString());
+        if (latestSpO2) setSpo2(latestSpO2.oxygen_saturation!.toString());
+        if (latestRR) setRespiratoryRate(latestRR.respiratory_rate!.toString());
+        if (latestGlucose) setBloodGlucose(latestGlucose.blood_glucose_mg_dl!.toString());
+        if (latestWeight) setWeight(latestWeight.weight_kg!.toString());
+
+        setOriginalValues({
+          systolic: latestBP?.blood_pressure_systolic,
+          diastolic: latestBP?.blood_pressure_diastolic,
+          pulse: latestHR?.heart_rate,
+          temperature: latestTemp?.temperature_celsius,
+          spo2: latestSpO2?.oxygen_saturation,
+          respiratoryRate: latestRR?.respiratory_rate,
+          bloodGlucose: latestGlucose?.blood_glucose_mg_dl,
+          weight: latestWeight?.weight_kg,
+        });
+
+        hasLoadedRef.current = true;
+      } catch (error) {
+        console.error('[VitalsCapture] Error loading vitals:', error);
+      }
+    };
+
+    loadLatestVitals();
 
     let unsubscribeBLE: (() => void) | undefined;
 
@@ -115,9 +209,30 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   useEffect(() => {
     // Auto-populate from BLE reading
     if (reading) {
+      console.log('[VitalsCapture] 📥 BLE reading received:', reading);
+      console.log('[VitalsCapture] Setting form fields: systolic:', reading.systolic, 'diastolic:', reading.diastolic, 'pulse:', reading.pulse);
+
       setSystolic(reading.systolic.toString());
       setDiastolic(reading.diastolic.toString());
       setPulse(reading.pulse.toString());
+
+      console.log('[VitalsCapture] Saving to store via setVitals');
+      // Save to store so PatientInfo tile updates
+      setVitals({
+        blood_pressure_systolic: reading.systolic,
+        blood_pressure_diastolic: reading.diastolic,
+        heart_rate: reading.pulse,
+        measured_at: reading.timestamp,
+      });
+
+      console.log('[VitalsCapture] Updating originalValues');
+      // Update originalValues so these are treated as NEW values (not duplicates)
+      setOriginalValues(prev => ({
+        ...prev,
+        systolic: reading.systolic,
+        diastolic: reading.diastolic,
+        pulse: reading.pulse,
+      }));
 
       // Flash the BLE indicator during data transmission
       setIsTransmitting(true);
@@ -127,7 +242,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
 
       return () => clearTimeout(timer);
     }
-  }, [reading]);
+  }, [reading, setVitals]);
 
   const initializeBLE = async () => {
     bleService.setStatusCallback(setBleStatus);
@@ -213,33 +328,10 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     return getColorForStatus(vital.status);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const hasData = systolic || diastolic || pulse || temperature || spo2 || respiratoryRate || bloodGlucose || weight || jcsLevel !== null;
 
     if (hasData) {
-      // Show confirmation dialog with summary of entered vitals
-      const vitalsSummary = [
-        systolic && diastolic ? `BP: ${systolic}/${diastolic} mmHg` : null,
-        pulse ? `${t['vitals.pulse']}: ${pulse} bpm` : null,
-        temperature ? `${language === 'ja' ? '体温' : 'Temp'}: ${temperature}°C` : null,
-        spo2 ? `SpO₂: ${spo2}%` : null,
-        respiratoryRate ? `${language === 'ja' ? '呼吸数' : 'RR'}: ${respiratoryRate}/min` : null,
-        bloodGlucose ? `${t['vitals.bloodGlucose']}: ${bloodGlucose} mg/dL (${t[`vitals.${glucoseTestType}`]})` : null,
-        weight ? `${t['vitals.weight']}: ${weight} kg` : null,
-        jcsLevel !== null ? `${t['vitals.consciousness']}: JCS ${jcsLevel}` : null,
-      ].filter(Boolean).join('\n');
-
-      Alert.alert(
-        t['dialog.confirmSave'],
-        vitalsSummary,
-        [
-          {
-            text: t['common.cancel'],
-            style: 'cancel',
-          },
-          {
-            text: t['common.save'],
-            onPress: async () => {
               const vitalsData: any = {
                 blood_pressure_systolic: parseInt(systolic) || undefined,
                 blood_pressure_diastolic: parseInt(diastolic) || undefined,
@@ -289,17 +381,129 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
                 };
               }
 
-              setVitals(vitalsData);
+              // Filter out vitals that haven't changed from the original values
+              let filteredVitalsData = { ...vitalsData };
 
-              // Wait a moment for persist middleware to write to AsyncStorage
-              await new Promise(resolve => setTimeout(resolve, 100));
+              console.log('[VitalsCapture] Checking for unchanged vitals...');
+              console.log('[VitalsCapture] Original values:', originalValues);
 
-              // Navigate back to previous screen (PatientInfo)
-              navigation.goBack();
-            },
-          },
-        ]
-      );
+              // BP check (only if manual flag is not checked)
+              if (!isManualBP && filteredVitalsData.blood_pressure_systolic && filteredVitalsData.blood_pressure_diastolic) {
+                if (originalValues.systolic === filteredVitalsData.blood_pressure_systolic &&
+                    originalValues.diastolic === filteredVitalsData.blood_pressure_diastolic) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged BP');
+                  delete filteredVitalsData.blood_pressure_systolic;
+                  delete filteredVitalsData.blood_pressure_diastolic;
+                }
+              }
+
+              // Heart rate check
+              if (!isManualPulse && filteredVitalsData.heart_rate) {
+                if (originalValues.pulse === filteredVitalsData.heart_rate) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged Heart Rate');
+                  delete filteredVitalsData.heart_rate;
+                }
+              }
+
+              // Temperature check
+              if (!isManualTemp && filteredVitalsData.temperature_celsius) {
+                if (originalValues.temperature === filteredVitalsData.temperature_celsius) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged Temperature');
+                  delete filteredVitalsData.temperature_celsius;
+                }
+              }
+
+              // SpO2 check
+              if (!isManualSpO2 && filteredVitalsData.oxygen_saturation) {
+                if (originalValues.spo2 === filteredVitalsData.oxygen_saturation) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged SpO2');
+                  delete filteredVitalsData.oxygen_saturation;
+                }
+              }
+
+              // Respiratory rate check
+              if (!isManualRR && filteredVitalsData.respiratory_rate) {
+                if (originalValues.respiratoryRate === filteredVitalsData.respiratory_rate) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged RR');
+                  delete filteredVitalsData.respiratory_rate;
+                }
+              }
+
+              // Blood glucose check
+              if (!isManualGlucose && filteredVitalsData.blood_glucose) {
+                if (originalValues.bloodGlucose === filteredVitalsData.blood_glucose.value) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged Blood Glucose');
+                  delete filteredVitalsData.blood_glucose;
+                }
+              }
+
+              // Weight check
+              if (!isManualWeight && filteredVitalsData.weight) {
+                if (originalValues.weight === filteredVitalsData.weight.weight_kg) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged Weight');
+                  delete filteredVitalsData.weight;
+                }
+              }
+
+              // JCS check - always check if unchanged (no manual flag for consciousness)
+              if (filteredVitalsData.consciousness) {
+                if (originalValues.jcsLevel === filteredVitalsData.consciousness.jcs_level) {
+                  console.log('[VitalsCapture] 🔇 Silently skipping unchanged JCS');
+                  delete filteredVitalsData.consciousness;
+                }
+              }
+
+              // Check if there are any vitals left to save after filtering
+              const hasVitalsToSave =
+                filteredVitalsData.blood_pressure_systolic ||
+                filteredVitalsData.heart_rate ||
+                filteredVitalsData.temperature_celsius ||
+                filteredVitalsData.oxygen_saturation ||
+                filteredVitalsData.respiratory_rate ||
+                filteredVitalsData.blood_glucose ||
+                filteredVitalsData.weight ||
+                filteredVitalsData.consciousness;
+
+              if (!hasVitalsToSave) {
+                console.log('[VitalsCapture] 🔇 All vitals were duplicates, nothing to save');
+                navigation.goBack();
+                return;
+              }
+
+              // Save to session store (only non-duplicate vitals)
+              setVitals(filteredVitalsData);
+
+              // Save to backend immediately
+              if (currentPatient) {
+                try {
+                  console.log('[VitalsCapture] Saving vitals to backend...');
+                  const response = await apiService.recordVitals({
+                    patient_id: currentPatient.patient_id,
+                    ...filteredVitalsData,
+                    measured_at: filteredVitalsData.measured_at.toISOString(),
+                    input_method: 'manual',
+                    recorded_by: DEMO_STAFF_ID,
+                  });
+                  console.log('[VitalsCapture] ✅ Vitals saved to backend successfully');
+
+                  // Update session with backend metadata
+                  const vitalsWithMetadata = {
+                    ...filteredVitalsData,
+                    _savedToBackend: true,
+                    _backendVitalId: response.vital_sign_id,
+                  };
+                  setVitals(vitalsWithMetadata);
+                } catch (error) {
+                  console.error('[VitalsCapture] ❌ Failed to save vitals to backend:', error);
+                  // Continue navigation even if backend save fails
+                }
+              }
+
+      // Wait a moment for persist middleware to write to AsyncStorage
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Navigate back to previous screen (PatientInfo)
+      navigation.goBack();
     }
   };
 
@@ -357,6 +561,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '血圧' : 'BP'}
               </Text>
+              <TouchableOpacity
+                style={styles.manualCheckboxInCard}
+                onPress={() => setIsManualBP(!isManualBP)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkboxSmall, isManualBP && styles.checkboxSmallChecked]}>
+                  {isManualBP && (
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.manualLabelSmall}>
+                  {language === 'ja' ? '手動' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
               {currentPatient && (
                 <TouchableOpacity
                   style={styles.historyIcon}
@@ -374,7 +592,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
                 keyboardType="numeric"
                 placeholder="120"
                 value={systolic}
-                onChangeText={setSystolic}
+                onChangeText={handleSystolicChange}
                 style={styles.bpInput}
                 placeholderTextColor={COLORS.text.disabled}
               />
@@ -383,7 +601,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
                 keyboardType="numeric"
                 placeholder="80"
                 value={diastolic}
-                onChangeText={setDiastolic}
+                onChangeText={handleDiastolicChange}
                 style={styles.bpInput}
                 placeholderTextColor={COLORS.text.disabled}
               />
@@ -398,6 +616,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '脈拍' : 'Pulse'}
               </Text>
+              <TouchableOpacity
+                style={styles.manualCheckboxInCard}
+                onPress={() => setIsManualPulse(!isManualPulse)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkboxSmall, isManualPulse && styles.checkboxSmallChecked]}>
+                  {isManualPulse && (
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.manualLabelSmall}>
+                  {language === 'ja' ? '手動' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
               {currentPatient && (
                 <TouchableOpacity
                   style={styles.historyIcon}
@@ -414,7 +646,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               keyboardType="numeric"
               placeholder="72"
               value={pulse}
-              onChangeText={setPulse}
+              onChangeText={handlePulseChange}
               style={styles.vitalInput}
               placeholderTextColor={COLORS.text.disabled}
             />
@@ -428,6 +660,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '体温' : 'Temp'}
               </Text>
+              <TouchableOpacity
+                style={styles.manualCheckboxInCard}
+                onPress={() => setIsManualTemp(!isManualTemp)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkboxSmall, isManualTemp && styles.checkboxSmallChecked]}>
+                  {isManualTemp && (
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.manualLabelSmall}>
+                  {language === 'ja' ? '手動' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
               {currentPatient && (
                 <TouchableOpacity
                   style={styles.historyIcon}
@@ -444,7 +690,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               keyboardType="decimal-pad"
               placeholder="36.5"
               value={temperature}
-              onChangeText={setTemperature}
+              onChangeText={handleTemperatureChange}
               style={styles.vitalInput}
               placeholderTextColor={COLORS.text.disabled}
             />
@@ -456,6 +702,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
             <View style={styles.cardHeader}>
               <Ionicons name="water" size={ICON_SIZES.md} color={COLORS.primary} />
               <Text style={styles.cardLabel}>SpO₂</Text>
+              <TouchableOpacity
+                style={styles.manualCheckboxInCard}
+                onPress={() => setIsManualSpO2(!isManualSpO2)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkboxSmall, isManualSpO2 && styles.checkboxSmallChecked]}>
+                  {isManualSpO2 && (
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.manualLabelSmall}>
+                  {language === 'ja' ? '手動' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
               {currentPatient && (
                 <TouchableOpacity
                   style={styles.historyIcon}
@@ -472,7 +732,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               keyboardType="numeric"
               placeholder="98"
               value={spo2}
-              onChangeText={setSpo2}
+              onChangeText={handleSpo2Change}
               style={styles.vitalInput}
               placeholderTextColor={COLORS.text.disabled}
             />
@@ -486,6 +746,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {language === 'ja' ? '呼吸数' : 'RR'}
               </Text>
+              <TouchableOpacity
+                style={styles.manualCheckboxInCard}
+                onPress={() => setIsManualRR(!isManualRR)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkboxSmall, isManualRR && styles.checkboxSmallChecked]}>
+                  {isManualRR && (
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.manualLabelSmall}>
+                  {language === 'ja' ? '手動' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
               {currentPatient && (
                 <TouchableOpacity
                   style={styles.historyIcon}
@@ -502,7 +776,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               keyboardType="numeric"
               placeholder="16"
               value={respiratoryRate}
-              onChangeText={setRespiratoryRate}
+              onChangeText={handleRespiratoryRateChange}
               style={styles.vitalInput}
               placeholderTextColor={COLORS.text.disabled}
             />
@@ -519,6 +793,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {t['vitals.bloodGlucose']}
               </Text>
+              <TouchableOpacity
+                style={styles.manualCheckboxInCard}
+                onPress={() => setIsManualGlucose(!isManualGlucose)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkboxSmall, isManualGlucose && styles.checkboxSmallChecked]}>
+                  {isManualGlucose && (
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.manualLabelSmall}>
+                  {language === 'ja' ? '手動' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
               {currentPatient && (
                 <TouchableOpacity
                   style={styles.historyIcon}
@@ -535,7 +823,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               keyboardType="numeric"
               placeholder="100"
               value={bloodGlucose}
-              onChangeText={setBloodGlucose}
+              onChangeText={handleBloodGlucoseChange}
               style={styles.vitalInput}
               placeholderTextColor={COLORS.text.disabled}
             />
@@ -571,6 +859,20 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               <Text style={styles.cardLabel}>
                 {t['vitals.weight']}
               </Text>
+              <TouchableOpacity
+                style={styles.manualCheckboxInCard}
+                onPress={() => setIsManualWeight(!isManualWeight)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkboxSmall, isManualWeight && styles.checkboxSmallChecked]}>
+                  {isManualWeight && (
+                    <Ionicons name="checkmark" size={12} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.manualLabelSmall}>
+                  {language === 'ja' ? '手動' : 'Manual'}
+                </Text>
+              </TouchableOpacity>
               {currentPatient && (
                 <TouchableOpacity
                   style={styles.historyIcon}
@@ -587,7 +889,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
               keyboardType="numeric"
               placeholder="65"
               value={weight}
-              onChangeText={setWeight}
+              onChangeText={handleWeightChange}
               style={styles.vitalInput}
               placeholderTextColor={COLORS.text.disabled}
             />
@@ -835,6 +1137,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+  },
+  // Manual Entry Checkbox Styles (per-vital)
+  manualCheckboxInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 'auto',
+    marginRight: SPACING.xs,
+  },
+  checkboxSmall: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSmallChecked: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  manualLabelSmall: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
   patientName: {
     fontSize: TYPOGRAPHY.fontSize.lg,

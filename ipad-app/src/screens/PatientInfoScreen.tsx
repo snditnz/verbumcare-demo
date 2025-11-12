@@ -116,21 +116,21 @@ export default function PatientInfoScreen({ navigation }: Props) {
   // Track last saved reading to prevent duplicates
   const lastSavedTimestamp = useRef<number>(0);
 
-  // Handle BLE reading - auto-save and show toast
+  // Handle BLE reading - auto-save immediately (no duplicate check for BLE)
   const handleBLEReading = async (reading: BPReading) => {
     console.log('[PatientInfo] ✅ BLE reading callback triggered!');
     console.log('[PatientInfo] Reading data:', reading);
 
-    // Deduplicate: Skip if this exact reading was already saved within last 5 seconds
+    // Simple time-based deduplication to prevent multiple toasts within 5 seconds
     const readingTime = reading.timestamp.getTime();
     if (Math.abs(readingTime - lastSavedTimestamp.current) < 5000) {
-      console.log('[PatientInfo] ⚠️ Duplicate reading detected, skipping save');
+      console.log('[PatientInfo] ⚠️ Duplicate reading detected within 5s, skipping');
       return;
     }
     lastSavedTimestamp.current = readingTime;
 
     try {
-      // Auto-save to session vitals
+      // Save to session store
       const vitalsData = {
         blood_pressure_systolic: reading.systolic,
         blood_pressure_diastolic: reading.diastolic,
@@ -138,15 +138,14 @@ export default function PatientInfoScreen({ navigation }: Props) {
         measured_at: reading.timestamp,
       };
 
-      console.log('[PatientInfo] Saving vitals to store...');
+      console.log('[PatientInfo] Saving vitals to session store...');
       setVitals(vitalsData);
-      console.log('[PatientInfo] Vitals saved successfully');
 
-      // Persist to backend immediately
+      // Persist to backend immediately (BLE readings bypass duplicate check)
       if (currentPatient) {
-        console.log('[PatientInfo] Persisting vitals to backend...');
+        console.log('[PatientInfo] Persisting BLE vitals to backend...');
         try {
-          await api.recordVitals({
+          const response = await api.recordVitals({
             patient_id: currentPatient.patient_id,
             blood_pressure_systolic: reading.systolic,
             blood_pressure_diastolic: reading.diastolic,
@@ -155,10 +154,17 @@ export default function PatientInfoScreen({ navigation }: Props) {
             input_method: 'iot_sensor',
             recorded_by: DEMO_STAFF_ID,
           });
-          console.log('[PatientInfo] ✅ Vitals persisted to backend successfully');
+          console.log('[PatientInfo] ✅ BLE vitals persisted to backend successfully');
+
+          // Update with backend metadata
+          const vitalsWithMetadata = {
+            ...vitalsData,
+            _savedToBackend: true,
+            _backendVitalId: response.vital_sign_id,
+          } as any;
+          setVitals(vitalsWithMetadata);
         } catch (backendError) {
-          console.error('[PatientInfo] ❌ Failed to persist vitals to backend:', backendError);
-          // Don't block UI - vitals are still saved locally
+          console.error('[PatientInfo] ❌ Failed to persist BLE vitals:', backendError);
         }
       }
 
@@ -1331,6 +1337,32 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     color: COLORS.text.primary,
     marginLeft: SPACING.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  manualCheckboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  manualCheckboxLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.primary,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
   toastActions: {

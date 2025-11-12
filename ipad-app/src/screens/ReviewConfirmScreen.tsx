@@ -258,9 +258,19 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
             <View style={styles.cardHeader}>
               <Ionicons name="heart" size={ICON_SIZES.lg} color={COLORS.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>
-                  {language === 'ja' ? 'バイタルサイン' : 'Vital Signs'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+                  <Text style={styles.cardTitle}>
+                    {language === 'ja' ? 'バイタルサイン' : 'Vital Signs'}
+                  </Text>
+                  {(sessionVitals as any)._savedToBackend && (
+                    <View style={styles.savedBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                      <Text style={styles.savedBadgeText}>
+                        {language === 'ja' ? '保存済み' : 'Already Saved'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 {sessionVitals.measured_at && (
                   <Text style={styles.timeAgo}>
                     {getTimeAgo(sessionVitals.measured_at, language)}
@@ -884,5 +894,19 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     color: COLORS.text.secondary,
     paddingVertical: SPACING.xs,
+  },
+  savedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    gap: SPACING.xs,
+  },
+  savedBadgeText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.success,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
 });

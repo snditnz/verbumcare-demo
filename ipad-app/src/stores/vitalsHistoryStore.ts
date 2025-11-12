@@ -97,36 +97,55 @@ const getDateRangeFromPreset = (preset: DateRangePreset): { start: Date; end: Da
  * Extract vital value from reading based on vital type
  */
 const extractVitalValue = (reading: APIVitalSigns, vitalType: string): number | null => {
+  let value: any = null;
+
   switch (vitalType) {
     case 'hr':
     case 'heart_rate':
-      return reading.heart_rate || null;
+      value = reading.heart_rate;
+      break;
     case 'blood_pressure':
       // For BP graph, use systolic as the primary value
-      return reading.blood_pressure_systolic || null;
+      value = reading.blood_pressure_systolic;
+      break;
     case 'bp_systolic':
-      return reading.blood_pressure_systolic || null;
+      value = reading.blood_pressure_systolic;
+      break;
     case 'bp_diastolic':
-      return reading.blood_pressure_diastolic || null;
+      value = reading.blood_pressure_diastolic;
+      break;
     case 'temp':
     case 'temperature':
-      return reading.temperature_celsius || null;
+      value = reading.temperature_celsius;
+      break;
     case 'spo2':
     case 'oxygen_saturation':
-      return reading.oxygen_saturation || null;
+      value = reading.oxygen_saturation;
+      break;
     case 'rr':
     case 'respiratory_rate':
-      return reading.respiratory_rate || null;
+      value = reading.respiratory_rate;
+      break;
     case 'glucose':
     case 'blood_glucose':
-      return reading.blood_glucose_mg_dl || null;
+      value = reading.blood_glucose_mg_dl;
+      break;
     case 'weight':
-      return reading.weight_kg || null;
+      value = reading.weight_kg;
+      break;
     case 'pain':
       return reading.pain_score !== undefined ? reading.pain_score : null;
     default:
       return null;
   }
+
+  // Parse value to number if it's a string
+  if (value == null) return null;
+
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+
+  // Return null if parsing resulted in NaN
+  return isNaN(numValue) ? null : numValue;
 };
 
 export const useVitalsHistoryStore = create<VitalsHistoryStore>((set, get) => ({
