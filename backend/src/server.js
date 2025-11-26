@@ -22,6 +22,8 @@ import barthelRoutes from './routes/barthel.js';
 import incidentRoutes from './routes/incidents.js';
 import sessionRoutes from './routes/sessions.js';
 import carePlanRoutes from './routes/care-plans.js';
+import clinicalNotesRoutes from './routes/clinicalNotes.js';
+import authRoutes from './routes/auth.js';
 
 dotenv.config();
 
@@ -75,6 +77,8 @@ app.use('/api', barthelRoutes);
 app.use('/api', incidentRoutes);
 app.use('/api', sessionRoutes);
 app.use('/api/care-plans', carePlanRoutes);
+app.use('/api/clinical-notes', clinicalNotesRoutes);
+app.use('/api/auth', authRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
