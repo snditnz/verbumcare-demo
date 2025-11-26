@@ -97,9 +97,10 @@ WHERE staff_id = '550e8400-e29b-41d4-a716-446655440103';
 -- ========== 6. Add Proper Password Hashes (bcrypt) ==========
 -- Password for all demo users: "demo123"
 -- bcrypt hash rounds: 10
--- Generated with: bcrypt.hash('demo123', 10)
+-- Generated with: bcryptjs.hash('demo123', 10)
+-- NOTE: Using $2a$ format (bcryptjs), not $2b$ (bcrypt)
 
-UPDATE staff SET password_hash = '$2b$10$rBV2kha49dVGrGLxIf3IXOLv2AxJDN6AK7d5A.FiJNdlF0pLhJU0i'
+UPDATE staff SET password_hash = '$2a$10$rTgfWRiyDf6Rp7lLI2WGYu/Q6mLCHWmQ3T.pAodCiv3CdKpCfv84S'
 WHERE staff_id IN (
     '550e8400-e29b-41d4-a716-446655440101', -- nurse1
     '550e8400-e29b-41d4-a716-446655440102', -- nurse2
@@ -134,7 +135,7 @@ INSERT INTO staff (
     'Hiroshi',
     'registered_nurse', -- Will map to 'care_manager' in frontend
     'manager1',
-    '$2b$10$rBV2kha49dVGrGLxIf3IXOLv2AxJDN6AK7d5A.FiJNdlF0pLhJU0i' -- demo123
+    '$2a$10$rTgfWRiyDf6Rp7lLI2WGYu/Q6mLCHWmQ3T.pAodCiv3CdKpCfv84S' -- demo123
 ) ON CONFLICT (staff_id) DO NOTHING;
 
 -- Demo User (demo)
@@ -163,7 +164,7 @@ INSERT INTO staff (
     'Staff',
     'registered_nurse',
     'demo',
-    '$2b$10$rBV2kha49dVGrGLxIf3IXOLv2AxJDN6AK7d5A.FiJNdlF0pLhJU0i' -- demo123
+    '$2a$10$rTgfWRiyDf6Rp7lLI2WGYu/Q6mLCHWmQ3T.pAodCiv3CdKpCfv84S' -- demo123
 ) ON CONFLICT (staff_id) DO NOTHING;
 
 -- ========== 8. Function to Clean Up Expired Sessions ==========
