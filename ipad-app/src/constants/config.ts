@@ -2,7 +2,6 @@
 export const API_CONFIG = {
   BASE_URL: 'https://verbumcare-lab.local/api',
   WS_URL: 'wss://verbumcare-lab.local',
-  FALLBACK_IP: '192.168.0.208',
   TIMEOUT: 60000, // 60 seconds - increased for demo reliability
   RETRY_ATTEMPTS: 3,
 };

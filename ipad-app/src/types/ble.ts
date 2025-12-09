@@ -9,6 +9,16 @@ export interface BPReading {
   diastolic: number;
   pulse: number;
   timestamp: Date;
+  deviceId?: string;
+  deviceModel?: string;
+}
+
+export interface PairedDevice {
+  id: string;
+  name: string | null;
+  serviceUUID: string;
+  pairedAt: string;
+  lastConnectedAt: string;
 }
 
 export type BLEConnectionStatus =

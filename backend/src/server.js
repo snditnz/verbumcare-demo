@@ -24,6 +24,7 @@ import sessionRoutes from './routes/sessions.js';
 import carePlanRoutes from './routes/care-plans.js';
 import clinicalNotesRoutes from './routes/clinicalNotes.js';
 import authRoutes from './routes/auth.js';
+import auditLogRoutes from './routes/auditLogs.js';
 
 dotenv.config();
 
@@ -79,6 +80,7 @@ app.use('/api', sessionRoutes);
 app.use('/api/care-plans', carePlanRoutes);
 app.use('/api/clinical-notes', clinicalNotesRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

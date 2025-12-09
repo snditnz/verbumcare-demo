@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
 import { socketService } from './src/services';
 import { networkService } from './src/services/networkService';
+import { sessionPersistenceService } from './src/services/sessionPersistence';
 import { useCarePlanStore } from './src/stores/carePlanStore';
 import { useAuthStore } from './src/stores/authStore';
+import { warmAllCaches, WarmCacheResult } from './src/services/cacheWarmer';
 import { COLORS } from './src/constants/theme';
 
 // Auth screens
@@ -46,6 +48,10 @@ import AllCarePlansScreen from './src/screens/AllCarePlansScreen';
 import ComingSoonScreen from './src/screens/ComingSoonScreen';
 import TodayScheduleScreen from './src/screens/TodayScheduleScreen';
 
+// Clinical Notes screens
+import ClinicalNotesScreen from './src/screens/ClinicalNotesScreen';
+import AddNoteScreen from './src/screens/AddNoteScreen';
+
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
@@ -74,13 +80,18 @@ export type RootStackParamList = {
   AllCarePlans: undefined;
   ReviewConfirm: undefined;
   ComingSoon: { feature: string };
+  ClinicalNotes: { patientId: string; patientName: string };
+  AddNote: { patientId: string; patientName: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, currentUser } = useAuthStore();
   const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList>('Login');
+  const [isCacheWarming, setIsCacheWarming] = useState(false);
+  const [cacheWarmingProgress, setCacheWarmingProgress] = useState<string>('');
+  const [previousAuthState, setPreviousAuthState] = useState(false);
 
   useEffect(() => {
     // Check authentication status on app launch
@@ -88,16 +99,44 @@ export default function App() {
 
     // Initialize network monitoring first
     const initializeServices = async () => {
-      await networkService.initialize();
+      try {
+        // Add timeout to prevent hanging
+        await Promise.race([
+          networkService.initialize(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Network init timeout')), 5000))
+        ]);
+      } catch (error) {
+        console.warn('Network initialization failed or timed out:', error);
+        // Continue anyway - app can work offline
+      }
+
+      try {
+        // Initialize session persistence service
+        // Handles auto-save, background persistence, and restoration
+        await Promise.race([
+          sessionPersistenceService.initialize(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Session init timeout')), 3000))
+        ]);
+      } catch (error) {
+        console.warn('Session persistence initialization failed or timed out:', error);
+        // Continue anyway
+      }
 
       // Initialize Socket.IO with network-aware connection
       // Will only connect when network is available
-      socketService.initialize();
+      try {
+        socketService.initialize();
+      } catch (error) {
+        console.warn('Socket initialization failed:', error);
+      }
 
       // Load problem templates from backend on app start
       // This ensures templates are available when creating care plans
       try {
-        await useCarePlanStore.getState().loadProblemTemplates();
+        await Promise.race([
+          useCarePlanStore.getState().loadProblemTemplates(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Template load timeout')), 5000))
+        ]);
       } catch (error) {
         console.error('Failed to load problem templates on app start:', error);
         // App will continue with fallback templates
@@ -110,8 +149,64 @@ export default function App() {
       // Cleanup on app unmount
       socketService.disconnect();
       networkService.cleanup();
+      sessionPersistenceService.cleanup();
     };
   }, []);
+
+  // Trigger cache warming when user logs in (authentication state changes from false to true)
+  useEffect(() => {
+    const performCacheWarming = async () => {
+      // Only warm cache when transitioning from unauthenticated to authenticated
+      // This handles both fresh login and session restoration
+      if (isAuthenticated && !previousAuthState && currentUser && !isLoading) {
+        console.log('[App] User authenticated, starting cache warming...');
+        setIsCacheWarming(true);
+        setCacheWarmingProgress('Preparing offline data...');
+
+        try {
+          // Warm all caches for offline operation
+          const result: WarmCacheResult = await warmAllCaches(currentUser.userId);
+
+          if (result.success && result.recordCounts) {
+            console.log('[App] ✅ Cache warming successful:', result.recordCounts);
+            setCacheWarmingProgress(
+              `Cached: ${result.recordCounts.patients} patients, ${result.recordCounts.templates} templates`
+            );
+            
+            // Show success message briefly before hiding
+            setTimeout(() => {
+              setIsCacheWarming(false);
+              setCacheWarmingProgress('');
+            }, 1500);
+          } else {
+            console.warn('[App] ⚠️ Cache warming completed with errors:', result.error);
+            setCacheWarmingProgress('Cache warming completed with some errors');
+            
+            // Hide after showing error briefly
+            setTimeout(() => {
+              setIsCacheWarming(false);
+              setCacheWarmingProgress('');
+            }, 2000);
+          }
+        } catch (error: any) {
+          console.error('[App] ❌ Cache warming failed:', error);
+          setCacheWarmingProgress('Cache warming failed - continuing anyway');
+          
+          // Hide error after brief display
+          // CRITICAL: App continues to work even if cache warming fails
+          setTimeout(() => {
+            setIsCacheWarming(false);
+            setCacheWarmingProgress('');
+          }, 2000);
+        }
+      }
+
+      // Update previous auth state for next comparison
+      setPreviousAuthState(isAuthenticated);
+    };
+
+    performCacheWarming();
+  }, [isAuthenticated, currentUser, isLoading, previousAuthState]);
 
   // Update initial route based on authentication
   useEffect(() => {
@@ -280,8 +375,60 @@ export default function App() {
             component={ComingSoonScreen}
             options={{ title: 'Coming Soon' }}
           />
+          <Stack.Screen
+            name="ClinicalNotes"
+            component={ClinicalNotesScreen}
+            options={{ title: 'Clinical Notes' }}
+          />
+          <Stack.Screen
+            name="AddNote"
+            component={AddNoteScreen}
+            options={{ title: 'Add Note' }}
+          />
         </Stack.Navigator>
       </NavigationContainer>
+
+      {/* Cache Warming Overlay - Minimal UI Addition */}
+      {isCacheWarming && (
+        <View style={styles.cacheWarmingOverlay}>
+          <View style={styles.cacheWarmingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.cacheWarmingText}>{cacheWarmingProgress}</Text>
+          </View>
+        </View>
+      )}
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  cacheWarmingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  cacheWarmingContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    minWidth: 300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  cacheWarmingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.text.primary,
+    textAlign: 'center',
+  },
+});

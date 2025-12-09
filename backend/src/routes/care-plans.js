@@ -582,8 +582,9 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update a care plan
+// Update a care plan (with versioning)
 router.put('/:id', async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const language = detectLanguage(req);
     const { id } = req.params;
@@ -599,7 +600,8 @@ router.put('/:id', async (req, res) => {
       lastReviewDate,
       nextReviewDate,
       nextMonitoringDate,
-      updatedBy
+      updatedBy,
+      changeDescription
     } = req.body;
 
     if (!updatedBy) {
@@ -609,18 +611,92 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // Get current version
-    const versionQuery = await db.query('SELECT version FROM care_plans WHERE care_plan_id = $1', [id]);
-    if (versionQuery.rows.length === 0) {
+    await client.query('BEGIN');
+
+    // Get current care plan data for version history
+    const currentQuery = await client.query(`
+      SELECT * FROM care_plans WHERE care_plan_id = $1
+    `, [id]);
+    
+    if (currentQuery.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({
         error: getTranslation('errors.not_found', language),
         message: 'Care plan not found'
       });
     }
 
-    const newVersion = versionQuery.rows[0].version + 1;
+    const currentPlan = currentQuery.rows[0];
+    const newVersion = currentPlan.version + 1;
 
-    const query = `
+    // Save current version to history before updating
+    const itemsSnapshot = await client.query(`
+      SELECT
+        care_plan_item_id,
+        problem_category,
+        problem_description,
+        problem_priority,
+        identified_date,
+        problem_status,
+        long_term_goal_description,
+        long_term_goal_target_date,
+        long_term_goal_duration,
+        long_term_goal_achievement_status,
+        short_term_goal_description,
+        short_term_goal_target_date,
+        short_term_goal_duration,
+        short_term_goal_achievement_status,
+        short_term_goal_measurable_criteria,
+        interventions,
+        linked_assessments
+      FROM care_plan_items
+      WHERE care_plan_id = $1
+    `, [id]);
+
+    await client.query(`
+      INSERT INTO care_plan_version_history (
+        care_plan_id,
+        version,
+        care_level,
+        status,
+        patient_intent,
+        family_intent,
+        comprehensive_policy,
+        care_manager_id,
+        team_members,
+        family_signature,
+        last_review_date,
+        next_review_date,
+        next_monitoring_date,
+        care_plan_items_snapshot,
+        created_by,
+        created_by_name,
+        change_description
+      )
+      SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+             CONCAT(s.family_name, ' ', s.given_name), $16
+      FROM staff s WHERE s.staff_id = $15
+    `, [
+      id,
+      currentPlan.version,
+      currentPlan.care_level,
+      currentPlan.status,
+      currentPlan.patient_intent,
+      currentPlan.family_intent,
+      currentPlan.comprehensive_policy,
+      currentPlan.care_manager_id,
+      currentPlan.team_members,
+      currentPlan.family_signature,
+      currentPlan.last_review_date,
+      currentPlan.next_review_date,
+      currentPlan.next_monitoring_date,
+      JSON.stringify(itemsSnapshot.rows),
+      updatedBy,
+      changeDescription || 'Care plan updated'
+    ]);
+
+    // Update care plan with new version
+    const updateQuery = `
       UPDATE care_plans SET
         care_level = COALESCE($1, care_level),
         status = COALESCE($2, status),
@@ -639,7 +715,7 @@ router.put('/:id', async (req, res) => {
       RETURNING *
     `;
 
-    await db.query(query, [
+    await client.query(updateQuery, [
       careLevel,
       status,
       patientIntent,
@@ -656,23 +732,29 @@ router.put('/:id', async (req, res) => {
     ]);
 
     // Create audit log entry
-    await db.query(`
+    await client.query(`
       INSERT INTO care_plan_audit_log (care_plan_id, user_id, user_name, action, changes, version)
       SELECT $1, $2, CONCAT(s.family_name, ' ', s.given_name), 'updated', $3, $4
       FROM staff s WHERE s.staff_id = $2
     `, [id, updatedBy, JSON.stringify(req.body), newVersion]);
 
+    await client.query('COMMIT');
+
     res.json({
       success: true,
       message: 'Care plan updated successfully',
+      version: newVersion,
       language
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error updating care plan:', error);
     res.status(500).json({
       error: getTranslation('errors.server', detectLanguage(req)),
       message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  } finally {
+    client.release();
   }
 });
 
@@ -1073,6 +1155,343 @@ router.post('/:id/monitoring', async (req, res) => {
       error: getTranslation('errors.server', detectLanguage(req)),
       message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+});
+
+// ============================================================================
+// CARE PLAN VERSIONING - Version History & Revert
+// ============================================================================
+
+// Get version history for a care plan
+router.get('/:id/versions', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { id } = req.params;
+
+    const query = `
+      SELECT
+        version_history_id as "id",
+        care_plan_id as "carePlanId",
+        version,
+        care_level as "careLevel",
+        status,
+        patient_intent as "patientIntent",
+        family_intent as "familyIntent",
+        comprehensive_policy as "comprehensivePolicy",
+        care_manager_id as "careManagerId",
+        team_members as "teamMembers",
+        family_signature as "familySignature",
+        last_review_date as "lastReviewDate",
+        next_review_date as "nextReviewDate",
+        next_monitoring_date as "nextMonitoringDate",
+        care_plan_items_snapshot as "carePlanItemsSnapshot",
+        created_at as "createdAt",
+        created_by as "createdBy",
+        created_by_name as "createdByName",
+        change_description as "changeDescription"
+      FROM care_plan_version_history
+      WHERE care_plan_id = $1
+      ORDER BY version DESC
+    `;
+
+    const result = await db.query(query, [id]);
+
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+      language
+    });
+  } catch (error) {
+    console.error('Error fetching version history:', error);
+    res.status(500).json({
+      error: getTranslation('errors.server', detectLanguage(req)),
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Get a specific version of a care plan
+router.get('/:id/versions/:version', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { id, version } = req.params;
+
+    const query = `
+      SELECT
+        version_history_id as "id",
+        care_plan_id as "carePlanId",
+        version,
+        care_level as "careLevel",
+        status,
+        patient_intent as "patientIntent",
+        family_intent as "familyIntent",
+        comprehensive_policy as "comprehensivePolicy",
+        care_manager_id as "careManagerId",
+        team_members as "teamMembers",
+        family_signature as "familySignature",
+        last_review_date as "lastReviewDate",
+        next_review_date as "nextReviewDate",
+        next_monitoring_date as "nextMonitoringDate",
+        care_plan_items_snapshot as "carePlanItemsSnapshot",
+        created_at as "createdAt",
+        created_by as "createdBy",
+        created_by_name as "createdByName",
+        change_description as "changeDescription"
+      FROM care_plan_version_history
+      WHERE care_plan_id = $1 AND version = $2
+    `;
+
+    const result = await db.query(query, [id, version]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: getTranslation('errors.not_found', language),
+        message: 'Version not found'
+      });
+    }
+
+    res.json({
+      data: result.rows[0],
+      language
+    });
+  } catch (error) {
+    console.error('Error fetching version:', error);
+    res.status(500).json({
+      error: getTranslation('errors.server', detectLanguage(req)),
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Revert care plan to a previous version
+router.post('/:id/revert/:version', async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const language = detectLanguage(req);
+    const { id, version } = req.params;
+    const { revertedBy, changeDescription } = req.body;
+
+    if (!revertedBy) {
+      return res.status(400).json({
+        error: getTranslation('errors.missing_parameter', language),
+        message: 'revertedBy is required'
+      });
+    }
+
+    await client.query('BEGIN');
+
+    // Get the version to revert to
+    const versionQuery = await client.query(`
+      SELECT * FROM care_plan_version_history
+      WHERE care_plan_id = $1 AND version = $2
+    `, [id, version]);
+
+    if (versionQuery.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        error: getTranslation('errors.not_found', language),
+        message: 'Version not found'
+      });
+    }
+
+    const historicalVersion = versionQuery.rows[0];
+
+    // Get current care plan for version history
+    const currentQuery = await client.query(`
+      SELECT * FROM care_plans WHERE care_plan_id = $1
+    `, [id]);
+
+    if (currentQuery.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        error: getTranslation('errors.not_found', language),
+        message: 'Care plan not found'
+      });
+    }
+
+    const currentPlan = currentQuery.rows[0];
+    const newVersion = currentPlan.version + 1;
+
+    // Save current version to history before reverting
+    const currentItemsSnapshot = await client.query(`
+      SELECT
+        care_plan_item_id,
+        problem_category,
+        problem_description,
+        problem_priority,
+        identified_date,
+        problem_status,
+        long_term_goal_description,
+        long_term_goal_target_date,
+        long_term_goal_duration,
+        long_term_goal_achievement_status,
+        short_term_goal_description,
+        short_term_goal_target_date,
+        short_term_goal_duration,
+        short_term_goal_achievement_status,
+        short_term_goal_measurable_criteria,
+        interventions,
+        linked_assessments
+      FROM care_plan_items
+      WHERE care_plan_id = $1
+    `, [id]);
+
+    await client.query(`
+      INSERT INTO care_plan_version_history (
+        care_plan_id,
+        version,
+        care_level,
+        status,
+        patient_intent,
+        family_intent,
+        comprehensive_policy,
+        care_manager_id,
+        team_members,
+        family_signature,
+        last_review_date,
+        next_review_date,
+        next_monitoring_date,
+        care_plan_items_snapshot,
+        created_by,
+        created_by_name,
+        change_description
+      )
+      SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+             CONCAT(s.family_name, ' ', s.given_name), $16
+      FROM staff s WHERE s.staff_id = $15
+    `, [
+      id,
+      currentPlan.version,
+      currentPlan.care_level,
+      currentPlan.status,
+      currentPlan.patient_intent,
+      currentPlan.family_intent,
+      currentPlan.comprehensive_policy,
+      currentPlan.care_manager_id,
+      currentPlan.team_members,
+      currentPlan.family_signature,
+      currentPlan.last_review_date,
+      currentPlan.next_review_date,
+      currentPlan.next_monitoring_date,
+      JSON.stringify(currentItemsSnapshot.rows),
+      revertedBy,
+      `Before revert to version ${version}`
+    ]);
+
+    // Update care plan with historical version data
+    await client.query(`
+      UPDATE care_plans SET
+        care_level = $1,
+        status = $2,
+        patient_intent = $3,
+        family_intent = $4,
+        comprehensive_policy = $5,
+        care_manager_id = $6,
+        team_members = $7,
+        family_signature = $8,
+        last_review_date = $9,
+        next_review_date = $10,
+        next_monitoring_date = $11,
+        version = $12,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE care_plan_id = $13
+    `, [
+      historicalVersion.care_level,
+      historicalVersion.status,
+      historicalVersion.patient_intent,
+      historicalVersion.family_intent,
+      historicalVersion.comprehensive_policy,
+      historicalVersion.care_manager_id,
+      historicalVersion.team_members,
+      historicalVersion.family_signature,
+      historicalVersion.last_review_date,
+      historicalVersion.next_review_date,
+      historicalVersion.next_monitoring_date,
+      newVersion,
+      id
+    ]);
+
+    // Delete current care plan items
+    await client.query(`
+      DELETE FROM care_plan_items WHERE care_plan_id = $1
+    `, [id]);
+
+    // Restore care plan items from historical snapshot
+    if (historicalVersion.care_plan_items_snapshot && Array.isArray(historicalVersion.care_plan_items_snapshot)) {
+      for (const item of historicalVersion.care_plan_items_snapshot) {
+        await client.query(`
+          INSERT INTO care_plan_items (
+            care_plan_id,
+            problem_category,
+            problem_description,
+            problem_priority,
+            identified_date,
+            problem_status,
+            long_term_goal_description,
+            long_term_goal_target_date,
+            long_term_goal_duration,
+            long_term_goal_achievement_status,
+            short_term_goal_description,
+            short_term_goal_target_date,
+            short_term_goal_duration,
+            short_term_goal_achievement_status,
+            short_term_goal_measurable_criteria,
+            interventions,
+            linked_assessments,
+            updated_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        `, [
+          id,
+          item.problem_category,
+          item.problem_description,
+          item.problem_priority,
+          item.identified_date,
+          item.problem_status,
+          item.long_term_goal_description,
+          item.long_term_goal_target_date,
+          item.long_term_goal_duration,
+          item.long_term_goal_achievement_status,
+          item.short_term_goal_description,
+          item.short_term_goal_target_date,
+          item.short_term_goal_duration,
+          item.short_term_goal_achievement_status,
+          item.short_term_goal_measurable_criteria,
+          item.interventions,
+          item.linked_assessments,
+          revertedBy
+        ]);
+      }
+    }
+
+    // Create audit log entry
+    await client.query(`
+      INSERT INTO care_plan_audit_log (care_plan_id, user_id, user_name, action, changes, version)
+      SELECT $1, $2, CONCAT(s.family_name, ' ', s.given_name), 'reverted', $3, $4
+      FROM staff s WHERE s.staff_id = $2
+    `, [
+      id,
+      revertedBy,
+      JSON.stringify({ revertedToVersion: version, description: changeDescription || `Reverted to version ${version}` }),
+      newVersion
+    ]);
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: `Care plan reverted to version ${version}`,
+      newVersion,
+      language
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error reverting care plan:', error);
+    res.status(500).json({
+      error: getTranslation('errors.server', detectLanguage(req)),
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  } finally {
+    client.release();
   }
 });
 

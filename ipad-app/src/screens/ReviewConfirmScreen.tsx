@@ -6,6 +6,7 @@ import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle } from '@components';
 import { Button, Card } from '@components/ui';
 import { socketService, apiService } from '@services';
+import { sessionPersistenceService } from '@services/sessionPersistence';
 import { VoiceProcessingProgress } from '@models/api';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -151,10 +152,12 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
       // Update the patient in store
       useAssessmentStore.getState().setCurrentPatient(updatedPatient);
 
-      // DON'T clear session immediately - let time-based badge hiding handle it
-      // This allows vitals and other data tiles to still show the just-saved data
-      // After 4 hours, badges will automatically hide due to SESSION_CONFIG.BADGE_TIMEOUT_HOURS
-      // The session will be cleared when user navigates away from this patient
+      // Clear session data after successful submission
+      // Implements Requirements 9.5
+      await sessionPersistenceService.clearSessionAfterSubmission(currentPatient.patient_id);
+      
+      // Clear the patient session from the assessment store
+      clearPatientSession(currentPatient.patient_id);
 
       Alert.alert(
         t['review.submitSuccess'] || 'Success',

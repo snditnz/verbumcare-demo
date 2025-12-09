@@ -1,0 +1,615 @@
+=========================================
+VerbumCare Database Schema Documentation
+Remote Server: verbumcare-lab.local
+Generated: Sat Dec  6 17:39:49 JST 2025
+=========================================
+
+--- Database Information ---
+                                         version                                          
+------------------------------------------------------------------------------------------
+ PostgreSQL 15.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+(1 row)
+
+
+ database_size 
+---------------
+ 10 MB
+(1 row)
+
+
+--- All Tables ---
+         table_name         
+----------------------------
+ auth_audit_log
+ barthel_assessments
+ care_conferences
+ care_plan_audit_log
+ care_plan_items
+ care_plan_progress_notes
+ care_plans
+ clinical_notes
+ facilities
+ medication_administrations
+ medication_orders
+ monitoring_records
+ nursing_assessments
+ patient_incidents
+ patient_session_data
+ patients
+ problem_templates
+ staff
+ staff_sessions
+ vital_signs
+ voice_recordings
+ weekly_schedule_items
+(22 rows)
+
+
+--- Table Schemas ---
+=== Table: auth_audit_log ===
+  column_name   |          data_type          | character_maximum_length | is_nullable |   column_default   
+----------------+-----------------------------+--------------------------+-------------+--------------------
+ log_id         | uuid                        |                          | NO          | uuid_generate_v4()
+ staff_id       | uuid                        |                          | YES         | 
+ username       | character varying           |                       50 | YES         | 
+ event_type     | character varying           |                       50 | NO          | 
+ ip_address     | character varying           |                       45 | YES         | 
+ device_info    | jsonb                       |                          | YES         | 
+ success        | boolean                     |                          | NO          | 
+ failure_reason | text                        |                          | YES         | 
+ timestamp      | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(9 rows)
+
+
+=== Table: barthel_assessments ===
+    column_name     |          data_type          | character_maximum_length | is_nullable |      column_default       
+--------------------+-----------------------------+--------------------------+-------------+---------------------------
+ assessment_id      | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id         | uuid                        |                          | NO          | 
+ assessed_at        | timestamp without time zone |                          | NO          | CURRENT_TIMESTAMP
+ total_score        | integer                     |                          | NO          | 
+ category_scores    | jsonb                       |                          | NO          | 
+ additional_notes   | text                        |                          | YES         | 
+ voice_recording_id | uuid                        |                          | YES         | 
+ assessed_by        | uuid                        |                          | NO          | 
+ input_method       | character varying           |                       50 | YES         | 'form'::character varying
+ created_at         | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ updated_at         | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(11 rows)
+
+
+=== Table: care_conferences ===
+     column_name      |          data_type          | character_maximum_length | is_nullable |   column_default   
+----------------------+-----------------------------+--------------------------+-------------+--------------------
+ care_conference_id   | uuid                        |                          | NO          | uuid_generate_v4()
+ care_plan_id         | uuid                        |                          | NO          | 
+ conference_date      | timestamp without time zone |                          | NO          | 
+ conference_type      | character varying           |                       50 | NO          | 
+ attendees            | jsonb                       |                          | NO          | 
+ discussion           | jsonb                       |                          | NO          | 
+ minutes              | text                        |                          | YES         | 
+ action_items         | jsonb                       |                          | YES         | 
+ care_plan_approved   | boolean                     |                          | YES         | false
+ next_conference_date | timestamp without time zone |                          | YES         | 
+ created_at           | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(11 rows)
+
+
+=== Table: care_plan_audit_log ===
+ column_name  |          data_type          | character_maximum_length | is_nullable |   column_default   
+--------------+-----------------------------+--------------------------+-------------+--------------------
+ audit_log_id | uuid                        |                          | NO          | uuid_generate_v4()
+ care_plan_id | uuid                        |                          | NO          | 
+ timestamp    | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ user_id      | uuid                        |                          | YES         | 
+ user_name    | character varying           |                      200 | NO          | 
+ action       | character varying           |                      100 | NO          | 
+ changes      | jsonb                       |                          | YES         | 
+ version      | integer                     |                          | NO          | 
+(8 rows)
+
+
+=== Table: care_plan_items ===
+             column_name             |          data_type          | character_maximum_length | is_nullable |       column_default        
+-------------------------------------+-----------------------------+--------------------------+-------------+-----------------------------
+ care_plan_item_id                   | uuid                        |                          | NO          | uuid_generate_v4()
+ care_plan_id                        | uuid                        |                          | NO          | 
+ problem_category                    | character varying           |                       50 | NO          | 
+ problem_description                 | text                        |                          | NO          | 
+ problem_priority                    | character varying           |                       20 | NO          | 
+ identified_date                     | timestamp without time zone |                          | NO          | 
+ problem_status                      | character varying           |                       20 | YES         | 'active'::character varying
+ long_term_goal_description          | text                        |                          | NO          | 
+ long_term_goal_target_date          | timestamp without time zone |                          | YES         | 
+ long_term_goal_duration             | character varying           |                       20 | YES         | 
+ long_term_goal_achievement_status   | integer                     |                          | YES         | 0
+ short_term_goal_description         | text                        |                          | NO          | 
+ short_term_goal_target_date         | timestamp without time zone |                          | YES         | 
+ short_term_goal_duration            | character varying           |                       20 | YES         | 
+ short_term_goal_achievement_status  | integer                     |                          | YES         | 0
+ short_term_goal_measurable_criteria | text                        |                          | YES         | 
+ interventions                       | jsonb                       |                          | YES         | 
+ linked_assessments                  | jsonb                       |                          | YES         | 
+ last_updated                        | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ updated_by                          | uuid                        |                          | YES         | 
+ created_at                          | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(21 rows)
+
+
+=== Table: care_plan_progress_notes ===
+    column_name    |          data_type          | character_maximum_length | is_nullable |   column_default   
+-------------------+-----------------------------+--------------------------+-------------+--------------------
+ progress_note_id  | uuid                        |                          | NO          | uuid_generate_v4()
+ care_plan_item_id | uuid                        |                          | NO          | 
+ note_date         | timestamp without time zone |                          | NO          | 
+ note              | text                        |                          | NO          | 
+ author_id         | uuid                        |                          | NO          | 
+ author_name       | character varying           |                      200 | NO          | 
+ created_at        | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(7 rows)
+
+
+=== Table: care_plans ===
+     column_name      |          data_type          | character_maximum_length | is_nullable |       column_default        
+----------------------+-----------------------------+--------------------------+-------------+-----------------------------
+ care_plan_id         | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id           | uuid                        |                          | NO          | 
+ care_level           | character varying           |                       20 | YES         | 
+ status               | character varying           |                       20 | YES         | 'active'::character varying
+ version              | integer                     |                          | YES         | 1
+ created_date         | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ last_review_date     | timestamp without time zone |                          | YES         | 
+ next_review_date     | timestamp without time zone |                          | YES         | 
+ created_by           | uuid                        |                          | YES         | 
+ patient_intent       | text                        |                          | YES         | 
+ family_intent        | text                        |                          | YES         | 
+ comprehensive_policy | text                        |                          | YES         | 
+ care_manager_id      | uuid                        |                          | YES         | 
+ team_members         | jsonb                       |                          | YES         | 
+ family_signature     | jsonb                       |                          | YES         | 
+ last_monitoring_date | timestamp without time zone |                          | YES         | 
+ next_monitoring_date | timestamp without time zone |                          | YES         | 
+ created_at           | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ updated_at           | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(19 rows)
+
+
+=== Table: clinical_notes ===
+      column_name      |        data_type         | character_maximum_length | is_nullable |         column_default         
+-----------------------+--------------------------+--------------------------+-------------+--------------------------------
+ note_id               | uuid                     |                          | NO          | gen_random_uuid()
+ patient_id            | uuid                     |                          | NO          | 
+ note_type             | character varying        |                       50 | NO          | 
+ note_category         | character varying        |                       50 | YES         | 
+ note_datetime         | timestamp with time zone |                          | NO          | CURRENT_TIMESTAMP
+ note_text             | text                     |                          | NO          | 
+ voice_recording_id    | uuid                     |                          | YES         | 
+ voice_transcribed     | boolean                  |                          | YES         | false
+ authored_by           | uuid                     |                          | NO          | 
+ author_role           | character varying        |                       50 | NO          | 
+ author_name           | character varying        |                      200 | NO          | 
+ follow_up_required    | boolean                  |                          | YES         | false
+ follow_up_date        | date                     |                          | YES         | 
+ follow_up_notes       | text                     |                          | YES         | 
+ related_assessment_id | uuid                     |                          | YES         | 
+ related_session_id    | uuid                     |                          | YES         | 
+ status                | character varying        |                       20 | NO          | 'submitted'::character varying
+ requires_approval     | boolean                  |                          | YES         | false
+ approved_by           | uuid                     |                          | YES         | 
+ approved_by_name      | character varying        |                      200 | YES         | 
+ approval_datetime     | timestamp with time zone |                          | YES         | 
+ approval_notes        | text                     |                          | YES         | 
+ created_at            | timestamp with time zone |                          | NO          | CURRENT_TIMESTAMP
+ updated_at            | timestamp with time zone |                          | NO          | CURRENT_TIMESTAMP
+ deleted_at            | timestamp with time zone |                          | YES         | 
+ deleted_by            | uuid                     |                          | YES         | 
+(26 rows)
+
+
+=== Table: facilities ===
+   column_name    |          data_type          | character_maximum_length | is_nullable |         column_default          
+------------------+-----------------------------+--------------------------+-------------+---------------------------------
+ facility_id      | uuid                        |                          | NO          | uuid_generate_v4()
+ facility_name    | character varying           |                      255 | NO          | 
+ facility_name_ja | character varying           |                      255 | YES         | 
+ facility_name_zh | character varying           |                      255 | YES         | 
+ timezone         | character varying           |                       50 | YES         | 'Asia/Tokyo'::character varying
+ language         | character varying           |                       10 | YES         | 'ja'::character varying
+ created_at       | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(7 rows)
+
+
+=== Table: medication_administrations ===
+        column_name         |          data_type          | character_maximum_length | is_nullable |                           column_default                           
+----------------------------+-----------------------------+--------------------------+-------------+--------------------------------------------------------------------
+ administration_id          | uuid                        |                          | NO          | uuid_generate_v4()
+ order_id                   | uuid                        |                          | NO          | 
+ patient_id                 | uuid                        |                          | NO          | 
+ scheduled_datetime         | timestamp without time zone |                          | YES         | 
+ administered_datetime      | timestamp without time zone |                          | NO          | 
+ patient_barcode_scanned    | boolean                     |                          | YES         | false
+ patient_barcode_value      | character varying           |                      255 | YES         | 
+ medication_barcode_scanned | boolean                     |                          | YES         | false
+ medication_barcode_value   | character varying           |                      255 | YES         | 
+ dose_given                 | character varying           |                       50 | YES         | 
+ route_given                | character varying           |                       50 | YES         | 
+ status                     | character varying           |                       50 | NO          | 
+ reason_if_not_given        | text                        |                          | YES         | 
+ administered_by            | uuid                        |                          | NO          | 
+ notes                      | text                        |                          | YES         | 
+ record_hash                | character varying           |                       64 | NO          | 
+ previous_hash              | character varying           |                       64 | YES         | 
+ chain_sequence             | bigint                      |                          | NO          | nextval('medication_administrations_chain_sequence_seq'::regclass)
+ created_at                 | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(19 rows)
+
+
+=== Table: medication_orders ===
+    column_name     |          data_type          | character_maximum_length | is_nullable |       column_default        
+--------------------+-----------------------------+--------------------------+-------------+-----------------------------
+ order_id           | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id         | uuid                        |                          | NO          | 
+ order_number       | character varying           |                       50 | NO          | 
+ medication_name_ja | text                        |                          | NO          | 
+ medication_name_en | text                        |                          | YES         | 
+ medication_name_zh | text                        |                          | YES         | 
+ hot_code           | character varying           |                       50 | YES         | 
+ dose               | character varying           |                       50 | NO          | 
+ dose_unit          | character varying           |                       20 | NO          | 
+ route              | character varying           |                       50 | NO          | 
+ frequency          | character varying           |                       50 | NO          | 
+ scheduled_time     | time without time zone      |                          | YES         | 
+ start_datetime     | timestamp without time zone |                          | NO          | 
+ end_datetime       | timestamp without time zone |                          | YES         | 
+ prn                | boolean                     |                          | YES         | false
+ prn_reason         | character varying           |                      255 | YES         | 
+ status             | character varying           |                       50 | YES         | 'active'::character varying
+ ordered_by         | uuid                        |                          | YES         | 
+ created_at         | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(19 rows)
+
+
+=== Table: monitoring_records ===
+     column_name      |          data_type          | character_maximum_length | is_nullable |   column_default   
+----------------------+-----------------------------+--------------------------+-------------+--------------------
+ monitoring_record_id | uuid                        |                          | NO          | uuid_generate_v4()
+ care_plan_id         | uuid                        |                          | NO          | 
+ monitoring_date      | timestamp without time zone |                          | NO          | 
+ monitoring_type      | character varying           |                       50 | NO          | 
+ conducted_by         | uuid                        |                          | NO          | 
+ conducted_by_name    | character varying           |                      200 | NO          | 
+ item_reviews         | jsonb                       |                          | YES         | 
+ overall_status       | text                        |                          | YES         | 
+ patient_feedback     | text                        |                          | YES         | 
+ family_feedback      | text                        |                          | YES         | 
+ staff_observations   | text                        |                          | YES         | 
+ proposed_changes     | jsonb                       |                          | YES         | 
+ next_monitoring_date | timestamp without time zone |                          | YES         | 
+ action_items         | jsonb                       |                          | YES         | 
+ created_at           | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(15 rows)
+
+
+=== Table: nursing_assessments ===
+     column_name     |          data_type          | character_maximum_length | is_nullable |        column_default        
+---------------------+-----------------------------+--------------------------+-------------+------------------------------
+ assessment_id       | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id          | uuid                        |                          | NO          | 
+ assessment_datetime | timestamp without time zone |                          | NO          | 
+ assessment_type     | character varying           |                       50 | YES         | 'routine'::character varying
+ input_method        | character varying           |                       50 | YES         | 'form'::character varying
+ voice_recording_id  | uuid                        |                          | YES         | 
+ structured_data     | jsonb                       |                          | YES         | 
+ narrative_notes     | text                        |                          | YES         | 
+ ai_processed        | boolean                     |                          | YES         | false
+ ai_confidence_score | numeric                     |                          | YES         | 
+ assessed_by         | uuid                        |                          | NO          | 
+ created_at          | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(12 rows)
+
+
+=== Table: patient_incidents ===
+    column_name     |          data_type          | character_maximum_length | is_nullable |   column_default   
+--------------------+-----------------------------+--------------------------+-------------+--------------------
+ incident_id        | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id         | uuid                        |                          | NO          | 
+ incident_type      | character varying           |                       50 | NO          | 
+ severity           | character varying           |                       20 | NO          | 
+ occurred_at        | timestamp without time zone |                          | NO          | 
+ description        | text                        |                          | NO          | 
+ voice_recording_id | uuid                        |                          | YES         | 
+ photo_paths        | ARRAY                       |                          | YES         | 
+ reported_by        | uuid                        |                          | NO          | 
+ reported_at        | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ reviewed           | boolean                     |                          | YES         | false
+ reviewed_by        | uuid                        |                          | YES         | 
+ reviewed_at        | timestamp without time zone |                          | YES         | 
+ follow_up_notes    | text                        |                          | YES         | 
+ created_at         | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ updated_at         | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(16 rows)
+
+
+=== Table: patient_session_data ===
+    column_name     |          data_type          | character_maximum_length | is_nullable |       column_default        
+--------------------+-----------------------------+--------------------------+-------------+-----------------------------
+ session_id         | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id         | uuid                        |                          | NO          | 
+ staff_id           | uuid                        |                          | NO          | 
+ session_started_at | timestamp without time zone |                          | NO          | 
+ session_device_id  | character varying           |                      255 | YES         | 
+ session_status     | character varying           |                       20 | YES         | 'active'::character varying
+ vitals             | jsonb                       |                          | YES         | 
+ barthel_index      | jsonb                       |                          | YES         | 
+ medications        | jsonb                       |                          | YES         | 
+ patient_updates    | jsonb                       |                          | YES         | 
+ incidents          | jsonb                       |                          | YES         | 
+ last_updated_at    | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ submitted_at       | timestamp without time zone |                          | YES         | 
+ created_at         | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(14 rows)
+
+
+=== Table: patients ===
+     column_name     |          data_type          | character_maximum_length | is_nullable |   column_default   
+---------------------+-----------------------------+--------------------------+-------------+--------------------
+ patient_id          | uuid                        |                          | NO          | uuid_generate_v4()
+ facility_id         | uuid                        |                          | NO          | 
+ mrn                 | character varying           |                       50 | NO          | 
+ family_name         | character varying           |                      100 | NO          | 
+ given_name          | character varying           |                      100 | NO          | 
+ family_name_kana    | character varying           |                      100 | YES         | 
+ given_name_kana     | character varying           |                      100 | YES         | 
+ date_of_birth       | date                        |                          | NO          | 
+ gender              | character varying           |                       20 | NO          | 
+ room                | character varying           |                       20 | YES         | 
+ bed                 | character varying           |                       10 | YES         | 
+ blood_type          | character varying           |                       10 | YES         | 
+ admission_date      | date                        |                          | YES         | 
+ created_at          | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ family_name_en      | character varying           |                      100 | YES         | 
+ given_name_en       | character varying           |                      100 | YES         | 
+ height_cm           | numeric                     |                          | YES         | 
+ weight_kg           | numeric                     |                          | YES         | 
+ allergies           | ARRAY                       |                          | YES         | 
+ medications_summary | text                        |                          | YES         | 
+ key_notes           | text                        |                          | YES         | 
+ risk_factors        | ARRAY                       |                          | YES         | 
+ status              | character varying           |                       20 | YES         | 
+(23 rows)
+
+
+=== Table: problem_templates ===
+        column_name         |          data_type          | character_maximum_length | is_nullable |   column_default   
+----------------------------+-----------------------------+--------------------------+-------------+--------------------
+ template_id                | uuid                        |                          | NO          | uuid_generate_v4()
+ category                   | character varying           |                       50 | NO          | 
+ japanese_text              | text                        |                          | NO          | 
+ english_text               | text                        |                          | NO          | 
+ chinese_text               | text                        |                          | YES         | 
+ suggested_long_term_goals  | jsonb                       |                          | YES         | 
+ suggested_short_term_goals | jsonb                       |                          | YES         | 
+ suggested_interventions    | jsonb                       |                          | YES         | 
+ created_at                 | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(9 rows)
+
+
+=== Table: staff ===
+   column_name    |          data_type          | character_maximum_length | is_nullable |   column_default   
+------------------+-----------------------------+--------------------------+-------------+--------------------
+ staff_id         | uuid                        |                          | NO          | uuid_generate_v4()
+ facility_id      | uuid                        |                          | NO          | 
+ employee_number  | character varying           |                       50 | NO          | 
+ family_name      | character varying           |                      100 | NO          | 
+ given_name       | character varying           |                      100 | NO          | 
+ family_name_kana | character varying           |                      100 | YES         | 
+ given_name_kana  | character varying           |                      100 | YES         | 
+ role             | character varying           |                       50 | NO          | 
+ username         | character varying           |                       50 | NO          | 
+ password_hash    | character varying           |                      255 | YES         | 
+ created_at       | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ family_name_en   | character varying           |                      100 | YES         | 
+ given_name_en    | character varying           |                      100 | YES         | 
+(13 rows)
+
+
+=== Table: staff_sessions ===
+  column_name  |          data_type          | character_maximum_length | is_nullable |   column_default   
+---------------+-----------------------------+--------------------------+-------------+--------------------
+ session_id    | uuid                        |                          | NO          | uuid_generate_v4()
+ staff_id      | uuid                        |                          | NO          | 
+ access_token  | character varying           |                      500 | NO          | 
+ refresh_token | character varying           |                      500 | YES         | 
+ device_info   | jsonb                       |                          | YES         | 
+ ip_address    | character varying           |                       45 | YES         | 
+ expires_at    | timestamp without time zone |                          | NO          | 
+ created_at    | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+ last_activity | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(9 rows)
+
+
+=== Table: vital_signs ===
+       column_name        |          data_type          | character_maximum_length | is_nullable |       column_default        
+--------------------------+-----------------------------+--------------------------+-------------+-----------------------------
+ vital_sign_id            | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id               | uuid                        |                          | NO          | 
+ measured_at              | timestamp without time zone |                          | NO          | 
+ temperature_celsius      | numeric                     |                          | YES         | 
+ blood_pressure_systolic  | integer                     |                          | YES         | 
+ blood_pressure_diastolic | integer                     |                          | YES         | 
+ heart_rate               | integer                     |                          | YES         | 
+ respiratory_rate         | integer                     |                          | YES         | 
+ oxygen_saturation        | integer                     |                          | YES         | 
+ pain_score               | integer                     |                          | YES         | 
+ blood_glucose_mg_dl      | integer                     |                          | YES         | 
+ weight_kg                | numeric                     |                          | YES         | 
+ height_cm                | numeric                     |                          | YES         | 
+ input_method             | character varying           |                       50 | YES         | 'manual'::character varying
+ device_id                | character varying           |                      100 | YES         | 
+ recorded_by              | uuid                        |                          | NO          | 
+ created_at               | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(17 rows)
+
+
+=== Table: voice_recordings ===
+       column_name        |          data_type          | character_maximum_length | is_nullable |        column_default        
+--------------------------+-----------------------------+--------------------------+-------------+------------------------------
+ recording_id             | uuid                        |                          | NO          | uuid_generate_v4()
+ patient_id               | uuid                        |                          | NO          | 
+ recorded_at              | timestamp without time zone |                          | NO          | 
+ duration_seconds         | integer                     |                          | YES         | 
+ audio_file_path          | text                        |                          | YES         | 
+ transcription_text       | text                        |                          | YES         | 
+ transcription_language   | character varying           |                       10 | YES         | 
+ ai_structured_extraction | jsonb                       |                          | YES         | 
+ ai_confidence_score      | numeric                     |                          | YES         | 
+ processing_status        | character varying           |                       50 | YES         | 'pending'::character varying
+ processing_started_at    | timestamp without time zone |                          | YES         | 
+ processing_completed_at  | timestamp without time zone |                          | YES         | 
+ processing_error         | text                        |                          | YES         | 
+ recorded_by              | uuid                        |                          | NO          | 
+ created_at               | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(15 rows)
+
+
+=== Table: weekly_schedule_items ===
+       column_name        |          data_type          | character_maximum_length | is_nullable |   column_default   
+--------------------------+-----------------------------+--------------------------+-------------+--------------------
+ schedule_item_id         | uuid                        |                          | NO          | uuid_generate_v4()
+ care_plan_id             | uuid                        |                          | NO          | 
+ day_of_week              | integer                     |                          | NO          | 
+ time_slot                | character varying           |                       20 | NO          | 
+ specific_time            | time without time zone      |                          | YES         | 
+ service_data             | jsonb                       |                          | NO          | 
+ linked_to_care_plan_item | uuid                        |                          | YES         | 
+ frequency                | character varying           |                       50 | YES         | 
+ created_at               | timestamp without time zone |                          | YES         | CURRENT_TIMESTAMP
+(9 rows)
+
+
+--- Indexes ---
+         tablename          |                indexname                |                                                                                       indexdef                                                                                        
+----------------------------+-----------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ auth_audit_log             | auth_audit_log_pkey                     | CREATE UNIQUE INDEX auth_audit_log_pkey ON public.auth_audit_log USING btree (log_id)
+ auth_audit_log             | idx_auth_audit_event                    | CREATE INDEX idx_auth_audit_event ON public.auth_audit_log USING btree (event_type)
+ auth_audit_log             | idx_auth_audit_staff                    | CREATE INDEX idx_auth_audit_staff ON public.auth_audit_log USING btree (staff_id)
+ auth_audit_log             | idx_auth_audit_timestamp                | CREATE INDEX idx_auth_audit_timestamp ON public.auth_audit_log USING btree ("timestamp" DESC)
+ barthel_assessments        | barthel_assessments_pkey                | CREATE UNIQUE INDEX barthel_assessments_pkey ON public.barthel_assessments USING btree (assessment_id)
+ barthel_assessments        | idx_barthel_assessed_at                 | CREATE INDEX idx_barthel_assessed_at ON public.barthel_assessments USING btree (assessed_at DESC)
+ barthel_assessments        | idx_barthel_category_scores             | CREATE INDEX idx_barthel_category_scores ON public.barthel_assessments USING gin (category_scores)
+ barthel_assessments        | idx_barthel_patient                     | CREATE INDEX idx_barthel_patient ON public.barthel_assessments USING btree (patient_id)
+ barthel_assessments        | idx_barthel_total_score                 | CREATE INDEX idx_barthel_total_score ON public.barthel_assessments USING btree (total_score)
+ care_conferences           | care_conferences_pkey                   | CREATE UNIQUE INDEX care_conferences_pkey ON public.care_conferences USING btree (care_conference_id)
+ care_conferences           | idx_care_conferences_care_plan          | CREATE INDEX idx_care_conferences_care_plan ON public.care_conferences USING btree (care_plan_id)
+ care_plan_audit_log        | care_plan_audit_log_pkey                | CREATE UNIQUE INDEX care_plan_audit_log_pkey ON public.care_plan_audit_log USING btree (audit_log_id)
+ care_plan_audit_log        | idx_care_plan_audit_log_care_plan       | CREATE INDEX idx_care_plan_audit_log_care_plan ON public.care_plan_audit_log USING btree (care_plan_id)
+ care_plan_items            | care_plan_items_pkey                    | CREATE UNIQUE INDEX care_plan_items_pkey ON public.care_plan_items USING btree (care_plan_item_id)
+ care_plan_items            | idx_care_plan_items_care_plan           | CREATE INDEX idx_care_plan_items_care_plan ON public.care_plan_items USING btree (care_plan_id)
+ care_plan_progress_notes   | care_plan_progress_notes_pkey           | CREATE UNIQUE INDEX care_plan_progress_notes_pkey ON public.care_plan_progress_notes USING btree (progress_note_id)
+ care_plan_progress_notes   | idx_care_plan_progress_notes_item       | CREATE INDEX idx_care_plan_progress_notes_item ON public.care_plan_progress_notes USING btree (care_plan_item_id)
+ care_plans                 | care_plans_pkey                         | CREATE UNIQUE INDEX care_plans_pkey ON public.care_plans USING btree (care_plan_id)
+ care_plans                 | idx_care_plans_patient                  | CREATE INDEX idx_care_plans_patient ON public.care_plans USING btree (patient_id)
+ care_plans                 | idx_care_plans_status                   | CREATE INDEX idx_care_plans_status ON public.care_plans USING btree (status)
+ clinical_notes             | clinical_notes_pkey                     | CREATE UNIQUE INDEX clinical_notes_pkey ON public.clinical_notes USING btree (note_id)
+ clinical_notes             | idx_clinical_notes_approval             | CREATE INDEX idx_clinical_notes_approval ON public.clinical_notes USING btree (requires_approval, status) WHERE ((requires_approval = true) AND ((status)::text = 'submitted'::text))
+ clinical_notes             | idx_clinical_notes_authored_by          | CREATE INDEX idx_clinical_notes_authored_by ON public.clinical_notes USING btree (authored_by)
+ clinical_notes             | idx_clinical_notes_datetime             | CREATE INDEX idx_clinical_notes_datetime ON public.clinical_notes USING btree (note_datetime DESC)
+ clinical_notes             | idx_clinical_notes_follow_up            | CREATE INDEX idx_clinical_notes_follow_up ON public.clinical_notes USING btree (follow_up_required, follow_up_date) WHERE (follow_up_required = true)
+ clinical_notes             | idx_clinical_notes_note_type            | CREATE INDEX idx_clinical_notes_note_type ON public.clinical_notes USING btree (note_type)
+ clinical_notes             | idx_clinical_notes_patient_datetime     | CREATE INDEX idx_clinical_notes_patient_datetime ON public.clinical_notes USING btree (patient_id, note_datetime DESC)
+ clinical_notes             | idx_clinical_notes_patient_id           | CREATE INDEX idx_clinical_notes_patient_id ON public.clinical_notes USING btree (patient_id)
+ clinical_notes             | idx_clinical_notes_status               | CREATE INDEX idx_clinical_notes_status ON public.clinical_notes USING btree (status)
+ facilities                 | facilities_pkey                         | CREATE UNIQUE INDEX facilities_pkey ON public.facilities USING btree (facility_id)
+ medication_administrations | idx_medication_administrations_datetime | CREATE INDEX idx_medication_administrations_datetime ON public.medication_administrations USING btree (administered_datetime)
+ medication_administrations | idx_medication_administrations_hash     | CREATE INDEX idx_medication_administrations_hash ON public.medication_administrations USING btree (record_hash)
+ medication_administrations | idx_medication_administrations_patient  | CREATE INDEX idx_medication_administrations_patient ON public.medication_administrations USING btree (patient_id)
+ medication_administrations | idx_medication_administrations_sequence | CREATE INDEX idx_medication_administrations_sequence ON public.medication_administrations USING btree (chain_sequence)
+ medication_administrations | medication_administrations_pkey         | CREATE UNIQUE INDEX medication_administrations_pkey ON public.medication_administrations USING btree (administration_id)
+ medication_orders          | idx_medication_orders_patient           | CREATE INDEX idx_medication_orders_patient ON public.medication_orders USING btree (patient_id)
+ medication_orders          | idx_medication_orders_status            | CREATE INDEX idx_medication_orders_status ON public.medication_orders USING btree (status)
+ medication_orders          | medication_orders_pkey                  | CREATE UNIQUE INDEX medication_orders_pkey ON public.medication_orders USING btree (order_id)
+ monitoring_records         | idx_monitoring_records_care_plan        | CREATE INDEX idx_monitoring_records_care_plan ON public.monitoring_records USING btree (care_plan_id)
+ monitoring_records         | monitoring_records_pkey                 | CREATE UNIQUE INDEX monitoring_records_pkey ON public.monitoring_records USING btree (monitoring_record_id)
+ nursing_assessments        | idx_nursing_assessments_patient         | CREATE INDEX idx_nursing_assessments_patient ON public.nursing_assessments USING btree (patient_id)
+ nursing_assessments        | nursing_assessments_pkey                | CREATE UNIQUE INDEX nursing_assessments_pkey ON public.nursing_assessments USING btree (assessment_id)
+ patient_incidents          | idx_incidents_occurred_at               | CREATE INDEX idx_incidents_occurred_at ON public.patient_incidents USING btree (occurred_at DESC)
+ patient_incidents          | idx_incidents_patient                   | CREATE INDEX idx_incidents_patient ON public.patient_incidents USING btree (patient_id)
+ patient_incidents          | idx_incidents_reviewed                  | CREATE INDEX idx_incidents_reviewed ON public.patient_incidents USING btree (reviewed) WHERE (reviewed = false)
+ patient_incidents          | idx_incidents_severity                  | CREATE INDEX idx_incidents_severity ON public.patient_incidents USING btree (severity)
+ patient_incidents          | idx_incidents_type                      | CREATE INDEX idx_incidents_type ON public.patient_incidents USING btree (incident_type)
+ patient_incidents          | patient_incidents_pkey                  | CREATE UNIQUE INDEX patient_incidents_pkey ON public.patient_incidents USING btree (incident_id)
+ patient_session_data       | idx_session_active                      | CREATE INDEX idx_session_active ON public.patient_session_data USING btree (patient_id, session_started_at DESC) WHERE ((session_status)::text = 'active'::text)
+ patient_session_data       | idx_session_patient                     | CREATE INDEX idx_session_patient ON public.patient_session_data USING btree (patient_id)
+ patient_session_data       | idx_session_staff                       | CREATE INDEX idx_session_staff ON public.patient_session_data USING btree (staff_id)
+ patient_session_data       | idx_session_started_at                  | CREATE INDEX idx_session_started_at ON public.patient_session_data USING btree (session_started_at DESC)
+ patient_session_data       | idx_session_status                      | CREATE INDEX idx_session_status ON public.patient_session_data USING btree (session_status)
+ patient_session_data       | patient_session_data_pkey               | CREATE UNIQUE INDEX patient_session_data_pkey ON public.patient_session_data USING btree (session_id)
+ patients                   | idx_patients_facility                   | CREATE INDEX idx_patients_facility ON public.patients USING btree (facility_id)
+ patients                   | idx_patients_mrn                        | CREATE INDEX idx_patients_mrn ON public.patients USING btree (mrn)
+ patients                   | patients_facility_id_mrn_key            | CREATE UNIQUE INDEX patients_facility_id_mrn_key ON public.patients USING btree (facility_id, mrn)
+ patients                   | patients_pkey                           | CREATE UNIQUE INDEX patients_pkey ON public.patients USING btree (patient_id)
+ problem_templates          | idx_problem_templates_category          | CREATE INDEX idx_problem_templates_category ON public.problem_templates USING btree (category)
+ problem_templates          | problem_templates_pkey                  | CREATE UNIQUE INDEX problem_templates_pkey ON public.problem_templates USING btree (template_id)
+ staff                      | staff_facility_id_employee_number_key   | CREATE UNIQUE INDEX staff_facility_id_employee_number_key ON public.staff USING btree (facility_id, employee_number)
+ staff                      | staff_pkey                              | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (staff_id)
+ staff                      | staff_username_key                      | CREATE UNIQUE INDEX staff_username_key ON public.staff USING btree (username)
+ staff_sessions             | idx_staff_sessions_expires              | CREATE INDEX idx_staff_sessions_expires ON public.staff_sessions USING btree (expires_at)
+ staff_sessions             | idx_staff_sessions_staff                | CREATE INDEX idx_staff_sessions_staff ON public.staff_sessions USING btree (staff_id)
+ staff_sessions             | idx_staff_sessions_token                | CREATE INDEX idx_staff_sessions_token ON public.staff_sessions USING btree (access_token)
+ staff_sessions             | staff_sessions_pkey                     | CREATE UNIQUE INDEX staff_sessions_pkey ON public.staff_sessions USING btree (session_id)
+ vital_signs                | idx_vital_signs_measured                | CREATE INDEX idx_vital_signs_measured ON public.vital_signs USING btree (measured_at)
+ vital_signs                | idx_vital_signs_patient                 | CREATE INDEX idx_vital_signs_patient ON public.vital_signs USING btree (patient_id)
+ vital_signs                | vital_signs_pkey                        | CREATE UNIQUE INDEX vital_signs_pkey ON public.vital_signs USING btree (vital_sign_id)
+ voice_recordings           | idx_voice_recordings_extraction_en      | CREATE INDEX idx_voice_recordings_extraction_en ON public.voice_recordings USING gin (((ai_structured_extraction -> 'en'::text)))
+ voice_recordings           | idx_voice_recordings_extraction_ja      | CREATE INDEX idx_voice_recordings_extraction_ja ON public.voice_recordings USING gin (((ai_structured_extraction -> 'ja'::text)))
+ voice_recordings           | idx_voice_recordings_patient            | CREATE INDEX idx_voice_recordings_patient ON public.voice_recordings USING btree (patient_id)
+ voice_recordings           | idx_voice_recordings_processing_status  | CREATE INDEX idx_voice_recordings_processing_status ON public.voice_recordings USING btree (processing_status)
+ voice_recordings           | voice_recordings_pkey                   | CREATE UNIQUE INDEX voice_recordings_pkey ON public.voice_recordings USING btree (recording_id)
+ weekly_schedule_items      | idx_weekly_schedule_items_care_plan     | CREATE INDEX idx_weekly_schedule_items_care_plan ON public.weekly_schedule_items USING btree (care_plan_id)
+ weekly_schedule_items      | weekly_schedule_items_pkey              | CREATE UNIQUE INDEX weekly_schedule_items_pkey ON public.weekly_schedule_items USING btree (schedule_item_id)
+(77 rows)
+
+
+--- Foreign Keys ---
+                   constraint_name                   |         table_name         |   referenced_table   
+-----------------------------------------------------+----------------------------+----------------------
+ auth_audit_log_staff_id_fkey                        | auth_audit_log             | staff
+ care_conferences_care_plan_id_fkey                  | care_conferences           | care_plans
+ care_plan_audit_log_user_id_fkey                    | care_plan_audit_log        | staff
+ care_plan_audit_log_care_plan_id_fkey               | care_plan_audit_log        | care_plans
+ care_plan_items_care_plan_id_fkey                   | care_plan_items            | care_plans
+ care_plan_items_updated_by_fkey                     | care_plan_items            | staff
+ care_plan_progress_notes_author_id_fkey             | care_plan_progress_notes   | staff
+ care_plan_progress_notes_care_plan_item_id_fkey     | care_plan_progress_notes   | care_plan_items
+ care_plans_created_by_fkey                          | care_plans                 | staff
+ care_plans_patient_id_fkey                          | care_plans                 | patients
+ care_plans_care_manager_id_fkey                     | care_plans                 | staff
+ clinical_notes_related_session_id_fkey              | clinical_notes             | patient_session_data
+ clinical_notes_patient_id_fkey                      | clinical_notes             | patients
+ clinical_notes_voice_recording_id_fkey              | clinical_notes             | voice_recordings
+ clinical_notes_authored_by_fkey                     | clinical_notes             | staff
+ clinical_notes_related_assessment_id_fkey           | clinical_notes             | nursing_assessments
+ clinical_notes_approved_by_fkey                     | clinical_notes             | staff
+ clinical_notes_deleted_by_fkey                      | clinical_notes             | staff
+ medication_administrations_patient_id_fkey          | medication_administrations | patients
+ medication_administrations_administered_by_fkey     | medication_administrations | staff
+ medication_administrations_order_id_fkey            | medication_administrations | medication_orders
+ medication_orders_ordered_by_fkey                   | medication_orders          | staff
+ medication_orders_patient_id_fkey                   | medication_orders          | patients
+ monitoring_records_care_plan_id_fkey                | monitoring_records         | care_plans
+ monitoring_records_conducted_by_fkey                | monitoring_records         | staff
+ nursing_assessments_patient_id_fkey                 | nursing_assessments        | patients
+ fk_voice_recording                                  | nursing_assessments        | voice_recordings
+ nursing_assessments_assessed_by_fkey                | nursing_assessments        | staff
+ patients_facility_id_fkey                           | patients                   | facilities
+ staff_facility_id_fkey                              | staff                      | facilities
+ staff_sessions_staff_id_fkey                        | staff_sessions             | staff
+ vital_signs_patient_id_fkey                         | vital_signs                | patients
+ vital_signs_recorded_by_fkey                        | vital_signs                | staff
+ voice_recordings_recorded_by_fkey                   | voice_recordings           | staff
+ voice_recordings_patient_id_fkey                    | voice_recordings           | patients
+ weekly_schedule_items_linked_to_care_plan_item_fkey | weekly_schedule_items      | care_plan_items
+ weekly_schedule_items_care_plan_id_fkey             | weekly_schedule_items      | care_plans
+(37 rows)
+
+

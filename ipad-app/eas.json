@@ -11,7 +11,7 @@
         "key": "dev-cache"
       },
       "ios": {
-        "simulator": true,
+        "simulator": false,
         "cocoapods": "1.15.2"
       }
     },

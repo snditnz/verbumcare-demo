@@ -11,6 +11,7 @@ import { SESSION_CONFIG, DEMO_STAFF_ID } from '@constants/config';
 import apiService from '@services/api';
 import bleService from '@services/ble';
 import { BLEConnectionStatus, BPReading } from '@types/ble';
+import { useAuthStore } from '@stores/authStore';
 
 const api = apiService;
 
@@ -53,6 +54,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     setVitals,
     removeLastVital,
   } = useAssessmentStore();
+  const { currentUser } = useAuthStore();
 
   const [scheduleData, setScheduleData] = useState<any>(null);
   const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
@@ -145,6 +147,10 @@ export default function PatientInfoScreen({ navigation }: Props) {
       if (currentPatient) {
         console.log('[PatientInfo] Persisting BLE vitals to backend...');
         try {
+          // Use authenticated user ID for BLE readings (Requirement 13.6)
+          const recordedBy = currentUser?.userId || DEMO_STAFF_ID;
+          console.log('[PatientInfo] Recording BLE vitals with user:', recordedBy);
+          
           const response = await api.recordVitals({
             patient_id: currentPatient.patient_id,
             blood_pressure_systolic: reading.systolic,
@@ -152,7 +158,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
             heart_rate: reading.pulse,
             measured_at: reading.timestamp.toISOString(),
             input_method: 'iot_sensor',
-            recorded_by: DEMO_STAFF_ID,
+            recorded_by: recordedBy,
           });
           console.log('[PatientInfo] ✅ BLE vitals persisted to backend successfully');
 
@@ -548,7 +554,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
           <TouchableOpacity style={styles.infoTile} onPress={() => navigation.navigate('VitalsCapture')}>
             <Card style={styles.infoTileCard}>
               <View style={styles.tileHeader}>
-                <Ionicons name="heart" size={ICON_SIZES.md} color={COLORS.primary} />
+                <Ionicons name="fitness" size={ICON_SIZES.md} color={COLORS.primary} />
                 <Text style={styles.tileTitle}>{t['review.vitals']}</Text>
               </View>
             {(() => {
@@ -747,10 +753,20 @@ export default function PatientInfoScreen({ navigation }: Props) {
           <View style={styles.actionsColumn}>
             {/* Row 1 */}
             <ActionButton
-              icon="fitness"
-              label={t['action.vitalSigns']}
-              onPress={() => navigation.navigate('VitalsCapture')}
-              status={getActionStatus('vitals')}
+              icon="document-text-outline"
+              label={language === 'ja' ? '看護・医師記録' : 'Clinical Notes'}
+              onPress={() => {
+                if (!currentPatient) return;
+                const displayName = language === 'ja'
+                  ? `${currentPatient.family_name || ''} ${currentPatient.given_name || ''}`.trim()
+                  : `${currentPatient.family_name_en || ''} ${currentPatient.given_name_en || ''}`.trim();
+                navigation.navigate('ClinicalNotes' as any, {
+                  patientId: currentPatient.patient_id,
+                  patientName: displayName || currentPatient.patient_id
+                });
+              }}
+              status={{ completed: false, borderColor: COLORS.border }}
+              iconColor={COLORS.secondary}
             />
             <ActionButton
               icon="clipboard"

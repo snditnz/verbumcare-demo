@@ -1,0 +1,26 @@
+=========================================
+VerbumCare Data Verification Report
+Remote Server: verbumcare-lab.local
+Generated: Sat Dec  6 17:35:53 JST 2025
+=========================================
+
+--- USER ACCOUNTS ---
+Total user accounts:
+5
+
+User accounts by role:
+       role       | count 
+------------------+-------
+ physician        |     1
+ registered_nurse |     4
+(2 rows)
+
+
+User accounts by facility:
+             facility_id              | count 
+--------------------------------------+-------
+ 550e8400-e29b-41d4-a716-446655440001 |     5
+(1 row)
+
+
+Sample user accounts (first 5):

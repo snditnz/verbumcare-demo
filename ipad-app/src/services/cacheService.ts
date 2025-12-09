@@ -526,6 +526,9 @@ class CacheService {
     lastSync: number | null;
     pendingCount: number;
     cacheSize: number;
+    carePlansCount: number;
+    templatesCount: number;
+    sessionDataExists: boolean;
   }> {
     try {
       const patients = await this.getCachedPatients();
@@ -533,12 +536,24 @@ class CacheService {
       const pending = await this.getPendingSync();
       const keys = await AsyncStorage.getAllKeys();
       const verbumcareKeys = keys.filter(key => key.startsWith('@verbumcare/'));
+      
+      // Count care plans
+      const carePlanKeys = verbumcareKeys.filter(key => key.includes('care_plan/'));
+      
+      // Check templates
+      const templates = await this.getCachedProblemTemplates();
+      
+      // Check session data
+      const sessionData = await this.getCachedSessionData();
 
       return {
         patientsCount: patients?.length || 0,
         lastSync,
         pendingCount: pending.length,
         cacheSize: verbumcareKeys.length,
+        carePlansCount: carePlanKeys.length,
+        templatesCount: templates?.length || 0,
+        sessionDataExists: sessionData !== null,
       };
     } catch (error) {
       console.error('Error getting cache stats:', error);
@@ -547,7 +562,145 @@ class CacheService {
         lastSync: null,
         pendingCount: 0,
         cacheSize: 0,
+        carePlansCount: 0,
+        templatesCount: 0,
+        sessionDataExists: false,
       };
+    }
+  }
+
+  /**
+   * Check if cache is expired for a given expiry time
+   */
+  isCacheExpired(timestamp: number, expiryMs: number): boolean {
+    return Date.now() > (timestamp + expiryMs);
+  }
+
+  /**
+   * Get cache expiry configuration
+   */
+  getCacheExpiryConfig() {
+    return CACHE_EXPIRY;
+  }
+
+  /**
+   * Auto-save session data with timestamp
+   * Implements Requirements 9.1 (auto-save every 30 seconds)
+   */
+  async autoSaveSessionData(sessionData: any): Promise<void> {
+    try {
+      const dataWithTimestamp = {
+        ...sessionData,
+        lastSaved: Date.now(),
+        autoSaved: true,
+      };
+      await this.cacheSessionData(dataWithTimestamp);
+      console.log('[Cache] Auto-saved session data at', new Date().toISOString());
+    } catch (error) {
+      console.error('Error auto-saving session data:', error);
+    }
+  }
+
+  /**
+   * Check if session data needs auto-save (30 second interval)
+   */
+  async shouldAutoSaveSession(): Promise<boolean> {
+    try {
+      const sessionData = await this.getCachedSessionData();
+      if (!sessionData || !sessionData.lastSaved) {
+        return true; // No previous save, should save
+      }
+      
+      const timeSinceLastSave = Date.now() - sessionData.lastSaved;
+      return timeSinceLastSave >= 30000; // 30 seconds
+    } catch (error) {
+      console.error('Error checking auto-save status:', error);
+      return true; // Default to saving on error
+    }
+  }
+
+  /**
+   * Get detailed cache information for debugging
+   */
+  async getDetailedCacheInfo(): Promise<{
+    patients: { count: number; timestamp: number | null; expiresAt: number | null };
+    carePlans: { count: number };
+    templates: { count: number; version: number };
+    schedules: { count: number };
+    session: { exists: boolean; lastSaved: number | null };
+    pendingSync: { count: number; items: any[] };
+    lastSync: number | null;
+  }> {
+    try {
+      const patients = await this.getCachedPatients();
+      const patientsRaw = await AsyncStorage.getItem(CACHE_KEYS.PATIENTS);
+      const patientsCached = patientsRaw ? JSON.parse(patientsRaw) : null;
+      
+      const templates = await this.getCachedProblemTemplates();
+      const templateVersion = await AsyncStorage.getItem(CACHE_KEYS.PROBLEM_TEMPLATES_VERSION);
+      
+      const sessionData = await this.getCachedSessionData();
+      const pending = await this.getPendingSync();
+      const lastSync = await this.getLastSyncTime();
+      
+      const keys = await AsyncStorage.getAllKeys();
+      const carePlanKeys = keys.filter(key => key.includes('care_plan/'));
+      const scheduleKeys = keys.filter(key => key.includes('today_schedule/') || key.includes('staff_schedule'));
+
+      return {
+        patients: {
+          count: patients?.length || 0,
+          timestamp: patientsCached?.timestamp || null,
+          expiresAt: patientsCached?.expiresAt || null,
+        },
+        carePlans: {
+          count: carePlanKeys.length,
+        },
+        templates: {
+          count: templates?.length || 0,
+          version: templateVersion ? parseInt(templateVersion, 10) : 0,
+        },
+        schedules: {
+          count: scheduleKeys.length,
+        },
+        session: {
+          exists: sessionData !== null,
+          lastSaved: sessionData?.lastSaved || null,
+        },
+        pendingSync: {
+          count: pending.length,
+          items: pending,
+        },
+        lastSync,
+      };
+    } catch (error) {
+      console.error('Error getting detailed cache info:', error);
+      return {
+        patients: { count: 0, timestamp: null, expiresAt: null },
+        carePlans: { count: 0 },
+        templates: { count: 0, version: 0 },
+        schedules: { count: 0 },
+        session: { exists: false, lastSaved: null },
+        pendingSync: { count: 0, items: [] },
+        lastSync: null,
+      };
+    }
+  }
+
+  /**
+   * Trigger background refresh for expired cache items
+   * Implements Requirements 4.5 (background refresh)
+   */
+  async triggerBackgroundRefresh(refreshCallback: () => Promise<void>): Promise<void> {
+    try {
+      const shouldRefresh = await this.shouldSync();
+      if (shouldRefresh) {
+        console.log('[Cache] Triggering background refresh (cache expired)');
+        await refreshCallback();
+        await this.setLastSyncTime();
+      }
+    } catch (error) {
+      console.error('Error triggering background refresh:', error);
     }
   }
 }

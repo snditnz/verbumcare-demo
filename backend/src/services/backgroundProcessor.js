@@ -2,6 +2,7 @@ import path from 'path';
 import db from '../db/index.js';
 import { processVoiceToStructured, validateStructuredData } from './aiExtraction.js';
 import ollamaService from './ollamaService.js';
+import voiceEncryptionService from './voiceEncryption.js';
 
 /**
  * Background Voice Processing Service
@@ -167,6 +168,29 @@ class BackgroundProcessor {
         progress: 90
       });
 
+      // Encrypt transcription before storage
+      let encryptedTranscription = processedData.transcription;
+      try {
+        console.log('🔒 Encrypting transcription...');
+        const transcriptionData = JSON.stringify({
+          text: processedData.transcription,
+          language: processedData.language,
+          timestamp: new Date().toISOString()
+        });
+        
+        const { encrypted } = await voiceEncryptionService.encryptTranscription(
+          transcriptionData,
+          recording.recorded_by
+        );
+        
+        // Store as base64 for database compatibility
+        encryptedTranscription = encrypted.toString('base64');
+        console.log('✅ Transcription encrypted');
+      } catch (encryptionError) {
+        console.error('⚠️  Transcription encryption failed:', encryptionError);
+        // Continue with unencrypted transcription (fallback)
+      }
+
       // Save results with bilingual data
       const updateQuery = `
         UPDATE voice_recordings
@@ -182,7 +206,7 @@ class BackgroundProcessor {
       `;
 
       const updateValues = [
-        processedData.transcription,
+        encryptedTranscription,  // Store encrypted transcription
         JSON.stringify(bilingualStructuredData),  // Store both ja and en
         processedData.confidence,
         recordingId

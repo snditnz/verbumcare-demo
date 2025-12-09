@@ -21,44 +21,98 @@ class APIService {
       } as any,
     });
 
+    // Add request interceptor to include authentication headers
+    this.client.interceptors.request.use(
+      (config) => {
+        const { tokens } = useAuthStore.getState();
+        
+        // Add Authorization header if token exists
+        if (tokens?.accessToken) {
+          config.headers.Authorization = `Bearer ${tokens.accessToken}`;
+        }
+        
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
+    // Add response interceptor to handle authentication errors
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
-        // Fallback to IP if mDNS fails
-        if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
-          const fallbackURL = API_CONFIG.BASE_URL.replace(
-            'verbumcare-lab.local',
-            API_CONFIG.FALLBACK_IP
-          );
-          this.client.defaults.baseURL = fallbackURL;
-          return this.client.request(error.config);
+        const originalRequest = error.config;
+        
+        // If 401 Unauthorized and we haven't retried yet
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          
+          // Attempt to refresh token
+          const { refreshToken } = useAuthStore.getState();
+          const refreshed = await refreshToken();
+          
+          if (refreshed) {
+            // Retry original request with new token
+            const { tokens } = useAuthStore.getState();
+            originalRequest.headers.Authorization = `Bearer ${tokens?.accessToken}`;
+            return this.client(originalRequest);
+          }
         }
-        throw error;
+        
+        return Promise.reject(error);
       }
     );
   }
 
   async getPatients(useCache: boolean = true): Promise<Patient[]> {
-    // Try cache first if enabled
+    // OFFLINE-FIRST: Try cache first if enabled
     if (useCache) {
       const cached = await cacheService.getCachedPatients();
       if (cached) {
-        console.log('Using cached patients data');
+        console.log('[API] Using cached patients data');
+
+        // Try to update in background (silently fail if offline)
+        this.client.get<APIResponse<Patient[]>>('/patients', {
+          params: { facility_id: FACILITY_ID },
+        })
+          .then(response => {
+            cacheService.cachePatients(response.data.data);
+            cacheService.setLastSyncTime();
+            console.log('[API] Background refresh: updated patients cache');
+          })
+          .catch(error => {
+            console.log('[API] Background refresh failed (offline?):', error.message);
+          });
+
         return cached;
       }
     }
 
-    // Fetch from API
-    const response = await this.client.get<APIResponse<Patient[]>>('/patients', {
-      params: { facility_id: FACILITY_ID },
-    });
-    const patients = response.data.data;
+    // No cache - fetch from API and cache result
+    try {
+      const response = await this.client.get<APIResponse<Patient[]>>('/patients', {
+        params: { facility_id: FACILITY_ID },
+      });
+      const patients = response.data.data;
 
-    // Cache the result
-    await cacheService.cachePatients(patients);
-    await cacheService.setLastSyncTime();
+      // Cache the result
+      await cacheService.cachePatients(patients);
+      await cacheService.setLastSyncTime();
 
-    return patients;
+      return patients;
+    } catch (error: any) {
+      console.error('[API] Failed to fetch patients:', error.message);
+      
+      // Network failure fallback: try cache even if useCache was false
+      const fallbackCache = await cacheService.getCachedPatients();
+      if (fallbackCache) {
+        console.log('[API] Network failure - falling back to cached patients');
+        return fallbackCache;
+      }
+      
+      throw error; // No fallback available
+    }
   }
 
   async getPatient(id: string): Promise<Patient> {
@@ -388,10 +442,49 @@ class APIService {
    * @returns Array of problem templates
    */
   async getProblemTemplates(): Promise<ProblemTemplate[]> {
-    const response = await this.client.get<{ templates: ProblemTemplate[]; language: string }>(
-      '/care-plans/problem-templates'
-    );
-    return response.data.templates;
+    // OFFLINE-FIRST: Try cache first
+    const cached = await cacheService.getCachedProblemTemplates();
+    if (cached) {
+      console.log('[API] Using cached problem templates');
+
+      // Try to update in background (silently fail if offline)
+      this.client.get<{ templates: ProblemTemplate[]; language: string }>(
+        '/care-plans/problem-templates'
+      )
+        .then(response => {
+          cacheService.cacheProblemTemplates(response.data.templates);
+          console.log('[API] Background refresh: updated problem templates cache');
+        })
+        .catch(error => {
+          console.log('[API] Background refresh failed (offline?):', error.message);
+        });
+
+      return cached;
+    }
+
+    // No cache - fetch from API and cache result
+    try {
+      const response = await this.client.get<{ templates: ProblemTemplate[]; language: string }>(
+        '/care-plans/problem-templates'
+      );
+      const templates = response.data.templates;
+
+      // Cache the templates
+      await cacheService.cacheProblemTemplates(templates);
+
+      return templates;
+    } catch (error: any) {
+      console.error('[API] Failed to fetch problem templates:', error.message);
+      
+      // Network failure fallback: try cache
+      const fallbackCache = await cacheService.getCachedProblemTemplates();
+      if (fallbackCache) {
+        console.log('[API] Network failure - falling back to cached problem templates');
+        return fallbackCache;
+      }
+      
+      throw error; // No fallback available
+    }
   }
 
   /**
@@ -400,13 +493,58 @@ class APIService {
    * @returns Array of care plans (usually just one active plan)
    */
   async getCarePlans(patientId: string): Promise<CarePlan[]> {
-    const response = await this.client.get<APIResponse<CarePlan[]>>(
-      '/care-plans',
-      {
+    // OFFLINE-FIRST: Try cache first
+    const cached = await cacheService.getCachedCarePlan(patientId);
+    if (cached) {
+      console.log(`[API] Using cached care plan for patient ${patientId}`);
+
+      // Try to update in background (silently fail if offline)
+      this.client.get<APIResponse<CarePlan[]>>('/care-plans', {
         params: { patient_id: patientId }
+      })
+        .then(response => {
+          const carePlans = response.data.data;
+          // Cache the first care plan (usually only one active plan)
+          if (carePlans.length > 0) {
+            cacheService.cacheCarePlan(carePlans[0]);
+          }
+          console.log(`[API] Background refresh: updated care plan for patient ${patientId}`);
+        })
+        .catch(error => {
+          console.log(`[API] Background refresh failed (offline?):`, error.message);
+        });
+
+      return [cached]; // Return as array to match API response format
+    }
+
+    // No cache - fetch from API and cache result
+    try {
+      const response = await this.client.get<APIResponse<CarePlan[]>>(
+        '/care-plans',
+        {
+          params: { patient_id: patientId }
+        }
+      );
+      const carePlans = response.data.data;
+
+      // Cache the first care plan (usually only one active plan)
+      if (carePlans.length > 0) {
+        await cacheService.cacheCarePlan(carePlans[0]);
       }
-    );
-    return response.data.data;
+
+      return carePlans;
+    } catch (error: any) {
+      console.error(`[API] Failed to fetch care plans for patient ${patientId}:`, error.message);
+      
+      // Network failure fallback: try cache
+      const fallbackCache = await cacheService.getCachedCarePlan(patientId);
+      if (fallbackCache) {
+        console.log('[API] Network failure - falling back to cached care plan');
+        return [fallbackCache];
+      }
+      
+      throw error; // No fallback available
+    }
   }
 
   /**
@@ -669,6 +807,192 @@ class APIService {
     } catch (error: any) {
       console.error(`[API] Failed to fetch staff schedule:`, error.message);
       throw error; // No fallback - user requirement: no mock data
+    }
+  }
+
+  // ========== Clinical Notes APIs ==========
+
+  /**
+   * Get all clinical notes for a patient
+   * @param patientId - Patient ID
+   * @param filters - Optional filters (note_type, category, status, etc.)
+   * @returns Array of clinical notes
+   */
+  async getClinicalNotes(
+    patientId: string,
+    filters?: {
+      note_type?: 'nurse_note' | 'doctor_note' | 'care_note';
+      category?: string;
+      status?: string;
+      requires_approval?: boolean;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<any[]> {
+    try {
+      const params: any = {
+        limit: filters?.limit || 50,
+        offset: filters?.offset || 0,
+      };
+
+      if (filters?.note_type) params.note_type = filters.note_type;
+      if (filters?.category) params.category = filters.category;
+      if (filters?.status) params.status = filters.status;
+      if (filters?.requires_approval !== undefined) {
+        params.requires_approval = filters.requires_approval;
+      }
+
+      const response = await this.client.get<APIResponse<any[]>>(
+        `/clinical-notes/patient/${patientId}`,
+        { params }
+      );
+      return response.data.data;
+    } catch (error: any) {
+      console.error('[API] Failed to fetch clinical notes:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a specific clinical note by ID
+   * @param noteId - Note ID
+   * @returns Clinical note
+   */
+  async getClinicalNote(noteId: string): Promise<any> {
+    try {
+      const response = await this.client.get<APIResponse<any>>(
+        `/clinical-notes/${noteId}`
+      );
+      return response.data.data;
+    } catch (error: any) {
+      console.error('[API] Failed to fetch clinical note:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new clinical note (immediate save)
+   * @param noteData - Note data
+   * @returns Created note
+   */
+  async createClinicalNote(noteData: {
+    patient_id: string;
+    note_type: 'nurse_note' | 'doctor_note' | 'care_note';
+    note_category?: string;
+    note_text: string;
+    voice_recording_id?: string;
+    voice_transcribed?: boolean;
+    authored_by: string;
+    author_role: string;
+    author_name: string;
+    follow_up_required?: boolean;
+    follow_up_date?: string;
+    follow_up_notes?: string;
+    related_assessment_id?: string;
+    related_session_id?: string;
+    status?: string;
+    requires_approval?: boolean;
+  }): Promise<any> {
+    try {
+      const response = await this.client.post<APIResponse<any>>(
+        '/clinical-notes',
+        noteData
+      );
+      return response.data.data;
+    } catch (error: any) {
+      console.error('[API] Failed to create clinical note:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing clinical note
+   * @param noteId - Note ID
+   * @param updates - Fields to update
+   * @returns Updated note
+   */
+  async updateClinicalNote(
+    noteId: string,
+    updates: {
+      note_text?: string;
+      note_category?: string;
+      follow_up_required?: boolean;
+      follow_up_date?: string;
+      follow_up_notes?: string;
+      status?: string;
+    }
+  ): Promise<any> {
+    try {
+      const response = await this.client.put<APIResponse<any>>(
+        `/clinical-notes/${noteId}`,
+        updates
+      );
+      return response.data.data;
+    } catch (error: any) {
+      console.error('[API] Failed to update clinical note:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Approve or reject a clinical note
+   * @param noteId - Note ID
+   * @param approvalData - Approval data
+   * @returns Updated note
+   */
+  async approveClinicalNote(
+    noteId: string,
+    approvalData: {
+      approved_by: string;
+      approver_name: string;
+      approval_notes?: string;
+      approve: boolean;
+    }
+  ): Promise<any> {
+    try {
+      const response = await this.client.put<APIResponse<any>>(
+        `/clinical-notes/${noteId}/approve`,
+        approvalData
+      );
+      return response.data.data;
+    } catch (error: any) {
+      console.error('[API] Failed to approve clinical note:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a clinical note (soft delete)
+   * @param noteId - Note ID
+   * @param deletedBy - Staff ID who is deleting
+   * @returns Deleted note
+   */
+  async deleteClinicalNote(noteId: string, deletedBy: string): Promise<any> {
+    try {
+      const response = await this.client.delete<APIResponse<any>>(
+        `/clinical-notes/${noteId}`,
+        { data: { deleted_by: deletedBy } }
+      );
+      return response.data.data;
+    } catch (error: any) {
+      console.error('[API] Failed to delete clinical note:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get notes pending approval
+   * @returns Array of notes pending approval
+   */
+  async getPendingApprovalNotes(): Promise<any[]> {
+    try {
+      const response = await this.client.get<APIResponse<any[]>>(
+        '/clinical-notes/pending-approval'
+      );
+      return response.data.data;
+    } catch (error: any) {
+      console.error('[API] Failed to fetch pending approval notes:', error.message);
+      throw error;
     }
   }
 }

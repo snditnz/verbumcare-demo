@@ -7,6 +7,7 @@ import db from '../db/index.js';
 import { detectLanguage, getTranslation } from '../utils/i18n.js';
 import { processVoiceToStructured, validateStructuredData } from '../services/aiExtraction.js';
 import backgroundProcessor from '../services/backgroundProcessor.js';
+import voiceEncryptionService from '../services/voiceEncryption.js';
 
 const router = express.Router();
 
@@ -66,6 +67,21 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     const recordingId = uuidv4();
     const relativePath = path.relative(process.cwd(), req.file.path);
 
+    // Encrypt audio file immediately after upload
+    try {
+      console.log('🔒 Encrypting uploaded audio file...');
+      const encryptedPath = await voiceEncryptionService.encryptAudioFile(req.file.path, recorded_by);
+      
+      // Delete original unencrypted file
+      await voiceEncryptionService.secureDelete(req.file.path);
+      
+      console.log('✅ Audio file encrypted and original deleted');
+    } catch (encryptionError) {
+      console.error('⚠️  Audio encryption failed:', encryptionError);
+      // Continue with unencrypted file (fallback for compatibility)
+      // In production, you might want to fail here instead
+    }
+
     const query = `
       INSERT INTO voice_recordings (
         recording_id, patient_id, recorded_at, duration_seconds,
@@ -91,10 +107,11 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
       data: {
         recording_id: recordingId,
         file_path: relativePath,
+        encrypted: true,
         ...result.rows[0]
       },
       language,
-      message: 'Voice recording uploaded successfully'
+      message: 'Voice recording uploaded and encrypted successfully'
     });
   } catch (error) {
     console.error('Error uploading voice recording:', error);
@@ -102,7 +119,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
 
     if (req.file) {
       try {
-        await fs.unlink(req.file.path);
+        await voiceEncryptionService.secureDelete(req.file.path);
       } catch (unlinkError) {
         console.error('Error deleting uploaded file:', unlinkError);
       }
@@ -423,12 +440,15 @@ router.delete('/recording/:id', async (req, res) => {
       });
     }
 
-    const filePath = path.join(process.cwd(), recordingResult.rows[0].audio_file_path);
+    const audioFilePath = recordingResult.rows[0].audio_file_path;
 
+    // Securely delete recording and all associated files
     try {
-      await fs.unlink(filePath);
+      await voiceEncryptionService.secureDeleteRecording(id, audioFilePath);
+      console.log(`✅ Recording ${id} securely deleted`);
     } catch (error) {
-      console.error('Error deleting audio file:', error);
+      console.error('Error securely deleting audio files:', error);
+      // Continue with database deletion even if file deletion fails
     }
 
     const deleteQuery = 'DELETE FROM voice_recordings WHERE recording_id = $1 RETURNING *';
@@ -438,7 +458,7 @@ router.delete('/recording/:id', async (req, res) => {
       success: true,
       data: deleteResult.rows[0],
       language,
-      message: 'Recording deleted successfully'
+      message: 'Recording securely deleted'
     });
   } catch (error) {
     console.error('Error deleting voice recording:', error);

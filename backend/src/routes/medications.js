@@ -1,7 +1,15 @@
 import express from 'express';
 import db from '../db/index.js';
 import { detectLanguage, getTranslation } from '../utils/i18n.js';
-import { createMedicationHash, getLatestChainHash, generateBarcodeValue, verifyBarcode } from '../utils/crypto.js';
+import { 
+  createMedicationHash, 
+  getLatestChainHash, 
+  generateBarcodeValue, 
+  verifyBarcode,
+  verifyChainIntegrity,
+  validatePatientMedicationChain,
+  exportMedicationRecordsWithHashChain
+} from '../utils/crypto.js';
 
 const router = express.Router();
 
@@ -97,11 +105,20 @@ router.get('/patient/:patientId/today', async (req, res) => {
       status: med.admin_status || 'available'
     }));
 
+    // Validate hash chain for this patient (background validation)
+    const validation = await validatePatientMedicationChain(patientId);
+
     res.json({
       success: true,
       data: {
         scheduled: scheduledMeds,
         prn: prnMeds
+      },
+      hashChainVerification: {
+        verified: validation.verified,
+        valid: validation.valid,
+        recordCount: validation.recordCount,
+        hasIssues: validation.totalIssues > 0
       },
       language,
       message: getTranslation('success', language)
@@ -480,6 +497,90 @@ router.put('/orders/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating medication order:', error);
+    const language = detectLanguage(req);
+    res.status(500).json({
+      success: false,
+      error: getTranslation('error', language),
+      language
+    });
+  }
+});
+
+// Verify hash chain integrity for a facility
+router.get('/verify-chain/:facilityId', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { facilityId } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 1000;
+
+    const verification = await verifyChainIntegrity(facilityId, limit);
+
+    res.json({
+      success: true,
+      data: verification,
+      language,
+      message: verification.message
+    });
+  } catch (error) {
+    console.error('Error verifying medication hash chain:', error);
+    const language = detectLanguage(req);
+    res.status(500).json({
+      success: false,
+      error: getTranslation('error', language),
+      language
+    });
+  }
+});
+
+// Verify hash chain for a specific patient
+router.get('/verify-chain/patient/:patientId', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { patientId } = req.params;
+
+    const validation = await validatePatientMedicationChain(patientId);
+
+    res.json({
+      success: true,
+      data: validation,
+      language,
+      message: validation.message
+    });
+  } catch (error) {
+    console.error('Error validating patient medication chain:', error);
+    const language = detectLanguage(req);
+    res.status(500).json({
+      success: false,
+      error: getTranslation('error', language),
+      language
+    });
+  }
+});
+
+// Export medication records with hash chain data
+router.get('/export/:facilityId', async (req, res) => {
+  try {
+    const language = detectLanguage(req);
+    const { facilityId } = req.params;
+    const { startDate, endDate, limit } = req.query;
+
+    const options = {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      limit: limit ? parseInt(limit) : 1000
+    };
+
+    const records = await exportMedicationRecordsWithHashChain(facilityId, options);
+
+    res.json({
+      success: true,
+      data: records,
+      count: records.length,
+      language,
+      message: `Exported ${records.length} medication records with hash chain data`
+    });
+  } catch (error) {
+    console.error('Error exporting medication records:', error);
     const language = detectLanguage(req);
     res.status(500).json({
       success: false,

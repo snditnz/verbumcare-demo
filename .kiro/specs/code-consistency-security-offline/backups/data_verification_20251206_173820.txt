@@ -1,0 +1,162 @@
+=========================================
+VerbumCare Data Verification Report
+Remote Server: verbumcare-lab.local
+Generated: Sat Dec  6 17:38:35 JST 2025
+=========================================
+
+--- DATA COUNTS BY TABLE ---
+
+auth_audit_log: 8 records
+barthel_assessments: 20 records
+care_conferences: 0 records
+care_plan_audit_log: 10 records
+care_plan_items: 2 records
+care_plan_progress_notes: 0 records
+care_plans: 8 records
+clinical_notes: 2 records
+facilities: 1 records
+medication_administrations: 1 records
+medication_orders: 20 records
+monitoring_records: 0 records
+nursing_assessments: 0 records
+patient_incidents: 0 records
+patient_session_data: 90 records
+patients: 5 records
+problem_templates: 6 records
+staff: 5 records
+staff_sessions: 3 records
+vital_signs: 40 records
+voice_recordings: 0 records
+weekly_schedule_items: 0 records
+
+--- STAFF/USER ACCOUNTS ---
+Total staff accounts: 5
+
+Staff by role:
+       role       | count 
+------------------+-------
+ physician        |     1
+ registered_nurse |     4
+(2 rows)
+
+
+Sample staff accounts (first 5):
+               staff_id               | username | family_name | given_name |       role       
+--------------------------------------+----------+-------------+------------+------------------
+ 550e8400-e29b-41d4-a716-446655440101 | nurse1   | 佐藤        | 美咲       | registered_nurse
+ 550e8400-e29b-41d4-a716-446655440102 | nurse2   | 鈴木        | 花子       | registered_nurse
+ 550e8400-e29b-41d4-a716-446655440103 | doctor1  | 田中        | 健一       | physician
+ 550e8400-e29b-41d4-a716-446655440104 | manager1 | 田中        | 博         | registered_nurse
+ 550e8400-e29b-41d4-a716-446655440105 | demo     | デモ        | 職員       | registered_nurse
+(5 rows)
+
+
+--- PATIENT RECORDS ---
+Total patients: 5
+
+Patients by status:
+ status | count 
+--------+-------
+ green  |     2
+ red    |     1
+ yellow |     2
+(3 rows)
+
+
+Sample patients (first 5):
+              patient_id              |  mrn   | family_name | given_name | date_of_birth | gender 
+--------------------------------------+--------+-------------+------------+---------------+--------
+ 550e8400-e29b-41d4-a716-446655440201 | MRN001 | 山田        | 太郎       | 1955-03-15    | male
+ 550e8400-e29b-41d4-a716-446655440202 | MRN002 | 田中        | 優希       | 1978-07-22    | female
+ 550e8400-e29b-41d4-a716-446655440203 | MRN003 | 佐藤        | 健二       | 1951-11-08    | male
+ 550e8400-e29b-41d4-a716-446655440204 | MRN004 | 鈴木        | 愛子       | 1968-05-30    | female
+ 550e8400-e29b-41d4-a716-446655440205 | MRN005 | 渡辺        | 博         | 1943-12-25    | male
+(5 rows)
+
+
+--- CARE PLANS ---
+Total care plans: 8
+
+Care plans by status:
+ status | count 
+--------+-------
+ active |     8
+(1 row)
+
+
+Care plans with version information:
+ version | count 
+---------+-------
+       1 |     8
+(1 row)
+
+
+Sample care plans (first 5):
+             care_plan_id             |              patient_id              | status |        created_date        
+--------------------------------------+--------------------------------------+--------+----------------------------
+ c5e0dd1b-427a-4b9f-a270-8fff7e72f210 | 550e8400-e29b-41d4-a716-446655440201 | active | 2025-10-21 07:54:20.720338
+ 6bce0e69-974e-4125-bf62-4adc9a708e69 | 550e8400-e29b-41d4-a716-446655440201 | active | 2025-10-21 08:17:51.285652
+ 31c45f78-2e09-4dc7-9d2b-283706d3d591 | 550e8400-e29b-41d4-a716-446655440201 | active | 2025-10-21 08:19:26.169335
+ fc6913db-b49e-4e6f-8ba9-d2c072cf9b77 | 550e8400-e29b-41d4-a716-446655440201 | active | 2025-10-21 08:21:27.923192
+ 0cbd278b-1f5f-4cef-9671-30853310dd17 | 550e8400-e29b-41d4-a716-446655440201 | active | 2025-10-21 08:22:11.380596
+(5 rows)
+
+
+Total care plan items: 2
+
+--- CLINICAL NOTES ---
+Total clinical notes: 2
+
+Clinical notes by type:
+ note_type  | count 
+------------+-------
+ nurse_note |     2
+(1 row)
+
+
+Clinical notes date range:
+           earliest            |            latest             
+-------------------------------+-------------------------------
+ 2025-11-26 05:06:11.858317+00 | 2025-11-26 06:28:55.168257+00
+(1 row)
+
+
+Sample clinical notes (first 5):
+               note_id                |              patient_id              |          created_at           
+--------------------------------------+--------------------------------------+-------------------------------
+ 70af3e56-eb55-464e-bdda-f4ac69736e16 | 550e8400-e29b-41d4-a716-446655440201 | 2025-11-26 06:28:55.168257+00
+ 11029fd3-a33e-45d7-9866-7c7c80e41214 | 550e8400-e29b-41d4-a716-446655440201 | 2025-11-26 05:06:11.858317+00
+(2 rows)
+
+
+--- MEDICATION ORDERS ---
+Total medication orders: 20
+
+--- MEDICATION ADMINISTRATIONS ---
+Total medication administrations: 1
+
+Hash chain status:
+ total | with_hash | with_prev_hash 
+-------+-----------+----------------
+     1 |         1 |              1
+(1 row)
+
+
+Sample medication administrations (first 5):
+          administration_id           |              patient_id              | administered_datetime 
+--------------------------------------+--------------------------------------+-----------------------
+ 98a0f003-a225-4277-9822-cb8f43e273df | 550e8400-e29b-41d4-a716-446655440204 | 2025-10-20 06:05:00
+(1 row)
+
+
+--- VITAL SIGNS ---
+Total vital sign records: 40
+
+Vital signs date range:
+          earliest          |         latest         
+----------------------------+------------------------
+ 2025-10-20 03:01:09.798672 | 2025-11-11 02:53:26.98
+(1 row)
+
+
+Sample vital signs (first 5):
