@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Ima
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
+import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { LanguageToggle, BLEIndicator } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
@@ -12,6 +13,7 @@ import apiService from '@services/api';
 import bleService from '@services/ble';
 import { BLEConnectionStatus, BPReading } from '@types/ble';
 import { useAuthStore } from '@stores/authStore';
+import { voiceService } from '@services/voice';
 
 const api = apiService;
 
@@ -31,6 +33,7 @@ type RootStackParamList = {
   ReviewConfirm: undefined;
   CarePlanHub: undefined;
   ComingSoon: { feature: string };
+  ReviewQueue: undefined;
 };
 
 type Props = {
@@ -55,6 +58,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     removeLastVital,
   } = useAssessmentStore();
   const { currentUser } = useAuthStore();
+  const { queueCount } = useVoiceReviewStore();
 
   const [scheduleData, setScheduleData] = useState<any>(null);
   const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
@@ -336,6 +340,14 @@ export default function PatientInfoScreen({ navigation }: Props) {
     ? `${currentPatient.family_name} ${currentPatient.given_name}`
     : `${currentPatient.family_name_en || currentPatient.family_name} ${currentPatient.given_name_en || currentPatient.given_name}`;
 
+  // Handle voice recording with patient context
+  const handleVoiceRecording = () => {
+    // Set patient context before navigating
+    const context = voiceService.detectContext(currentPatient);
+    voiceService.setContext(context);
+    navigation.navigate('GeneralVoiceRecorder');
+  };
+
   // Get latest height (from session updates, historical vitals, or patient record)
   const latestHeight = sessionPatientUpdates?.height ?? currentPatient.latest_height_cm ?? currentPatient.height_cm;
 
@@ -396,6 +408,18 @@ export default function PatientInfoScreen({ navigation }: Props) {
         </View>
         <View style={styles.headerRight}>
           <View style={styles.headerRightContent}>
+            {/* Review Queue Badge */}
+            {queueCount > 0 && (
+              <TouchableOpacity 
+                style={styles.reviewQueueBadge}
+                onPress={() => navigation.navigate('ReviewQueue' as any)}
+              >
+                <Ionicons name="list" size={20} color={COLORS.white} />
+                <View style={styles.badgeCount}>
+                  <Text style={styles.badgeCountText}>{queueCount}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
             <BLEIndicator status={bleStatus} />
             <LanguageToggle />
           </View>
@@ -807,7 +831,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
             <ActionButton
               icon="mic"
               label={language === 'ja' ? '記録' : 'Record'}
-              onPress={() => navigation.navigate('GeneralVoiceRecorder')}
+              onPress={handleVoiceRecording}
               status={{ completed: false, borderColor: COLORS.border }}
               iconColor={COLORS.error}
             />
@@ -970,6 +994,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
+  },
+  reviewQueueBadge: {
+    position: 'relative',
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.round,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeCount: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: COLORS.error,
+    borderRadius: BORDER_RADIUS.round,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeCountText: {
+    color: COLORS.white,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   screenTitle: {
     fontSize: TYPOGRAPHY.fontSize.xl,

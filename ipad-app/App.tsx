@@ -52,6 +52,10 @@ import TodayScheduleScreen from './src/screens/TodayScheduleScreen';
 import ClinicalNotesScreen from './src/screens/ClinicalNotesScreen';
 import AddNoteScreen from './src/screens/AddNoteScreen';
 
+// Voice Review screens
+import ReviewQueueScreen from './src/screens/ReviewQueueScreen';
+import VoiceReviewScreen from './src/screens/VoiceReviewScreen';
+
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
@@ -82,6 +86,8 @@ export type RootStackParamList = {
   ComingSoon: { feature: string };
   ClinicalNotes: { patientId: string; patientName: string };
   AddNote: { patientId: string; patientName: string };
+  ReviewQueue: undefined;
+  VoiceReview: { reviewId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -384,6 +390,16 @@ export default function App() {
             name="AddNote"
             component={AddNoteScreen}
             options={{ title: 'Add Note' }}
+          />
+          <Stack.Screen
+            name="ReviewQueue"
+            component={ReviewQueueScreen}
+            options={{ title: 'Review Queue' }}
+          />
+          <Stack.Screen
+            name="VoiceReview"
+            component={VoiceReviewScreen}
+            options={{ title: 'Voice Review' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

@@ -5,15 +5,19 @@
  * General purpose voice recording for any clinical documentation
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle, VoiceRecorder } from '@components';
+import { useAuthStore } from '@stores/authStore';
+import { useVoiceReviewStore } from '@stores/voiceReviewStore';
+import { LanguageToggle, VoiceRecorder, VoiceProcessingNotification } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { voiceService } from '@services/voice';
+import { voiceReviewService } from '@services/voiceReviewService';
 
 const logoMark = require('../../VerbumCare-Logo-Mark.png');
 
@@ -27,18 +31,37 @@ type Props = {
 };
 
 export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
-  const { language } = useAssessmentStore();
+  const { language, currentPatient } = useAssessmentStore();
+  const { currentUser } = useAuthStore();
+  const { loadQueue } = useVoiceReviewStore();
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<string>('');
+  const [context, setContext] = useState<{ type: 'patient' | 'global'; patientName?: string } | null>(null);
   const t = translations[language];
 
-  const handleRecordingComplete = (uri: string) => {
+  // Detect and set context on mount
+  useEffect(() => {
+    const detectedContext = voiceService.detectContext(currentPatient || undefined);
+    voiceService.setContext(detectedContext);
+    
+    setContext({
+      type: detectedContext.type,
+      patientName: detectedContext.patientName
+    });
+    
+    console.log('[GeneralVoiceRecorder] Context detected:', detectedContext);
+  }, [currentPatient]);
+
+  const handleRecordingComplete = (uri: string, duration: number) => {
     setRecordingUri(uri);
-    console.log('[GeneralVoiceRecorder] Recording saved:', uri);
-    // TODO: Process recording with AI when backend is ready
+    setRecordingDuration(duration);
+    console.log('[GeneralVoiceRecorder] Recording saved:', uri, 'Duration:', duration, 'ms');
   };
 
   const handleCancel = () => {
+    voiceService.clearContext();
     navigation.navigate('Dashboard' as any);
   };
 
@@ -46,16 +69,65 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
     if (!recordingUri) return;
 
     setIsProcessing(true);
+    setProcessingStatus(language === 'ja' ? 'アップロード中...' : 'Uploading...');
+    
     try {
-      // TODO: Upload and process recording
-      console.log('[GeneralVoiceRecorder] Processing recording:', recordingUri);
-
-      // For now, just go back to dashboard
-      navigation.navigate('Dashboard' as any);
-    } catch (error) {
+      console.log('[GeneralVoiceRecorder] Uploading recording:', recordingUri);
+      
+      // Get current context
+      const currentContext = voiceService.getCurrentContext();
+      
+      // Upload recording with context and duration
+      const uploadResult = await voiceReviewService.uploadRecording(recordingUri, currentContext, recordingDuration);
+      
+      console.log('[GeneralVoiceRecorder] Upload successful:', uploadResult.recording_id);
+      
+      // Trigger categorization
+      setProcessingStatus(language === 'ja' ? 'AI処理中...' : 'Processing with AI...');
+      await voiceReviewService.triggerCategorization(uploadResult.recording_id);
+      
+      console.log('[GeneralVoiceRecorder] Categorization triggered');
+      
+      // Show success message and wait longer for user to see it
+      setProcessingStatus(language === 'ja' ? '完了！レビューキューを確認してください' : 'Complete! Check review queue');
+      
+      // Refresh the review queue immediately
+      if (currentUser?.userId) {
+        await loadQueue(currentUser.userId);
+      }
+      
+      // Wait longer before navigation to let user see the success message
+      setTimeout(() => {
+        // Clear context
+        voiceService.clearContext();
+        
+        // Navigate back to dashboard so user can see the updated review queue
+        navigation.navigate('Dashboard' as any);
+      }, 3000); // Increased from 1.5s to 3s
+      
+    } catch (error: any) {
       console.error('[GeneralVoiceRecorder] Error processing:', error);
-    } finally {
-      setIsProcessing(false);
+      
+      // Show more user-friendly error messages
+      let errorMessage = error.message;
+      if (errorMessage.includes('Whisper service error')) {
+        errorMessage = language === 'ja' 
+          ? '音声の処理に失敗しました。もう一度お試しください。'
+          : 'Voice processing failed. Please try again.';
+      } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
+        errorMessage = language === 'ja'
+          ? 'ネットワークエラーです。接続を確認してください。'
+          : 'Network error. Please check your connection.';
+      }
+      
+      setProcessingStatus(language === 'ja' ? `エラー: ${errorMessage}` : `Error: ${errorMessage}`);
+      
+      // Clear error after longer delay and reset form
+      setTimeout(() => {
+        setIsProcessing(false);
+        setProcessingStatus('');
+        setRecordingUri(null); // Reset to allow re-recording
+      }, 5000); // Increased from 3s to 5s
     }
   };
 
@@ -80,6 +152,40 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
       </View>
 
       <ScrollView style={styles.content}>
+        {/* Context Indicator */}
+        {context && (
+          <Card style={styles.contextCard}>
+            <View style={styles.contextHeader}>
+              <Ionicons 
+                name={context.type === 'patient' ? 'person' : 'globe'} 
+                size={ICON_SIZES.md} 
+                color={context.type === 'patient' ? COLORS.primary : COLORS.accent} 
+              />
+              <Text style={styles.contextTitle}>
+                {context.type === 'patient' 
+                  ? (language === 'ja' ? '患者コンテキスト' : 'Patient Context')
+                  : (language === 'ja' ? 'グローバルコンテキスト' : 'Global Context')
+                }
+              </Text>
+            </View>
+            {context.patientName && (
+              <Text style={styles.contextPatientName}>
+                {context.patientName}
+              </Text>
+            )}
+            <Text style={styles.contextDescription}>
+              {context.type === 'patient'
+                ? (language === 'ja' 
+                    ? 'この録音は患者に自動的に関連付けられます' 
+                    : 'This recording will be automatically linked to the patient')
+                : (language === 'ja'
+                    ? 'この録音は施設全体の記録として保存されます'
+                    : 'This recording will be saved as a facility-wide note')
+              }
+            </Text>
+          </Card>
+        )}
+
         {/* Instructions */}
         <Card style={styles.instructionCard}>
           <View style={styles.instructionHeader}>
@@ -121,7 +227,7 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
         </Card>
 
         {/* Status */}
-        {recordingUri && (
+        {recordingUri && !isProcessing && (
           <Card style={styles.statusCard}>
             <View style={styles.statusHeader}>
               <Ionicons name="checkmark-circle" size={ICON_SIZES.md} color={COLORS.success} />
@@ -135,6 +241,20 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
                 : 'Tap save to store your recording.'}
             </Text>
           </Card>
+        )}
+
+        {/* Processing Notification */}
+        {isProcessing && (
+          <VoiceProcessingNotification
+            status={{
+              recordingId: 'temp',
+              status: processingStatus.includes('完了') || processingStatus.includes('Complete') ? 'completed' : 'processing',
+              phase: processingStatus.includes('アップロード') || processingStatus.includes('Uploading') ? 'transcription' : 'extraction',
+              message: processingStatus
+            }}
+            language={language}
+            onDismiss={() => {}}
+          />
         )}
 
         {/* Actions */}
@@ -157,15 +277,6 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
           </Button>
         </View>
 
-        {/* Future Features Note */}
-        <View style={styles.futureNote}>
-          <Ionicons name="information-circle-outline" size={ICON_SIZES.sm} color={COLORS.text.secondary} />
-          <Text style={styles.futureNoteText}>
-            {language === 'ja'
-              ? '今後、AIが音声を自動的に文字起こしし、構造化データに変換します。'
-              : 'In the future, AI will automatically transcribe and structure your recording.'}
-          </Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -218,6 +329,34 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: SPACING.lg,
+  },
+  contextCard: {
+    marginBottom: SPACING.lg,
+    backgroundColor: COLORS.surface,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+  },
+  contextHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.xs,
+  },
+  contextTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  contextPatientName: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+    marginBottom: SPACING.xs,
+  },
+  contextDescription: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
+    lineHeight: 20,
   },
   instructionCard: {
     marginBottom: SPACING.lg,
@@ -290,19 +429,5 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-  },
-  futureNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.sm,
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  futureNoteText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.text.secondary,
-    lineHeight: 18,
   },
 });

@@ -2,7 +2,7 @@ module.exports = {
   preset: 'react-native',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   transformIgnorePatterns: [
-    'node_modules/(?!(react-native|@react-native|@react-navigation|expo|@expo|zustand|socket.io-client|react-native-ble-plx)/)',
+    'node_modules/(?!(react-native|@react-native|@react-navigation|expo|@expo|expo-.*|zustand|socket.io-client|react-native-ble-plx)/)',
   ],
   moduleNameMapper: {
     '^@components/(.*)$': '<rootDir>/src/components/$1',

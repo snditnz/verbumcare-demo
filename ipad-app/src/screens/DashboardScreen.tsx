@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore, getRoleDisplayName } from '@stores/authStore';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { useCarePlanStore } from '@stores/carePlanStore';
+import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { LanguageToggle, NetworkStatusIndicator } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
@@ -25,6 +26,7 @@ type RootStackParamList = {
   PatientInfo: undefined;
   GeneralVoiceRecorder: undefined;
   CarePlanHub: undefined;
+  ReviewQueue: undefined;
 };
 
 type Props = {
@@ -35,6 +37,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const { currentUser, logout, isAuthenticated } = useAuthStore();
   const { language, setCurrentPatient } = useAssessmentStore();
   const { carePlans, loadCarePlan, clearStore } = useCarePlanStore();
+  const { queueCount, loadQueue } = useVoiceReviewStore();
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,10 +54,24 @@ export default function DashboardScreen({ navigation }: Props) {
     }
   }, [isAuthenticated, currentUser]);
 
-  // Load patients on mount
+  // Load patients and review queue on mount
   useEffect(() => {
     loadPatients();
-  }, []);
+    if (currentUser) {
+      loadQueue(currentUser.userId);
+    }
+  }, [currentUser]);
+
+  // Refresh review queue when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (currentUser) {
+        loadQueue(currentUser.userId);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, currentUser]);
 
   const loadPatients = async () => {
     try {
@@ -261,6 +278,18 @@ export default function DashboardScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          {/* Review Queue Button - Always visible */}
+          <TouchableOpacity 
+            style={styles.reviewQueueButton}
+            onPress={() => navigation.navigate('ReviewQueue' as any)}
+          >
+            <Ionicons name="list" size={24} color={COLORS.white} />
+            {queueCount() > 0 && (
+              <View style={styles.queueBadge}>
+                <Text style={styles.queueBadgeText}>{queueCount()}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={handleWarmCache}
             style={[styles.clearCacheButton, warmingCache && { opacity: 0.5 }]}
@@ -713,6 +742,46 @@ export default function DashboardScreen({ navigation }: Props) {
           )}
           </View>
         </View>
+
+        {/* Voice Review Queue Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="list" size={ICON_SIZES.md} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>
+              {language === 'ja' ? '音声レビューキュー' : 'Voice Review Queue'}
+            </Text>
+            {queueCount() > 0 && (
+              <View style={styles.queueBadge}>
+                <Text style={styles.queueBadgeText}>{queueCount()}</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.reviewQueueCard}
+            onPress={() => navigation.navigate('ReviewQueue' as any)}
+          >
+            <Card style={[styles.reviewQueueCardInner, queueCount() > 0 && { borderLeftWidth: 4, borderLeftColor: COLORS.primary }]}>
+              <View style={styles.reviewQueueContent}>
+                <View style={styles.reviewQueueIcon}>
+                  <Ionicons name="mic" size={ICON_SIZES.lg} color={COLORS.primary} />
+                </View>
+                <View style={styles.reviewQueueText}>
+                  <Text style={styles.reviewQueueTitle}>
+                    {queueCount() > 0 
+                      ? (language === 'ja' ? `${queueCount()}件の音声記録が待機中` : `${queueCount()} voice recordings pending`)
+                      : (language === 'ja' ? '音声記録の待機なし' : 'No voice recordings pending')
+                    }
+                  </Text>
+                  <Text style={styles.reviewQueueSubtitle}>
+                    {language === 'ja' ? 'タップしてレビューキューを開く' : 'Tap to open review queue'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={ICON_SIZES.md} color={COLORS.text.secondary} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -764,6 +833,28 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.white,
     opacity: 0.9,
+  },
+  reviewQueueButton: {
+    position: 'relative',
+    padding: SPACING.sm,
+    marginRight: SPACING.sm,
+  },
+  queueBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: COLORS.error,
+    borderRadius: BORDER_RADIUS.round,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  queueBadgeText: {
+    color: COLORS.white,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   clearCacheButton: {
     padding: SPACING.sm,
@@ -1082,5 +1173,60 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xs,
     borderBottomWidth: 1,
     borderBottomColor: `${COLORS.text.disabled}20`,
+  },
+  miniQueueBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: COLORS.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  miniQueueBadgeText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.white,
+  },
+  gridCellSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  reviewQueueCard: {
+    marginBottom: SPACING.sm,
+  },
+  reviewQueueCardInner: {
+    padding: SPACING.md,
+  },
+  reviewQueueContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  reviewQueueIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: `${COLORS.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewQueueText: {
+    flex: 1,
+  },
+  reviewQueueTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+    marginBottom: 2,
+  },
+  reviewQueueSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
   },
 });

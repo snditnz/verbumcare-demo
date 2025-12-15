@@ -27,5 +27,9 @@ export { default as AddCarePlanItemScreen } from './AddCarePlanItemScreen';
 export { default as QuickProgressUpdateScreen } from './QuickProgressUpdateScreen';
 export { default as MonitoringFormScreen } from './MonitoringFormScreen';
 
+// Voice Review
+export { default as ReviewQueueScreen } from './ReviewQueueScreen';
+export { default as VoiceReviewScreen } from './VoiceReviewScreen';
+
 // Utility
 export { default as ComingSoonScreen } from './ComingSoonScreen';

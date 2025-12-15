@@ -3,6 +3,8 @@ import db from '../db/index.js';
 import { processVoiceToStructured, validateStructuredData } from './aiExtraction.js';
 import ollamaService from './ollamaService.js';
 import voiceEncryptionService from './voiceEncryption.js';
+import categorizationService from './categorizationService.js';
+import reviewQueueService from './reviewQueueService.js';
 
 /**
  * Background Voice Processing Service
@@ -214,6 +216,57 @@ class BackgroundProcessor {
 
       const updateResult = await db.query(updateQuery, updateValues);
 
+      // Call categorization service to detect categories and extract data
+      this.emitProgress(recordingId, {
+        status: 'processing',
+        phase: 'categorization',
+        message: 'Categorizing voice data...',
+        progress: 95
+      });
+
+      try {
+        console.log('🔍 Starting AI categorization...');
+        const categorization = await categorizationService.categorizeAndExtract(
+          processedData.transcription,
+          processedData.language
+        );
+
+        console.log('✅ Categorization complete:', categorization.categories);
+
+        // Create review queue item
+        const reviewItem = await reviewQueueService.createReviewItem({
+          recording_id: recordingId,
+          user_id: recording.recorded_by,
+          context_type: recording.context_type || 'global',
+          context_patient_id: recording.context_patient_id,
+          transcript: processedData.transcription,
+          transcript_language: processedData.language,
+          extracted_data: categorization.extractedData,
+          confidence_score: categorization.overallConfidence,
+          processing_time_ms: Date.now() - this.activeJobs.get(recordingId).startedAt.getTime(),
+          model_version: 'llama3.1:8b'
+        });
+
+        console.log('✅ Review queue item created:', reviewItem.review_id);
+
+        // Log categorization details
+        await db.query(
+          `INSERT INTO voice_categorization_log 
+           (review_id, detected_categories, extraction_prompt, extraction_response)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            reviewItem.review_id,
+            JSON.stringify(categorization.categories),
+            categorization.prompt || '',
+            JSON.stringify(categorization.extractedData)
+          ]
+        );
+
+      } catch (categorizationError) {
+        console.error('⚠️  Categorization failed:', categorizationError);
+        // Continue without categorization - user can still review raw transcript
+      }
+
       // Emit completion with bilingual data
       this.emitProgress(recordingId, {
         status: 'completed',
@@ -246,13 +299,22 @@ class BackgroundProcessor {
         [error.message, recordingId]
       );
 
-      // Emit error
+      // Emit error notification
       this.emitProgress(recordingId, {
         status: 'failed',
         phase: 'error',
         message: error.message,
         error: error.message
       });
+
+      // Also emit to user-specific room for error notification
+      if (this.io) {
+        this.io.to(`user:${recording.recorded_by}`).emit('voice-processing-error', {
+          recording_id: recordingId,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
 
     } finally {
       this.activeJobs.delete(recordingId);

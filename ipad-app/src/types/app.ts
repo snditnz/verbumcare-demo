@@ -232,7 +232,7 @@ export interface FallRiskAssessment {
   recorded_at: Date;
 }
 
-export type Language = 'ja' | 'en';
+export type Language = 'ja' | 'en' | 'zh-TW';
 
 // ============================================================================
 // CARE PLAN MODULE - Japanese Long-Term Care Insurance Compliant

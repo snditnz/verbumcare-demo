@@ -2,11 +2,20 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { VOICE_CONFIG } from '@constants/config';
 
+export interface VoiceContext {
+  type: 'patient' | 'global';
+  patientId?: string;
+  patientName?: string;
+  room?: string;
+  bed?: string;
+}
+
 class VoiceService {
   private recording: Audio.Recording | null = null;
   private recordingDuration: number = 0;
   private durationInterval: NodeJS.Timeout | null = null;
   private onAutoStopCallback: ((uri: string, duration: number) => void) | null = null;
+  private currentContext: VoiceContext | null = null;
 
   async requestPermissions(): Promise<boolean> {
     try {
@@ -143,6 +152,50 @@ class VoiceService {
 
   isRecording(): boolean {
     return this.recording !== null;
+  }
+
+  /**
+   * Set the current voice recording context
+   * @param context - Patient or global context
+   */
+  setContext(context: VoiceContext): void {
+    this.currentContext = context;
+  }
+
+  /**
+   * Get the current voice recording context
+   * @returns Current context or null if not set
+   */
+  getCurrentContext(): VoiceContext | null {
+    return this.currentContext;
+  }
+
+  /**
+   * Clear the current context
+   */
+  clearContext(): void {
+    this.currentContext = null;
+  }
+
+  /**
+   * Detect context from navigation state or selected patient
+   * @param selectedPatient - Currently selected patient (if any)
+   * @returns Voice context
+   */
+  detectContext(selectedPatient?: { patient_id: string; family_name: string; given_name: string; room?: string; bed?: string }): VoiceContext {
+    if (selectedPatient && selectedPatient.patient_id) {
+      return {
+        type: 'patient',
+        patientId: selectedPatient.patient_id,
+        patientName: `${selectedPatient.family_name} ${selectedPatient.given_name}`,
+        room: selectedPatient.room,
+        bed: selectedPatient.bed
+      };
+    }
+
+    return {
+      type: 'global'
+    };
   }
 }
 

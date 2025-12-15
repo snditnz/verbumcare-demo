@@ -95,16 +95,33 @@ class WhisperLocalService {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(`✅ Transcription completed in ${duration}s`);
 
-      // Handle different response formats
+      // Debug: Log the actual response
+      console.log('🔍 Whisper response:', JSON.stringify(response.data, null, 2));
+
+      // Check for error response first
+      if (response.data && response.data.status === 'error') {
+        console.error('❌ Whisper service error:', response.data.error);
+        throw new Error(`Whisper service error: ${response.data.error}`);
+      }
+
+      // Handle different successful response formats
       if (typeof response.data === 'string') {
-        return response.data.trim();
+        const result = response.data.trim();
+        console.log(`📝 Transcription result (string): "${result}"`);
+        return result;
       } else if (response.data.full_text) {
         // faster-whisper format
-        return response.data.full_text.trim();
+        const result = response.data.full_text.trim();
+        console.log(`📝 Transcription result (full_text): "${result}"`);
+        return result;
       } else if (response.data.text) {
-        return response.data.text.trim();
+        const result = response.data.text.trim();
+        console.log(`📝 Transcription result (text): "${result}"`);
+        return result;
       } else if (response.data.transcription) {
-        return response.data.transcription.trim();
+        const result = response.data.transcription.trim();
+        console.log(`📝 Transcription result (transcription): "${result}"`);
+        return result;
       }
 
       console.error('Unknown Whisper response format:', JSON.stringify(response.data));
