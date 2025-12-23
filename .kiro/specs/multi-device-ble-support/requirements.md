@@ -20,41 +20,41 @@ This feature transforms the existing BLE (Bluetooth Low Energy) infrastructure i
 
 ## Requirements
 
-### Requirement 1: Multi-Device BLE Architecture
+### Requirement 1: Modular Device Plugin Architecture
 
-**User Story:** As a healthcare provider, I want to use both blood pressure monitors and thermometers via BLE during patient care, so that I can capture comprehensive vital signs efficiently without manual data entry.
-
-#### Acceptance Criteria
-
-1. WHEN multiple BLE device types are available, THE BLE_Service SHALL manage connections to both blood pressure monitors and thermometers simultaneously
-2. WHEN a device broadcasts measurement data, THE BLE_Service SHALL route the data to the appropriate parser based on device type and service UUID
-3. WHEN both devices are connected, THE BLE_Service SHALL maintain independent connection states for each device type
-4. WHEN a device disconnects after transmitting data, THE BLE_Service SHALL continue monitoring for other device types
-5. WHERE multiple devices of the same type are present, THE BLE_Service SHALL connect to the first available device that matches the expected service profile
-
-### Requirement 2: A&D UT-201BLE Plus Thermometer Support
-
-**User Story:** As a nurse, I want to capture temperature readings from the A&D UT-201BLE Plus thermometer automatically, so that temperature data is recorded accurately without manual transcription errors.
+**User Story:** As a system developer, I want a plugin-based BLE device architecture, so that new medical devices can be added without modifying core BLE service logic or existing device implementations.
 
 #### Acceptance Criteria
 
-1. WHEN the UT-201BLE Plus thermometer completes a measurement, THE BLE_Service SHALL detect the device broadcast and establish connection
-2. WHEN connected to the thermometer, THE BLE_Service SHALL read temperature data using the Health Thermometer Service (0x1809)
-3. WHEN temperature data is received, THE BLE_Service SHALL parse the IEEE 11073 SFLOAT format and extract temperature in Celsius
-4. WHEN temperature reading is valid (within physiological range 30-45°C), THE BLE_Service SHALL create a Temperature_Reading object
-5. WHEN temperature reading is parsed successfully, THE BLE_Service SHALL notify all registered listeners with the temperature data
+1. WHEN a new device type needs to be supported, THE System SHALL allow adding it through a standardized Device_Plugin interface without modifying existing code
+2. WHEN the BLE_Service initializes, THE Device_Registry SHALL automatically discover and register all available device plugins
+3. WHEN a device is detected during scanning, THE Device_Detector SHALL match it to the appropriate plugin based on service UUID and device name patterns
+4. WHEN a device plugin is registered, THE System SHALL validate it implements all required interface methods
+5. WHERE multiple plugins can handle the same device, THE Device_Registry SHALL use the most specific match based on device identification criteria
 
-### Requirement 3: Device Type Detection and Management
+### Requirement 2: Standardized Plugin Interface
 
-**User Story:** As a system administrator, I want the BLE system to automatically identify different device types, so that the correct parsing and handling logic is applied without manual configuration.
+**User Story:** As a system developer, I want all device plugins to follow a consistent interface, so that the core BLE service can interact with any device type in a uniform manner.
 
 #### Acceptance Criteria
 
-1. WHEN scanning for devices, THE BLE_Service SHALL identify device types by service UUID and device name patterns
-2. WHEN a blood pressure monitor is detected (service UUID 0x1810), THE BLE_Service SHALL apply BP-specific connection and parsing logic
-3. WHEN a thermometer is detected (service UUID 0x1809), THE BLE_Service SHALL apply thermometer-specific connection and parsing logic
-4. WHEN device identity verification fails, THE BLE_Service SHALL reject the connection and continue scanning
-5. WHEN a device is successfully verified, THE BLE_Service SHALL add it to the paired devices list with device type metadata
+1. WHEN implementing a device plugin, THE Plugin SHALL implement standardized methods for device identification, connection, data parsing, and error handling
+2. WHEN a plugin identifies a compatible device, THE Plugin SHALL return device metadata including service UUIDs, characteristic UUIDs, and device name patterns
+3. WHEN a plugin parses device data, THE Plugin SHALL return standardized reading objects that include measurement values, timestamps, and device metadata
+4. WHEN a plugin encounters an error, THE Plugin SHALL return standardized error information that can be handled consistently by the core service
+5. WHEN a plugin validates measurement data, THE Plugin SHALL apply device-specific physiological range checks and data quality validation
+
+### Requirement 3: Blood Pressure Monitor Plugin
+
+**User Story:** As a system developer, I want the existing BP monitor functionality converted to a plugin, so that it follows the new modular architecture while maintaining all current functionality.
+
+#### Acceptance Criteria
+
+1. WHEN the BP monitor plugin is implemented, THE Plugin SHALL encapsulate all existing A&D UA-651BLE logic including device identification, connection, and data parsing
+2. WHEN the BP monitor plugin identifies a device, THE Plugin SHALL match devices with service UUID 0x1810 and name patterns containing "UA-651"
+3. WHEN the BP monitor plugin parses data, THE Plugin SHALL use the existing IEEE 11073 SFLOAT parsing logic for systolic, diastolic, and pulse values
+4. WHEN the BP monitor plugin validates readings, THE Plugin SHALL apply existing physiological range checks (systolic 50-300 mmHg, diastolic 30-200 mmHg, pulse 30-250 bpm)
+5. WHEN the BP monitor plugin is active, THE System SHALL maintain identical behavior to the current implementation for backward compatibility
 
 ### Requirement 4: Concurrent Device Operation
 
