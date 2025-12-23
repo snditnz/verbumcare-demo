@@ -15,6 +15,7 @@ import bleService from '@services/ble';
 import { BLEConnectionStatus, BPReading } from '@types/ble';
 import { useAuthStore } from '@stores/authStore';
 import { voiceService } from '@services/voice';
+import { preserveNavigationContext } from '@utils/navigationContext';
 
 const api = apiService;
 
@@ -343,6 +344,12 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
   // Handle voice recording with patient context
   const handleVoiceRecording = () => {
+    // Preserve navigation context before navigating to voice recorder
+    preserveNavigationContext(navigation, {
+      patientId: currentPatient?.patient_id,
+      patientName: currentPatient ? `${currentPatient.family_name} ${currentPatient.given_name}`.trim() : undefined,
+    });
+    
     // Set patient context before navigating
     const context = voiceService.detectContext(currentPatient);
     voiceService.setContext(context);

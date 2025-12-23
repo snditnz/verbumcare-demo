@@ -179,25 +179,7 @@ export default function LoginScreen({ navigation }: Props) {
               </Text>
             )}
           </Button>
-
-          {/* Demo Credentials */}
-          <View style={styles.demoInfo}>
-            <Text style={styles.demoTitle}>
-              {language === 'ja' ? 'デモアカウント:' : 'Demo Accounts:'}
-            </Text>
-            <Text style={styles.demoText}>👤 demo / demo</Text>
-            <Text style={styles.demoText}>👨‍⚕️ doctor1 / demo123</Text>
-            <Text style={styles.demoText}>👨‍💼 manager1 / demo123</Text>
-            <Text style={styles.demoText}>👩‍⚕️ nurse1 / demo123</Text>
-          </View>
         </Card>
-
-        {/* Footer */}
-        <Text style={styles.footerText}>
-          {language === 'ja'
-            ? 'デモ環境 - 本番利用不可'
-            : 'Demo Environment - Not for Production Use'}
-        </Text>
       </View>
     </SafeAreaView>
   );
@@ -320,32 +302,5 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.white,
-  },
-  demoInfo: {
-    marginTop: SPACING.xl,
-    padding: SPACING.md,
-    backgroundColor: `${COLORS.primary}10`,
-    borderRadius: BORDER_RADIUS.md,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
-  },
-  demoTitle: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.primary,
-    marginBottom: SPACING.sm,
-  },
-  demoText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text.secondary,
-    marginBottom: SPACING.xs,
-    fontFamily: 'monospace',
-  },
-  footerText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.white,
-    textAlign: 'center',
-    marginTop: SPACING.xl,
-    opacity: 0.8,
   },
 });

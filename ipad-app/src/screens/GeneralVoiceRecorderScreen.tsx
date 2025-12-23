@@ -6,25 +6,25 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { useAuthStore } from '@stores/authStore';
 import { useVoiceReviewStore } from '@stores/voiceReviewStore';
-import { LanguageToggle, VoiceRecorder, VoiceProcessingNotification } from '@components';
+import { LanguageToggle, VoiceRecorder } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
-import { Button, Card } from '@components/ui';
+import { Button } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { voiceService } from '@services/voice';
 import { voiceReviewService } from '@services/voiceReviewService';
-
-const logoMark = require('../../VerbumCare-Logo-Mark.png');
+import { navigateToOrigin, getCurrentNavigationContext, clearNavigationContext } from '@utils/navigationContext';
 
 type RootStackParamList = {
   Dashboard: undefined;
   GeneralVoiceRecorder: undefined;
+  PatientInfo: { patientId: string; patientName: string };
 };
 
 type Props = {
@@ -44,7 +44,43 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
 
   // Detect and set context on mount
   useEffect(() => {
-    const detectedContext = voiceService.detectContext(currentPatient || undefined);
+    console.log('[GeneralVoiceRecorder] === Context Detection Start ===');
+    console.log('[GeneralVoiceRecorder] currentPatient:', currentPatient?.patient_id, currentPatient?.family_name);
+    
+    // Check if we have preserved navigation context (from patient screen) FIRST
+    const navigationContext = getCurrentNavigationContext();
+    console.log('[GeneralVoiceRecorder] navigationContext:', navigationContext);
+    
+    let detectedContext;
+    
+    // Check if navigation context is recent (within last 10 seconds)
+    const isNavigationContextRecent = navigationContext && 
+      (Date.now() - navigationContext.timestamp) < 10000;
+    
+    if (navigationContext && navigationContext.patientContext && isNavigationContextRecent) {
+      // Use navigation context if available and recent (more reliable)
+      console.log('[GeneralVoiceRecorder] ✅ Using RECENT navigation context for patient:', navigationContext.patientContext.patientName);
+      detectedContext = {
+        type: 'patient' as const,
+        patientId: navigationContext.patientContext.patientId,
+        patientName: navigationContext.patientContext.patientName,
+      };
+    } else if (navigationContext && !navigationContext.patientContext && isNavigationContextRecent) {
+      // Navigation context exists but has no patient context (came from Dashboard)
+      console.log('[GeneralVoiceRecorder] ✅ Using RECENT navigation context for global (from Dashboard)');
+      detectedContext = voiceService.detectContext(undefined);
+    } else if (currentPatient) {
+      // Fallback to current patient detection only if we have a current patient
+      console.log('[GeneralVoiceRecorder] ⚠️ Using currentPatient fallback (stale/no navigation context):', currentPatient.family_name);
+      detectedContext = voiceService.detectContext(currentPatient);
+    } else {
+      // Global context - no patient
+      console.log('[GeneralVoiceRecorder] ✅ Using global context (no patient, no navigation context)');
+      detectedContext = voiceService.detectContext(undefined);
+    }
+    
+    console.log('[GeneralVoiceRecorder] detectedContext:', detectedContext);
+    
     voiceService.setContext(detectedContext);
     
     setContext({
@@ -52,7 +88,7 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
       patientName: detectedContext.patientName
     });
     
-    console.log('[GeneralVoiceRecorder] Context detected:', detectedContext);
+    console.log('[GeneralVoiceRecorder] === Context Detection Complete ===');
   }, [currentPatient]);
 
   const handleRecordingComplete = (uri: string, duration: number) => {
@@ -63,7 +99,34 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
 
   const handleCancel = () => {
     voiceService.clearContext();
-    navigation.navigate('Dashboard' as any);
+    
+    // Get the current navigation context to see where we came from
+    const navigationContext = getCurrentNavigationContext();
+    
+    if (navigationContext) {
+      console.log('[GeneralVoiceRecorder] Navigating back to preserved context:', {
+        originScreen: navigationContext.originScreen,
+        hasPatientContext: !!navigationContext.patientContext,
+        patientName: navigationContext.patientContext?.patientName,
+      });
+      
+      // Navigate back to the preserved origin
+      navigateToOrigin(navigation, 'Dashboard');
+    } else {
+      console.log('[GeneralVoiceRecorder] No navigation context found, checking current patient context');
+      
+      // Fallback: if we have a current patient, try to go to PatientInfo
+      if (currentPatient) {
+        console.log('[GeneralVoiceRecorder] Navigating to PatientInfo for current patient:', currentPatient.family_name);
+        navigation.navigate('PatientInfo', { 
+          patientId: currentPatient.patient_id,
+          patientName: `${currentPatient.family_name} ${currentPatient.given_name}`.trim()
+        });
+      } else {
+        console.log('[GeneralVoiceRecorder] No patient context, navigating to Dashboard');
+        navigation.navigate('Dashboard');
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -102,8 +165,25 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
         // Clear context
         voiceService.clearContext();
         
-        // Navigate back to dashboard so user can see the updated review queue
-        navigation.navigate('Dashboard' as any);
+        // Navigate back using improved context preservation
+        const navigationContext = getCurrentNavigationContext();
+        
+        if (navigationContext) {
+          console.log('[GeneralVoiceRecorder] Save complete, navigating back to preserved context:', {
+            originScreen: navigationContext.originScreen,
+            hasPatientContext: !!navigationContext.patientContext,
+          });
+          navigateToOrigin(navigation, 'Dashboard');
+        } else if (currentPatient) {
+          console.log('[GeneralVoiceRecorder] Save complete, navigating to PatientInfo for current patient');
+          navigation.navigate('PatientInfo', { 
+            patientId: currentPatient.patient_id,
+            patientName: `${currentPatient.family_name} ${currentPatient.given_name}`.trim()
+          });
+        } else {
+          console.log('[GeneralVoiceRecorder] Save complete, navigating to Dashboard');
+          navigation.navigate('Dashboard');
+        }
       }, 3000); // Increased from 1.5s to 3s
       
     } catch (error: any) {
@@ -134,152 +214,91 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Compact Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Button variant="text" onPress={handleCancel} style={styles.backButtonContainer}>
-            <Text style={styles.backButton}>{`← ${t['common.back']}`}</Text>
-          </Button>
-        </View>
-        <View style={styles.headerCenter}>
-          <Image source={logoMark} style={styles.logoImage} resizeMode="contain" />
-          <Text style={styles.screenTitle}>
-            {language === 'ja' ? '音声記録' : 'Voice Recording'}
-          </Text>
-        </View>
+        <Button variant="text" onPress={handleCancel} style={styles.backButton}>
+          <Text style={styles.backButtonText}>{`← ${t['common.back']}`}</Text>
+        </Button>
+        <Text style={styles.title}>
+          {language === 'ja' ? '音声記録' : 'Voice Recording'}
+        </Text>
         <View style={styles.headerRight}>
           <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
-        {/* Context Indicator */}
+      {/* Main Content - Single Column */}
+      <View style={styles.content}>
+        {/* Context - Inline */}
         {context && (
-          <Card style={styles.contextCard}>
-            <View style={styles.contextHeader}>
-              <Ionicons 
-                name={context.type === 'patient' ? 'person' : 'globe'} 
-                size={ICON_SIZES.md} 
-                color={context.type === 'patient' ? COLORS.primary : COLORS.accent} 
-              />
-              <Text style={styles.contextTitle}>
-                {context.type === 'patient' 
-                  ? (language === 'ja' ? '患者コンテキスト' : 'Patient Context')
-                  : (language === 'ja' ? 'グローバルコンテキスト' : 'Global Context')
-                }
-              </Text>
-            </View>
-            {context.patientName && (
-              <Text style={styles.contextPatientName}>
-                {context.patientName}
-              </Text>
-            )}
-            <Text style={styles.contextDescription}>
-              {context.type === 'patient'
-                ? (language === 'ja' 
-                    ? 'この録音は患者に自動的に関連付けられます' 
-                    : 'This recording will be automatically linked to the patient')
-                : (language === 'ja'
-                    ? 'この録音は施設全体の記録として保存されます'
-                    : 'This recording will be saved as a facility-wide note')
+          <View style={styles.contextRow}>
+            <Ionicons 
+              name={context.type === 'patient' ? 'person' : 'globe'} 
+              size={ICON_SIZES.sm} 
+              color={context.type === 'patient' ? COLORS.primary : COLORS.accent} 
+            />
+            <Text style={styles.contextText}>
+              {context.type === 'patient' 
+                ? (context.patientName || (language === 'ja' ? '患者' : 'Patient'))
+                : (language === 'ja' ? 'グローバル記録' : 'Global Note')
               }
             </Text>
-          </Card>
+          </View>
         )}
 
-        {/* Instructions */}
-        <Card style={styles.instructionCard}>
-          <View style={styles.instructionHeader}>
-            <Ionicons name="mic-circle" size={ICON_SIZES.xl} color={COLORS.error} />
-            <Text style={styles.instructionTitle}>
-              {language === 'ja' ? '音声で記録' : 'Record by Voice'}
-            </Text>
-          </View>
-          <Text style={styles.instructionText}>
-            {language === 'ja'
-              ? '以下の録音ボタンをタップして、何でも話してください。患者の状態、観察事項、ケアの詳細など、あなたが記録したいことを自由に話すことができます。'
-              : 'Tap the record button below and tell me anything. You can speak freely about patient status, observations, care details, or anything you want to document.'}
-          </Text>
-          <View style={styles.examplesContainer}>
-            <Text style={styles.examplesTitle}>
-              {language === 'ja' ? '例：' : 'Examples:'}
-            </Text>
-            <Text style={styles.exampleItem}>
-              • {language === 'ja' ? '患者の状態変化' : 'Patient status changes'}
-            </Text>
-            <Text style={styles.exampleItem}>
-              • {language === 'ja' ? '観察記録' : 'Observation notes'}
-            </Text>
-            <Text style={styles.exampleItem}>
-              • {language === 'ja' ? 'ケア実施内容' : 'Care activities performed'}
-            </Text>
-            <Text style={styles.exampleItem}>
-              • {language === 'ja' ? '申し送り事項' : 'Handoff information'}
-            </Text>
-          </View>
-        </Card>
-
-        {/* Voice Recorder */}
-        <Card style={styles.recorderCard}>
+        {/* Voice Recorder - Main Focus */}
+        <View style={styles.recorderContainer}>
           <VoiceRecorder
             onRecordingComplete={handleRecordingComplete}
-            maxDuration={300} // 5 minutes max
+            maxDuration={300}
           />
-        </Card>
-
-        {/* Status */}
-        {recordingUri && !isProcessing && (
-          <Card style={styles.statusCard}>
-            <View style={styles.statusHeader}>
-              <Ionicons name="checkmark-circle" size={ICON_SIZES.md} color={COLORS.success} />
-              <Text style={styles.statusText}>
-                {language === 'ja' ? '録音完了' : 'Recording Complete'}
-              </Text>
-            </View>
-            <Text style={styles.statusSubtext}>
-              {language === 'ja'
-                ? '保存ボタンをタップして記録を保存してください。'
-                : 'Tap save to store your recording.'}
-            </Text>
-          </Card>
-        )}
-
-        {/* Processing Notification */}
-        {isProcessing && (
-          <VoiceProcessingNotification
-            status={{
-              recordingId: 'temp',
-              status: processingStatus.includes('完了') || processingStatus.includes('Complete') ? 'completed' : 'processing',
-              phase: processingStatus.includes('アップロード') || processingStatus.includes('Uploading') ? 'transcription' : 'extraction',
-              message: processingStatus
-            }}
-            language={language}
-            onDismiss={() => {}}
-          />
-        )}
-
-        {/* Actions */}
-        <View style={styles.actions}>
-          <Button
-            variant="outline"
-            onPress={handleCancel}
-            style={styles.actionButton}
-          >
-            {t['common.cancel']}
-          </Button>
-          <Button
-            variant="primary"
-            onPress={handleSave}
-            disabled={!recordingUri || isProcessing}
-            loading={isProcessing}
-            style={styles.actionButton}
-          >
-            {language === 'ja' ? '保存' : 'Save'}
-          </Button>
         </View>
 
-      </ScrollView>
+        {/* Status - Inline */}
+        {recordingUri && !isProcessing && (
+          <View style={styles.statusRow}>
+            <Ionicons name="checkmark-circle" size={ICON_SIZES.sm} color={COLORS.success} />
+            <Text style={styles.statusText}>
+              {language === 'ja' ? '録音完了 - 保存してください' : 'Recording Complete - Tap Save'}
+            </Text>
+          </View>
+        )}
+
+        {/* Processing - Inline */}
+        {isProcessing && (
+          <View style={styles.statusRow}>
+            <Text style={styles.processingText}>{processingStatus}</Text>
+          </View>
+        )}
+
+        {/* Instructions - Minimal */}
+        <Text style={styles.instructions}>
+          {language === 'ja'
+            ? 'マイクボタンをタップして録音開始。患者情報やケア内容を話してください。'
+            : 'Tap the mic to start recording. Speak about patient info or care details.'}
+        </Text>
+      </View>
+
+      {/* Fixed Bottom Actions */}
+      <View style={styles.actions}>
+        <Button
+          variant="outline"
+          onPress={handleCancel}
+          style={styles.actionButton}
+        >
+          {t['common.cancel']}
+        </Button>
+        <Button
+          variant="primary"
+          onPress={handleSave}
+          disabled={!recordingUri || isProcessing}
+          loading={isProcessing}
+          style={styles.actionButton}
+        >
+          {language === 'ja' ? '保存' : 'Save'}
+        </Button>
+      </View>
     </SafeAreaView>
   );
 }
@@ -292,144 +311,106 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.primary,
     justifyContent: 'space-between',
-  },
-  headerLeft: {
-    // No flex - size to content
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-  },
-  headerRight: {
-    // No flex - size to content
-    alignItems: 'flex-end',
-  },
-  logoImage: {
-    width: 28,
-    height: 28,
-  },
-  screenTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.white,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    height: 60, // Compact header
   },
   backButton: {
+    paddingHorizontal: 0,
+  },
+  backButtonText: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.white,
   },
-  backButtonContainer: {
-    paddingHorizontal: 0,
+  title: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.white,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   content: {
     flex: 1,
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    justifyContent: 'space-between',
   },
-  contextCard: {
-    marginBottom: SPACING.lg,
+  // Context - Single line
+  contextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     backgroundColor: COLORS.surface,
-    borderLeftWidth: 4,
+    borderRadius: BORDER_RADIUS.md,
+    borderLeftWidth: 3,
     borderLeftColor: COLORS.primary,
   },
-  contextHeader: {
+  contextText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
+  },
+  // Recorder - Main focus
+  recorderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: SPACING.lg,
+  },
+  // Status - Single line
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  contextTitle: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text.primary,
-  },
-  contextPatientName: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.primary,
-    marginBottom: SPACING.xs,
-  },
-  contextDescription: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text.secondary,
-    lineHeight: 20,
-  },
-  instructionCard: {
-    marginBottom: SPACING.lg,
-  },
-  instructionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  instructionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.text.primary,
-  },
-  instructionText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    color: COLORS.text.secondary,
-    lineHeight: 24,
-    marginBottom: SPACING.lg,
-  },
-  examplesContainer: {
-    backgroundColor: COLORS.surface,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.error,
-  },
-  examplesTitle: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.text.primary,
-    marginBottom: SPACING.sm,
-  },
-  exampleItem: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.text.secondary,
-    marginBottom: SPACING.xs,
-  },
-  recorderCard: {
-    marginBottom: SPACING.lg,
-    padding: SPACING.xl,
-    alignItems: 'center',
-  },
-  statusCard: {
-    marginBottom: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     backgroundColor: `${COLORS.success}10`,
-    borderLeftWidth: 4,
+    borderRadius: BORDER_RADIUS.md,
+    borderLeftWidth: 3,
     borderLeftColor: COLORS.success,
   },
-  statusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
   statusText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
+    flex: 1,
   },
-  statusSubtext: {
+  processingText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text.primary,
+    textAlign: 'center',
+    flex: 1,
+  },
+  // Instructions - Minimal
+  instructions: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: SPACING.md,
   },
+  // Actions - Fixed bottom
   actions: {
     flexDirection: 'row',
     gap: SPACING.md,
-    marginBottom: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
   actionButton: {
     flex: 1,
+    minHeight: 48,
+    justifyContent: 'center',
   },
 });

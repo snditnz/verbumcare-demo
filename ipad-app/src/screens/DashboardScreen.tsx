@@ -9,6 +9,7 @@ import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { LanguageToggle, NetworkStatusIndicator } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card } from '@components/ui';
+import { clearNavigationContext } from '@utils/navigationContext';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { apiService } from '@services/api';
@@ -36,7 +37,7 @@ type Props = {
 
 export default function DashboardScreen({ navigation }: Props) {
   const { currentUser, logout, isAuthenticated } = useAuthStore();
-  const { language, setCurrentPatient } = useAssessmentStore();
+  const { language, currentPatient, setCurrentPatient } = useAssessmentStore();
   const { carePlans, loadCarePlan, clearStore } = useCarePlanStore();
   const { queueCount, loadQueue } = useVoiceReviewStore();
 
@@ -47,6 +48,28 @@ export default function DashboardScreen({ navigation }: Props) {
   const [warmingCache, setWarmingCache] = useState(false);
 
   const t = translations[language];
+
+  // Clear current patient when returning to Dashboard (global context)
+  useEffect(() => {
+    console.log('[Dashboard] 🏠 Dashboard mounted - clearing current patient to establish global context');
+    console.log('[Dashboard] 🏠 Previous currentPatient:', currentPatient?.patient_id, currentPatient?.family_name);
+    setCurrentPatient(null);
+    console.log('[Dashboard] 🏠 Current patient cleared for global context');
+  }, []); // Run once on mount
+
+  // Also clear current patient when Dashboard comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      console.log('[Dashboard] 🏠 Dashboard focused - ensuring global context');
+      console.log('[Dashboard] 🏠 Current patient on focus:', currentPatient?.patient_id, currentPatient?.family_name);
+      if (currentPatient) {
+        console.log('[Dashboard] 🏠 Clearing patient on focus to ensure global context');
+        setCurrentPatient(null);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, currentPatient]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -433,7 +456,23 @@ export default function DashboardScreen({ navigation }: Props) {
                 {/* 5. Record Button */}
                 <TouchableOpacity
                   style={styles.gridCell}
-                  onPress={() => navigation.navigate('GeneralVoiceRecorder' as any)}
+                  onPress={() => {
+                    // Clear any existing patient context when navigating from Dashboard
+                    console.log('[Dashboard] 🎤 Record button pressed - ensuring global context');
+                    console.log('[Dashboard] 🎤 Current patient before navigation:', currentPatient?.patient_id);
+                    
+                    // Clear any stale navigation context
+                    clearNavigationContext();
+                    
+                    // Ensure current patient is null for global context
+                    if (currentPatient) {
+                      console.log('[Dashboard] 🎤 Clearing current patient before voice recorder');
+                      setCurrentPatient(null);
+                    }
+                    
+                    // Navigate to voice recorder (should detect global context)
+                    navigation.navigate('GeneralVoiceRecorder' as any);
+                  }}
                 >
                   <Card style={styles.gridCellInner}>
                     <View style={[styles.quickActionIconSmall, { backgroundColor: `${COLORS.error}15` }]}>
