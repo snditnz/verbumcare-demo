@@ -376,6 +376,56 @@ class SessionPersistenceService {
 
     return timeSince >= AUTO_SAVE_INTERVAL;
   }
+
+  /**
+   * Save session data (alias for saveSessionData)
+   * Implements Requirements 9.1, 9.2
+   */
+  async saveSession(patientId: string, sessionData: Partial<SessionData>): Promise<void> {
+    return this.saveSessionData(patientId, sessionData);
+  }
+
+  /**
+   * Get session data (alias for getSessionData)
+   * Implements Requirements 9.3, 9.7
+   */
+  async getSession(patientId: string): Promise<SessionData | null> {
+    return this.getSessionData(patientId);
+  }
+
+  /**
+   * Clear session data (alias for clearSessionAfterSubmission)
+   * Implements Requirements 9.5
+   */
+  async clearSession(patientId: string): Promise<void> {
+    return this.clearSessionAfterSubmission(patientId);
+  }
+
+  /**
+   * Clear all sessions (for logout)
+   * Implements Requirements 9.5
+   */
+  async clearAllSessions(): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const sessionKeys = keys.filter(key => key.startsWith(SESSION_STORAGE_KEY));
+      
+      for (const key of sessionKeys) {
+        await AsyncStorage.removeItem(key);
+      }
+
+      // Clear metadata as well
+      const metadataKeys = keys.filter(key => key.startsWith(SESSION_METADATA_KEY));
+      for (const key of metadataKeys) {
+        await AsyncStorage.removeItem(key);
+      }
+
+      console.log('[SessionPersistence] Cleared all sessions');
+    } catch (error) {
+      console.error('[SessionPersistence] Failed to clear all sessions:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

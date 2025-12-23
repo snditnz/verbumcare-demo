@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_CONFIG } from '@constants/config';
 import { networkService } from '@services/networkService';
+import { getCurrentServer } from './settingsStore';
+import { ServerConfig } from '../config/servers';
 
 export type StaffRole = 'nurse' | 'care_worker' | 'care_manager' | 'doctor' | 'therapist' | 'dietitian';
 
@@ -29,6 +31,7 @@ interface AuthStore {
   isAuthenticated: boolean;
   isLoading: boolean;
   lastUsername: string | null; // Track last logged in user for offline restoration
+  currentServer: ServerConfig | null; // Track current server for auth context
 
   // Actions
   login: (username: string, password: string) => Promise<boolean>;
@@ -38,6 +41,8 @@ interface AuthStore {
   updateUserProfile: (updates: Partial<User>) => void;
   scheduleTokenRefresh: () => void;
   clearTokenRefreshTimer: () => void;
+  updateServerContext: (server: ServerConfig) => Promise<void>;
+  handleServerSwitch: (newServer: ServerConfig) => Promise<void>;
 }
 
 const AUTH_STORAGE_KEY = '@verbumcare_auth';
@@ -53,6 +58,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   lastUsername: null,
+  currentServer: null,
 
   login: async (username: string, password: string) => {
     try {
@@ -62,9 +68,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         return false;
       }
 
-      // Call backend auth API
+      // Get current server configuration
+      const currentServer = getCurrentServer();
+      const baseUrl = currentServer.baseUrl.replace('/api', ''); // Remove /api suffix for auth endpoint
+      
+      // Call backend auth API using current server
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/auth/login`,
+        `${baseUrl}/api/auth/login`,
         {
           username,
           password,
@@ -74,7 +84,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           },
         },
         {
-          timeout: API_CONFIG.TIMEOUT,
+          timeout: currentServer.connectionTimeout,
           httpsAgent: { rejectUnauthorized: false } as any,
         }
       );
@@ -96,10 +106,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         expiresAt: new Date(Date.now() + expiresIn * 1000),
       };
 
-      // Save to AsyncStorage with backward compatibility
+      // Save to AsyncStorage with server context
       await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userWithTimestamp));
       await AsyncStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(tokens));
       await AsyncStorage.setItem(LAST_USERNAME_KEY, username);
+      await AsyncStorage.setItem(`${AUTH_STORAGE_KEY}_server`, currentServer.id);
 
       set({
         currentUser: userWithTimestamp,
@@ -107,6 +118,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
         lastUsername: username,
+        currentServer,
       });
 
       // Schedule automatic token refresh
@@ -116,6 +128,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         username: user.username,
         staffId: user.staffId, // This is now the real UUID!
         role: user.role,
+        server: currentServer.displayName,
       });
 
       return true;
@@ -127,16 +140,17 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   logout: async () => {
     try {
-      const { tokens } = get();
+      const { tokens, currentServer } = get();
 
       // Clear token refresh timer
       get().clearTokenRefreshTimer();
 
-      // Call backend logout if network available
-      if (tokens?.accessToken && networkService.isConnected()) {
+      // Call backend logout if network available and server context exists
+      if (tokens?.accessToken && networkService.isConnected() && currentServer) {
         try {
+          const baseUrl = currentServer.baseUrl.replace('/api', '');
           await axios.post(
-            `${API_CONFIG.BASE_URL}/auth/logout`,
+            `${baseUrl}/api/auth/logout`,
             { accessToken: tokens.accessToken },
             {
               timeout: 5000,
@@ -152,6 +166,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
       await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
       await AsyncStorage.removeItem(LAST_USERNAME_KEY);
+      await AsyncStorage.removeItem(`${AUTH_STORAGE_KEY}_server`);
       
       // Clear all user-scoped cache data
       const allKeys = await AsyncStorage.getAllKeys();
@@ -171,6 +186,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
         lastUsername: null,
+        currentServer: null,
       });
 
       console.log('✅ Logout successful - all user data cleared');
@@ -189,6 +205,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         const storedUser = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
         const storedTokens = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
         const storedLastUsername = await AsyncStorage.getItem(LAST_USERNAME_KEY);
+        const storedServerId = await AsyncStorage.getItem(`${AUTH_STORAGE_KEY}_server`);
 
         if (!storedUser || !storedTokens) {
           set({
@@ -197,11 +214,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             isAuthenticated: false,
             isLoading: false,
             lastUsername: storedLastUsername,
+            currentServer: null,
           });
           return;
         }
 
-        return { storedUser, storedTokens, storedLastUsername };
+        return { storedUser, storedTokens, storedLastUsername, storedServerId };
       };
 
       // Race against timeout
@@ -217,11 +235,22 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         return;
       }
 
-      const { storedUser, storedTokens, storedLastUsername } = result;
+      const { storedUser, storedTokens, storedLastUsername, storedServerId } = result;
 
       // Parse stored data with backward compatibility
       const user: User = JSON.parse(storedUser);
       const tokens: AuthTokens = JSON.parse(storedTokens);
+      
+      // Get server context - use current server if stored server not available
+      let serverContext: ServerConfig | null = null;
+      if (storedServerId) {
+        try {
+          const currentServer = getCurrentServer();
+          serverContext = currentServer.id === storedServerId ? currentServer : null;
+        } catch (error) {
+          console.warn('Could not get server context during auth check:', error);
+        }
+      }
       
       // Ensure expiresAt is a Date object (backward compatibility)
       if (typeof tokens.expiresAt === 'string') {
@@ -246,6 +275,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
               isAuthenticated: true,
               isLoading: false,
               lastUsername: storedLastUsername,
+              currentServer: serverContext,
             });
           }
         } else {
@@ -257,6 +287,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             isAuthenticated: true,
             isLoading: false,
             lastUsername: storedLastUsername,
+            currentServer: serverContext,
           });
         }
         return;
@@ -269,12 +300,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
         lastUsername: storedLastUsername,
+        currentServer: serverContext,
       });
 
       // Schedule automatic token refresh
       get().scheduleTokenRefresh();
 
-      console.log('✅ Auth session restored:', user.username);
+      console.log('✅ Auth session restored:', user.username, serverContext ? `on ${serverContext.displayName}` : '(no server context)');
     } catch (error) {
       console.error('Check auth error:', error);
       // CRITICAL: Always set isLoading to false, even on error
@@ -285,13 +317,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         isAuthenticated: false,
         isLoading: false,
         lastUsername: null,
+        currentServer: null,
       });
     }
   },
 
   refreshToken: async () => {
     try {
-      const { tokens } = get();
+      const { tokens, currentServer } = get();
 
       if (!tokens?.refreshToken) {
         return false;
@@ -303,11 +336,15 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         return false;
       }
 
+      // Use current server or fallback to default configuration
+      const server = currentServer || getCurrentServer();
+      const baseUrl = server.baseUrl.replace('/api', '');
+
       const response = await axios.post(
-        `${API_CONFIG.BASE_URL}/auth/refresh`,
+        `${baseUrl}/api/auth/refresh`,
         { refreshToken: tokens.refreshToken },
         {
-          timeout: API_CONFIG.TIMEOUT,
+          timeout: server.connectionTimeout,
           httpsAgent: { rejectUnauthorized: false } as any,
         }
       );
@@ -387,6 +424,69 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       );
     }
   },
+
+  updateServerContext: async (server: ServerConfig): Promise<void> => {
+    try {
+      // Update server context in auth store
+      set({ currentServer: server });
+      
+      // Save server context to storage if user is authenticated
+      const { isAuthenticated } = get();
+      if (isAuthenticated) {
+        await AsyncStorage.setItem(`${AUTH_STORAGE_KEY}_server`, server.id);
+        console.log(`✅ Auth server context updated to: ${server.displayName}`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to update auth server context:', error);
+    }
+  },
+
+  handleServerSwitch: async (newServer: ServerConfig): Promise<void> => {
+    try {
+      const { isAuthenticated, tokens } = get();
+      
+      if (!isAuthenticated || !tokens) {
+        // Not authenticated, just update server context
+        await get().updateServerContext(newServer);
+        return;
+      }
+
+      console.log(`🔄 Handling server switch in auth store: ${newServer.displayName}`);
+
+      // Update server context
+      await get().updateServerContext(newServer);
+
+      // Check if we need to re-authenticate on the new server
+      if (networkService.isConnected()) {
+        try {
+          // Test if current token works on new server
+          const baseUrl = newServer.baseUrl.replace('/api', '');
+          const response = await axios.get(
+            `${baseUrl}/api/auth/verify`,
+            {
+              headers: {
+                'Authorization': `Bearer ${tokens.accessToken}`,
+              },
+              timeout: newServer.connectionTimeout,
+              httpsAgent: { rejectUnauthorized: false } as any,
+            }
+          );
+
+          if (response.data.success) {
+            console.log('✅ Token valid on new server');
+          } else {
+            console.log('⚠️ Token not valid on new server - re-authentication may be required');
+          }
+        } catch (error) {
+          console.log('⚠️ Could not verify token on new server - re-authentication may be required');
+        }
+      }
+
+      console.log('✅ Server switch handled in auth store');
+    } catch (error) {
+      console.error('❌ Error handling server switch in auth store:', error);
+    }
+  },
 }));
 
 // ========== HELPER FUNCTIONS ==========
@@ -411,6 +511,15 @@ export const getCurrentStaffId = (): string => {
 export const getCurrentStaffIdOrNull = (): string | null => {
   const { currentUser } = useAuthStore.getState();
   return currentUser?.staffId || null;
+};
+
+/**
+ * Get current server from auth store context
+ * Safer version that doesn't throw
+ */
+export const getCurrentServerFromAuth = (): ServerConfig | null => {
+  const { currentServer } = useAuthStore.getState();
+  return currentServer;
 };
 
 /**

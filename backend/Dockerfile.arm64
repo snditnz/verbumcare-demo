@@ -1,0 +1,37 @@
+# ARM64 Dockerfile for Mac Mini deployment
+# Use Node.js ARM64 base image
+FROM node:18-alpine
+
+# Set platform explicitly for Apple Silicon
+ARG TARGETPLATFORM=linux/arm64
+
+# Set working directory
+WORKDIR /app
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Copy package files first for better caching
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy application code
+COPY . .
+
+# Create uploads directory with proper permissions
+RUN mkdir -p uploads && chown -R node:node uploads
+
+# Switch to non-root user for security
+USER node
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Start application
+CMD ["npm", "start"]

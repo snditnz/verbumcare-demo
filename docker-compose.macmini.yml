@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    platform: linux/arm64
+    container_name: macmini-postgres
+    environment:
+      POSTGRES_DB: nagare_db
+      POSTGRES_USER: nagare
+      POSTGRES_PASSWORD: nagare_secure_password_change_me
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./uploads:/uploads
+    ports:
+      - "5432:5432"
+    networks:
+      - verbumcare-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nagare -d nagare_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.arm64
+    container_name: macmini-backend
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgres://nagare:nagare_secure_password_change_me@postgres:5432/nagare_db
+      # Use Mac Mini's native AI services via host networking
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=llama3.1:8b
+      - OLLAMA_NUM_CTX=2048
+      - OLLAMA_NUM_THREAD=8
+      - OLLAMA_TEMPERATURE=0.1
+      - WHISPER_URL=http://host.docker.internal:8080
+      - WHISPER_MODEL=large-v3
+      - WHISPER_LANGUAGE=ja
+    volumes:
+      - ./uploads:/app/uploads
+    # Port 3000 should only be accessible internally through nginx
+    # ports:
+    #   - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - verbumcare-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  nginx:
+    image: nginx:alpine
+    platform: linux/arm64
+    container_name: macmini-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/verbumcare-macmini.conf:/etc/nginx/conf.d/verbumcare-macmini.conf:ro
+      - ./ssl/certs:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - verbumcare-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  verbumcare-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

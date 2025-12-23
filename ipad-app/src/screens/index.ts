@@ -31,5 +31,8 @@ export { default as MonitoringFormScreen } from './MonitoringFormScreen';
 export { default as ReviewQueueScreen } from './ReviewQueueScreen';
 export { default as VoiceReviewScreen } from './VoiceReviewScreen';
 
+// Settings
+export { default as SettingsScreen } from './SettingsScreen';
+
 // Utility
 export { default as ComingSoonScreen } from './ComingSoonScreen';

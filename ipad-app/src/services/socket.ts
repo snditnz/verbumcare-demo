@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { API_CONFIG, FACILITY_ID } from '@constants/config';
 import { VoiceProcessingProgress } from '@models/api';
 import { networkService } from './networkService';
+import { getCurrentServer } from '../stores/settingsStore';
 
 type SocketCallback = (data: any) => void;
 
@@ -9,6 +10,21 @@ class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, SocketCallback[]> = new Map();
   private shouldConnect: boolean = true;
+  private currentWsUrl: string | null = null;
+
+  /**
+   * Get the effective WebSocket URL from settings store
+   */
+  private getEffectiveWsUrl(): string {
+    try {
+      const currentServer = getCurrentServer();
+      console.log(`📡 WebSocket using server: ${currentServer.displayName} (${currentServer.wsUrl})`);
+      return currentServer.wsUrl;
+    } catch (error) {
+      console.warn('Could not get current server for WebSocket, using fallback API_CONFIG.WS_URL');
+      return API_CONFIG.WS_URL;
+    }
+  }
 
   /**
    * Initialize Socket.IO with network monitoring
@@ -41,14 +57,25 @@ class SocketService {
       return;
     }
 
-    if (this.socket?.connected) {
-      console.log('[Socket] Already connected');
+    // Get current WebSocket URL from settings
+    const wsUrl = this.getEffectiveWsUrl();
+    
+    // If already connected to the same URL, don't reconnect
+    if (this.socket?.connected && this.currentWsUrl === wsUrl) {
+      console.log('[Socket] Already connected to current server');
       return;
     }
 
-    console.log('[Socket] Connecting to:', API_CONFIG.WS_URL);
+    // Disconnect from old server if connected to different URL
+    if (this.socket?.connected && this.currentWsUrl !== wsUrl) {
+      console.log(`[Socket] Server changed from ${this.currentWsUrl} to ${wsUrl}, reconnecting...`);
+      this.disconnect();
+    }
 
-    this.socket = io(API_CONFIG.WS_URL, {
+    console.log('[Socket] Connecting to:', wsUrl);
+    this.currentWsUrl = wsUrl;
+
+    this.socket = io(wsUrl, {
       path: '/socket.io',
       transports: ['polling', 'websocket'],
       reconnection: true,
@@ -95,6 +122,37 @@ class SocketService {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
+      this.currentWsUrl = null;
+    }
+  }
+
+  /**
+   * Reconnect to a new WebSocket URL (used when server configuration changes)
+   */
+  reconnect(newWsUrl?: string): void {
+    console.log('[Socket] Reconnecting WebSocket...');
+    this.disconnect();
+    
+    // If a specific URL is provided, temporarily override the settings
+    if (newWsUrl) {
+      this.currentWsUrl = newWsUrl;
+    }
+    
+    // Reconnect with current network status check
+    if (networkService.isConnected() && this.shouldConnect) {
+      this.connect();
+    }
+  }
+
+  /**
+   * Refresh server configuration and reconnect if needed
+   */
+  refreshServerConfiguration(): void {
+    const newWsUrl = this.getEffectiveWsUrl();
+    
+    if (this.currentWsUrl !== newWsUrl) {
+      console.log(`[Socket] Server configuration changed, reconnecting from ${this.currentWsUrl} to ${newWsUrl}`);
+      this.reconnect();
     }
   }
 

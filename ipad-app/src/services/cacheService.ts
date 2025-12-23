@@ -688,6 +688,446 @@ class CacheService {
   }
 
   /**
+   * Clear server-specific cached data during server switches
+   * Preserves user preferences and session data
+   */
+  async clearServerSpecificCache(): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const serverSpecificKeys = keys.filter(key => 
+        key.startsWith('@verbumcare/') && 
+        !key.includes('session_data') && 
+        !key.includes('preferences') &&
+        !key.includes('settings') &&
+        !key.includes('language')
+      );
+      
+      if (serverSpecificKeys.length > 0) {
+        await AsyncStorage.multiRemove(serverSpecificKeys);
+        console.log(`[Cache] Cleared ${serverSpecificKeys.length} server-specific cache entries`);
+      }
+    } catch (error) {
+      console.error('Error clearing server-specific cache:', error);
+    }
+  }
+
+  /**
+   * Selective cache clearing with preservation rules
+   * Implements Requirements 4.2 (selective cache clearing)
+   */
+  async selectiveCacheClear(options: {
+    preserveUserData?: boolean;
+    preserveSettings?: boolean;
+    preserveSession?: boolean;
+    preserveTemplates?: boolean;
+    serverSpecificOnly?: boolean;
+  } = {}): Promise<void> {
+    try {
+      const {
+        preserveUserData = true,
+        preserveSettings = true,
+        preserveSession = true,
+        preserveTemplates = true,
+        serverSpecificOnly = true
+      } = options;
+
+      const keys = await AsyncStorage.getAllKeys();
+      const keysToRemove: string[] = [];
+
+      for (const key of keys) {
+        if (!key.startsWith('@verbumcare/')) continue;
+
+        // Always preserve settings if requested
+        if (preserveSettings && (key.includes('settings') || key.includes('language'))) {
+          continue;
+        }
+
+        // Preserve session data if requested
+        if (preserveSession && key.includes('session_data')) {
+          continue;
+        }
+
+        // Preserve user preferences if requested
+        if (preserveUserData && key.includes('preferences')) {
+          continue;
+        }
+
+        // Preserve problem templates if requested (they rarely change)
+        if (preserveTemplates && key.includes('problem_templates')) {
+          continue;
+        }
+
+        // If server-specific only, skip non-server data
+        if (serverSpecificOnly) {
+          // Server-specific data includes patients, care plans, schedules, sync data
+          if (key.includes('patients') || 
+              key.includes('care_plan') || 
+              key.includes('schedule') || 
+              key.includes('last_sync') || 
+              key.includes('pending_sync')) {
+            keysToRemove.push(key);
+          }
+        } else {
+          // Clear everything except preserved items
+          keysToRemove.push(key);
+        }
+      }
+
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
+        console.log(`[Cache] Selectively cleared ${keysToRemove.length} cache entries`);
+      }
+    } catch (error) {
+      console.error('Error in selective cache clear:', error);
+      throw new Error(`Selective cache clear failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create server-specific cache backup before switching
+   * Implements Requirements 4.2 (cache restoration for previous servers)
+   */
+  async createServerCacheBackup(serverId: string): Promise<string> {
+    try {
+      const backupKey = `@verbumcare/server_backup_${serverId}_${Date.now()}`;
+      const keys = await AsyncStorage.getAllKeys();
+      const serverSpecificKeys = keys.filter(key => 
+        key.startsWith('@verbumcare/') && 
+        (key.includes('patients') || 
+         key.includes('care_plan') || 
+         key.includes('schedule') || 
+         key.includes('last_sync'))
+      );
+
+      if (serverSpecificKeys.length === 0) {
+        console.log(`[Cache] No server-specific data to backup for ${serverId}`);
+        return backupKey;
+      }
+
+      const backupData: Record<string, string> = {};
+      const keyValuePairs = await AsyncStorage.multiGet(serverSpecificKeys);
+      
+      for (const [key, value] of keyValuePairs) {
+        if (value !== null) {
+          backupData[key] = value;
+        }
+      }
+
+      const backup = {
+        serverId,
+        timestamp: Date.now(),
+        data: backupData,
+        version: PROBLEM_TEMPLATES_VERSION,
+      };
+
+      await AsyncStorage.setItem(backupKey, JSON.stringify(backup));
+      console.log(`[Cache] Created backup for server ${serverId} with ${Object.keys(backupData).length} entries`);
+      
+      return backupKey;
+    } catch (error) {
+      console.error(`Error creating cache backup for server ${serverId}:`, error);
+      throw new Error(`Cache backup failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Restore cache from server-specific backup
+   * Implements Requirements 4.2 (cache restoration for previous servers)
+   */
+  async restoreServerCacheBackup(serverId: string): Promise<boolean> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const backupKeys = keys.filter(key => key.includes(`server_backup_${serverId}`));
+      
+      if (backupKeys.length === 0) {
+        console.log(`[Cache] No backup found for server ${serverId}`);
+        return false;
+      }
+
+      // Use the most recent backup
+      const mostRecentBackupKey = backupKeys.sort().pop()!;
+      const backupData = await AsyncStorage.getItem(mostRecentBackupKey);
+      
+      if (!backupData) {
+        console.log(`[Cache] Backup data not found for ${mostRecentBackupKey}`);
+        return false;
+      }
+
+      const backup = JSON.parse(backupData);
+      
+      // Validate backup structure
+      if (!backup.data || !backup.serverId || backup.serverId !== serverId) {
+        console.warn(`[Cache] Invalid backup structure for server ${serverId}`);
+        return false;
+      }
+
+      // Check if backup is too old (older than 24 hours)
+      const backupAge = Date.now() - backup.timestamp;
+      if (backupAge > 24 * 60 * 60 * 1000) {
+        console.log(`[Cache] Backup for server ${serverId} is too old (${Math.round(backupAge / (60 * 60 * 1000))} hours), skipping restore`);
+        return false;
+      }
+
+      // Restore the backup data
+      const restoreEntries = Object.entries(backup.data).map(([key, value]) => [key, String(value)]) as [string, string][];
+      if (restoreEntries.length > 0) {
+        await AsyncStorage.multiSet(restoreEntries);
+        console.log(`[Cache] Restored ${restoreEntries.length} cache entries for server ${serverId}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`Error restoring cache backup for server ${serverId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Clean up old server cache backups
+   * Keeps only the most recent backup per server
+   */
+  async cleanupServerBackups(): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const backupKeys = keys.filter(key => key.includes('server_backup_'));
+      
+      if (backupKeys.length === 0) return;
+
+      // Group backups by server ID
+      const backupsByServer: Record<string, string[]> = {};
+      
+      for (const key of backupKeys) {
+        const match = key.match(/server_backup_([^_]+)_/);
+        if (match) {
+          const serverId = match[1];
+          if (!backupsByServer[serverId]) {
+            backupsByServer[serverId] = [];
+          }
+          backupsByServer[serverId].push(key);
+        }
+      }
+
+      // Keep only the most recent backup per server
+      const keysToRemove: string[] = [];
+      
+      for (const [serverId, serverBackups] of Object.entries(backupsByServer)) {
+        if (serverBackups.length > 1) {
+          // Sort by timestamp (newest first) and remove all but the first
+          const sortedBackups = serverBackups.sort().reverse();
+          keysToRemove.push(...sortedBackups.slice(1));
+        }
+      }
+
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
+        console.log(`[Cache] Cleaned up ${keysToRemove.length} old server backups`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up server backups:', error);
+    }
+  }
+
+  /**
+   * Handle cache corruption recovery
+   * Implements Requirements 4.5 (cache corruption recovery)
+   */
+  async recoverFromCacheCorruption(): Promise<{
+    recovered: boolean;
+    corruptedKeys: string[];
+    recoveredKeys: string[];
+  }> {
+    const result = {
+      recovered: false,
+      corruptedKeys: [] as string[],
+      recoveredKeys: [] as string[]
+    };
+
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const verbumcareKeys = keys.filter(key => key.startsWith('@verbumcare/'));
+      
+      console.log(`[Cache] Checking ${verbumcareKeys.length} cache entries for corruption`);
+
+      for (const key of verbumcareKeys) {
+        try {
+          const value = await AsyncStorage.getItem(key);
+          if (value === null) continue;
+
+          // Try to parse JSON to detect corruption
+          JSON.parse(value);
+          
+          // Additional validation for specific cache types
+          if (key.includes('patients') || key.includes('care_plan')) {
+            const parsed = JSON.parse(value);
+            if (!parsed.data || !parsed.timestamp) {
+              throw new Error('Invalid cache structure');
+            }
+          }
+        } catch (parseError) {
+          console.warn(`[Cache] Corrupted cache entry detected: ${key}`);
+          result.corruptedKeys.push(key);
+          
+          try {
+            // Try to recover from backup if available
+            const serverId = this.extractServerIdFromKey(key);
+            if (serverId && await this.restoreServerCacheBackup(serverId)) {
+              result.recoveredKeys.push(key);
+            } else {
+              // Remove corrupted entry
+              await AsyncStorage.removeItem(key);
+            }
+          } catch (recoveryError) {
+            console.error(`[Cache] Failed to recover corrupted key ${key}:`, recoveryError);
+            // Remove the corrupted entry as last resort
+            await AsyncStorage.removeItem(key);
+          }
+        }
+      }
+
+      result.recovered = result.corruptedKeys.length > 0;
+      
+      if (result.recovered) {
+        console.log(`[Cache] Corruption recovery completed: ${result.corruptedKeys.length} corrupted, ${result.recoveredKeys.length} recovered`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error during cache corruption recovery:', error);
+      return result;
+    }
+  }
+
+  /**
+   * Extract server ID from cache key for recovery purposes
+   */
+  private extractServerIdFromKey(key: string): string | null {
+    // This is a simple heuristic - in a real implementation, 
+    // we might store server ID metadata with each cache entry
+    if (key.includes('mac-mini') || key.includes('macmini')) {
+      return 'mac-mini';
+    } else if (key.includes('pn51') || key.includes('lab')) {
+      return 'pn51';
+    }
+    return null;
+  }
+
+  /**
+   * Validate cache versioning and compatibility
+   * Implements Requirements 4.5 (cache versioning and compatibility)
+   */
+  async validateCacheVersion(): Promise<{
+    valid: boolean;
+    currentVersion: number;
+    cacheVersion: number | null;
+    migrationNeeded: boolean;
+  }> {
+    try {
+      const cachedVersion = await AsyncStorage.getItem(CACHE_KEYS.PROBLEM_TEMPLATES_VERSION);
+      const cacheVersion = cachedVersion ? parseInt(cachedVersion, 10) : null;
+      const currentVersion = PROBLEM_TEMPLATES_VERSION;
+      
+      const valid = cacheVersion === currentVersion;
+      const migrationNeeded = cacheVersion !== null && cacheVersion < currentVersion;
+
+      return {
+        valid,
+        currentVersion,
+        cacheVersion,
+        migrationNeeded
+      };
+    } catch (error) {
+      console.error('Error validating cache version:', error);
+      return {
+        valid: false,
+        currentVersion: PROBLEM_TEMPLATES_VERSION,
+        cacheVersion: null,
+        migrationNeeded: false
+      };
+    }
+  }
+
+  /**
+   * Migrate cache to new version
+   * Implements Requirements 4.5 (cache versioning and compatibility)
+   */
+  async migrateCacheVersion(): Promise<boolean> {
+    try {
+      const versionInfo = await this.validateCacheVersion();
+      
+      if (!versionInfo.migrationNeeded) {
+        console.log('[Cache] No migration needed');
+        return true;
+      }
+
+      console.log(`[Cache] Migrating cache from version ${versionInfo.cacheVersion} to ${versionInfo.currentVersion}`);
+
+      // For now, we'll clear incompatible cache and let it rebuild
+      // In a more sophisticated implementation, we could transform the data
+      await this.clearProblemTemplatesCache();
+      
+      // Update version
+      await AsyncStorage.setItem(CACHE_KEYS.PROBLEM_TEMPLATES_VERSION, versionInfo.currentVersion.toString());
+      
+      console.log('[Cache] Cache migration completed successfully');
+      return true;
+    } catch (error) {
+      console.error('Error during cache migration:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Preserve user preferences during server switches
+   * Implements Requirements 4.2 (preserve user preferences during switches)
+   */
+  async preserveUserPreferences(): Promise<Record<string, any>> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const preferenceKeys = keys.filter(key => 
+        key.includes('preferences') || 
+        key.includes('settings') || 
+        key.includes('language') ||
+        key.includes('session_data')
+      );
+
+      const preferences: Record<string, any> = {};
+      
+      if (preferenceKeys.length > 0) {
+        const keyValuePairs = await AsyncStorage.multiGet(preferenceKeys);
+        for (const [key, value] of keyValuePairs) {
+          if (value !== null) {
+            preferences[key] = value;
+          }
+        }
+      }
+
+      console.log(`[Cache] Preserved ${Object.keys(preferences).length} user preference entries`);
+      return preferences;
+    } catch (error) {
+      console.error('Error preserving user preferences:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Restore preserved user preferences after server switch
+   * Implements Requirements 4.2 (preserve user preferences during switches)
+   */
+  async restoreUserPreferences(preferences: Record<string, any>): Promise<void> {
+    try {
+      const entries = Object.entries(preferences);
+      
+      if (entries.length > 0) {
+        await AsyncStorage.multiSet(entries);
+        console.log(`[Cache] Restored ${entries.length} user preference entries`);
+      }
+    } catch (error) {
+      console.error('Error restoring user preferences:', error);
+      throw new Error(`Failed to restore user preferences: ${error.message}`);
+    }
+  }
+
+  /**
    * Trigger background refresh for expired cache items
    * Implements Requirements 4.5 (background refresh)
    */
@@ -701,6 +1141,162 @@ class CacheService {
       }
     } catch (error) {
       console.error('Error triggering background refresh:', error);
+    }
+  }
+
+  /**
+   * Clear user-specific cached data (for authentication failures)
+   * Preserves server configuration and general app data
+   */
+  async clearUserSpecificCache(): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const userSpecificKeys = keys.filter(key => 
+        key.startsWith('@verbumcare/') && (
+          key.includes('session_data') ||
+          key.includes('patient/') ||
+          key.includes('care_plan/') ||
+          key.includes('today_schedule/') ||
+          key.includes('staff_schedule') ||
+          key.includes('pending_sync')
+        )
+      );
+      
+      if (userSpecificKeys.length > 0) {
+        await AsyncStorage.multiRemove(userSpecificKeys);
+        console.log(`[Cache] Cleared ${userSpecificKeys.length} user-specific cache entries`);
+      }
+    } catch (error) {
+      console.error('Error clearing user-specific cache:', error);
+    }
+  }
+
+  /**
+   * Handle server switch - manage cache during server transitions
+   * Implements Requirements 1.2, 4.2 (cache management during server switches)
+   */
+  async handleServerSwitch(fromServerId: string, toServerId: string, options: {
+    preserveUserData?: boolean;
+    createBackup?: boolean;
+  } = {}): Promise<void> {
+    const { preserveUserData = true, createBackup = true } = options;
+    
+    try {
+      console.log(`[Cache] Handling server switch: ${fromServerId} → ${toServerId}`);
+      
+      // Create backup of current server data if requested
+      if (createBackup) {
+        await this.createServerCacheBackup(fromServerId);
+      }
+      
+      // Preserve user preferences before clearing
+      const preservedPreferences = preserveUserData ? await this.preserveUserPreferences() : {};
+      
+      // Clear server-specific cache
+      await this.selectiveCacheClear({
+        preserveUserData,
+        preserveSettings: true,
+        preserveSession: preserveUserData,
+        preserveTemplates: true,
+        serverSpecificOnly: true
+      });
+      
+      // Try to restore cache for the target server
+      const restored = await this.restoreServerCacheBackup(toServerId);
+      if (restored) {
+        console.log(`[Cache] Restored cache for server ${toServerId}`);
+      }
+      
+      // Restore user preferences
+      if (preserveUserData && Object.keys(preservedPreferences).length > 0) {
+        await this.restoreUserPreferences(preservedPreferences);
+      }
+      
+      console.log(`✅ [Cache] Server switch completed: ${fromServerId} → ${toServerId}`);
+    } catch (error) {
+      console.error(`❌ [Cache] Error during server switch:`, error);
+      throw new Error(`Cache server switch failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Initialize cache for a new server
+   * Implements Requirements 6.1, 6.3 (server configuration initialization)
+   */
+  async initializeServerCache(serverId: string): Promise<void> {
+    try {
+      console.log(`[Cache] Initializing cache for server ${serverId}`);
+      
+      // Check if we have existing cache for this server
+      // Note: This is a placeholder - in a full implementation, we might track server-specific cache metadata
+      
+      console.log(`[Cache] Starting fresh cache initialization for server ${serverId}`);
+      
+      // Validate cache version and migrate if needed
+      const versionInfo = await this.validateCacheVersion();
+      if (versionInfo.migrationNeeded) {
+        await this.migrateCacheVersion();
+      }
+      
+      console.log(`✅ [Cache] Initialized cache for server ${serverId}`);
+    } catch (error) {
+      console.error(`❌ [Cache] Error initializing cache for server ${serverId}:`, error);
+    }
+  }
+
+  /**
+   * Get server-specific cache statistics
+   * Implements Requirements 4.5 (cache monitoring and debugging)
+   */
+  async getServerCacheStats(serverId: string): Promise<{
+    serverId: string;
+    hasBackup: boolean;
+    backupAge?: number;
+    cacheEntries: number;
+    lastSync?: number;
+  }> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      
+      // Check for backup
+      const backupKeys = keys.filter(key => key.includes(`server_backup_${serverId}`));
+      const hasBackup = backupKeys.length > 0;
+      let backupAge: number | undefined;
+      
+      if (hasBackup) {
+        const mostRecentBackup = backupKeys.sort().pop()!;
+        const backupData = await AsyncStorage.getItem(mostRecentBackup);
+        if (backupData) {
+          const backup = JSON.parse(backupData);
+          backupAge = Date.now() - backup.timestamp;
+        }
+      }
+      
+      // Count server-specific cache entries
+      const serverCacheKeys = keys.filter(key => 
+        key.startsWith('@verbumcare/') && 
+        (key.includes('patients') || 
+         key.includes('care_plan') || 
+         key.includes('schedule'))
+      );
+      
+      // Get last sync time
+      const lastSync = await this.getLastSyncTime();
+      
+      return {
+        serverId,
+        hasBackup,
+        backupAge,
+        cacheEntries: serverCacheKeys.length,
+        lastSync: lastSync || undefined,
+      };
+    } catch (error) {
+      console.error(`Error getting cache stats for server ${serverId}:`, error);
+      return {
+        serverId,
+        hasBackup: false,
+        cacheEntries: 0,
+      };
     }
   }
 }

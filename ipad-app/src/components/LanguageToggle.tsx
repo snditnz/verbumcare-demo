@@ -1,72 +1,64 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { useAssessmentStore } from '@stores/assessmentStore';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useSettingsStore } from '@stores/settingsStore';
 import { Language } from '@models';
 import { UI_COLORS } from '@constants/config';
 
 export const LanguageToggle: React.FC = () => {
-  const { language, setLanguage } = useAssessmentStore();
+  const { currentLanguage, setLanguage } = useSettingsStore();
+
+  // Cycle through languages: ja -> en -> zh-TW -> ja
+  const getNextLanguage = (current: Language): Language => {
+    switch (current) {
+      case 'ja': return 'en';
+      case 'en': return 'zh-TW';
+      case 'zh-TW': return 'ja';
+      default: return 'ja';
+    }
+  };
+
+  const getLanguageDisplay = (lang: Language): string => {
+    switch (lang) {
+      case 'ja': return '日本語';
+      case 'en': return 'EN';
+      case 'zh-TW': return '中文';
+      default: return 'EN';
+    }
+  };
 
   const handleToggle = () => {
-    setLanguage(language === 'ja' ? 'en' : 'ja');
+    const nextLanguage = getNextLanguage(currentLanguage);
+    setLanguage(nextLanguage);
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={[
-          styles.button,
-          language === 'ja' && styles.buttonActive,
-        ]}
-        onPress={() => setLanguage('ja')}
-        accessibilityLabel="Switch to Japanese"
-      >
-        <Text style={[styles.text, language === 'ja' && styles.textActive]}>
-          日本語
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[
-          styles.button,
-          language === 'en' && styles.buttonActive,
-        ]}
-        onPress={() => setLanguage('en')}
-        accessibilityLabel="Switch to English"
-      >
-        <Text style={[styles.text, language === 'en' && styles.textActive]}>
-          EN
-        </Text>
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={handleToggle}
+      accessibilityLabel={`Current language: ${getLanguageDisplay(currentLanguage)}. Tap to change language.`}
+    >
+      <Text style={styles.text}>
+        {getLanguageDisplay(currentLanguage)}
+      </Text>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    borderRadius: 8,
-    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: UI_COLORS.border,
-  },
-  button: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minWidth: 60,
+    backgroundColor: UI_COLORS.background,
+    minWidth: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: UI_COLORS.background,
-  },
-  buttonActive: {
-    backgroundColor: UI_COLORS.primary,
   },
   text: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: UI_COLORS.textSecondary,
-  },
-  textActive: {
-    color: '#FFFFFF',
+    color: UI_COLORS.primary,
   },
 });

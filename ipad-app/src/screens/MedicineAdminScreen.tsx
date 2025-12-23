@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -240,6 +241,7 @@ export default function MedicineAdminScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>

@@ -37,6 +37,7 @@ import { APIVitalSigns } from '@/models/api';
 import apiService from '@/services/api';
 import { translations } from '@/constants/translations';
 import { LanguageToggle } from '@/components';
+import { ServerStatusIndicator } from '@/components/ServerStatusIndicator';
 
 type RootStackParamList = {
   VitalsGraph: {
@@ -156,7 +157,10 @@ export const VitalsGraphScreen: React.FC = () => {
             {patient?.family_name} {patient?.given_name}
           </Text>
         </View>
-        <LanguageToggle />
+        <View style={styles.headerRightContainer}>
+          <ServerStatusIndicator compact />
+          <LanguageToggle />
+        </View>
       </View>
 
       {/* Content */}
@@ -503,6 +507,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   content: {
     flex: 1,

@@ -19,7 +19,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@stores/authStore';
-import { sessionPersistence } from '@services/sessionPersistence';
+import { sessionPersistenceService as sessionPersistence } from '@services/sessionPersistence';
 import { cacheService } from '@services/cacheService';
 
 // Mock AppState for background/foreground detection
@@ -179,7 +179,7 @@ describe('Integration Test: Session Persistence', () => {
     // STEP 5: System persists session data
     // ============================================================
     // Verify session data is in storage
-    const sessionKey = `@session_${patientId}`;
+    const sessionKey = `@verbumcare/active_sessions_${patientId}`;
     const storedSession = await AsyncStorage.getItem(sessionKey);
     expect(storedSession).not.toBeNull();
 

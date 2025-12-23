@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { socketService } from './src/services';
 import { networkService } from './src/services/networkService';
 import { sessionPersistenceService } from './src/services/sessionPersistence';
 import { useCarePlanStore } from './src/stores/carePlanStore';
 import { useAuthStore } from './src/stores/authStore';
+import { useSettingsStore } from './src/stores/settingsStore';
 import { warmAllCaches, WarmCacheResult } from './src/services/cacheWarmer';
 import { COLORS } from './src/constants/theme';
 
@@ -56,6 +58,12 @@ import AddNoteScreen from './src/screens/AddNoteScreen';
 import ReviewQueueScreen from './src/screens/ReviewQueueScreen';
 import VoiceReviewScreen from './src/screens/VoiceReviewScreen';
 
+// Settings screen
+import SettingsScreen from './src/screens/SettingsScreen';
+
+// Test component
+import NativeModuleTest from './src/components/NativeModuleTest';
+
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;
@@ -88,6 +96,8 @@ export type RootStackParamList = {
   AddNote: { patientId: string; patientName: string };
   ReviewQueue: undefined;
   VoiceReview: { reviewId: string };
+  Settings: undefined;
+  NativeModuleTest: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -98,9 +108,38 @@ export default function App() {
   const [isCacheWarming, setIsCacheWarming] = useState(false);
   const [cacheWarmingProgress, setCacheWarmingProgress] = useState<string>('');
   const [previousAuthState, setPreviousAuthState] = useState(false);
+  const [appState, setAppState] = useState(AppState.currentState);
 
   useEffect(() => {
-    // Check authentication status on app launch
+    console.log('[App] Initializing app...');
+    
+    // Lock orientation to landscape on app launch
+    const lockOrientation = async () => {
+      try {
+        console.log('[App] Attempting to lock orientation to landscape...');
+        
+        // Set orientation lock with timeout protection
+        const lockPromise = ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Orientation lock timeout')), 3000)
+        );
+        
+        await Promise.race([lockPromise, timeoutPromise]);
+        console.log('[App] ✅ Successfully locked orientation to landscape');
+        
+        // Verify current orientation
+        const currentOrientation = await ScreenOrientation.getOrientationAsync();
+        console.log('[App] Current orientation:', currentOrientation);
+        
+      } catch (error: any) {
+        console.warn('[App] ⚠️ Orientation lock failed (continuing anyway):', error.message);
+        console.log('[App] Falling back to static configuration from app.json');
+        // App continues to work - static configuration in app.json provides backup
+      }
+    };
+    
+    // Lock orientation and check authentication
+    lockOrientation();
     checkAuth();
 
     // Initialize network monitoring first
@@ -136,6 +175,57 @@ export default function App() {
         console.warn('Socket initialization failed:', error);
       }
 
+      // Initialize settings store with enhanced initialization
+      try {
+        console.log('[App] Initializing settings...');
+        
+        // FOR TESTING: Set Mac Mini as default in native settings (using correct hostname)
+        try {
+          await (await import('./src/services/nativeSettingsService')).nativeSettingsService.writeNativeSettingsForTesting({
+            backendServerAddress: 'https://verbumcarenomac-mini.local/api',
+            connectionTimeout: 15,
+            autoSwitchOnFailure: true,
+            enableDetailedLogging: false
+          });
+          console.log('[App] ✅ Test native settings configured for Mac Mini (correct hostname)');
+        } catch (error) {
+          console.warn('[App] ⚠️ Could not set test native settings:', error);
+        }
+        
+        await useSettingsStore.getState().loadSettings();
+        console.log('[App] ✅ Settings initialization completed');
+        
+        // CRITICAL: Initialize API service with loaded server configuration
+        const { apiService } = await import('./src/services/api');
+        apiService.initializeFromSettings();
+        console.log('[App] ✅ API service initialized with current server configuration');
+        
+        // CRITICAL: Initialize server configuration service for automatic reconnection
+        const { serverConfigurationService } = await import('./src/services/serverConfigurationService');
+        serverConfigurationService.initialize();
+        console.log('[App] ✅ Server configuration service initialized');
+      } catch (error) {
+        console.warn('[App] ⚠️ Settings initialization failed, using defaults:', error);
+        // Try to initialize with defaults as fallback
+        try {
+          await useSettingsStore.getState().initializeWithDefaults();
+          console.log('[App] ✅ Default settings initialized as fallback');
+          
+          // Initialize API service with default configuration
+          const { apiService } = await import('./src/services/api');
+          apiService.initializeFromSettings();
+          console.log('[App] ✅ API service initialized with default configuration');
+          
+          // Initialize server configuration service even with defaults
+          const { serverConfigurationService } = await import('./src/services/serverConfigurationService');
+          serverConfigurationService.initialize();
+          console.log('[App] ✅ Server configuration service initialized with defaults');
+        } catch (fallbackError) {
+          console.error('[App] ❌ Critical: Even default settings initialization failed:', fallbackError);
+          // App will continue with hardcoded defaults in the store
+        }
+      }
+
       // Load problem templates from backend on app start
       // This ensures templates are available when creating care plans
       try {
@@ -151,11 +241,37 @@ export default function App() {
 
     initializeServices();
 
+    // Set up AppState listener to refresh iOS Settings when app comes to foreground
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      console.log('[App] App state changed:', appState, '->', nextAppState);
+      
+      if (appState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('[App] App came to foreground - refreshing iOS Settings...');
+        try {
+          // Refresh server configuration from iOS Settings
+          await useSettingsStore.getState().refreshServerConfig();
+          console.log('[App] ✅ iOS Settings refreshed successfully');
+        } catch (error) {
+          console.warn('[App] ⚠️ Failed to refresh iOS Settings:', error);
+        }
+      }
+      
+      setAppState(nextAppState);
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
       // Cleanup on app unmount
+      appStateSubscription?.remove();
       socketService.disconnect();
       networkService.cleanup();
       sessionPersistenceService.cleanup();
+      
+      // Cleanup server configuration service
+      import('./src/services/serverConfigurationService').then(({ serverConfigurationService }) => {
+        serverConfigurationService.cleanup();
+      });
     };
   }, []);
 
@@ -400,6 +516,16 @@ export default function App() {
             name="VoiceReview"
             component={VoiceReviewScreen}
             options={{ title: 'Voice Review' }}
+          />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{ title: 'Settings' }}
+          />
+          <Stack.Screen
+            name="NativeModuleTest"
+            component={NativeModuleTest}
+            options={{ title: 'Native Module Test' }}
           />
         </Stack.Navigator>
       </NavigationContainer>

@@ -16,6 +16,7 @@ import {
   FallRiskAssessment,
   KihonChecklist
 } from '@models';
+import { languageSyncService } from '../services/languageSync';
 
 // Per-patient session data
 interface PatientSessionData {
@@ -749,3 +750,8 @@ export const useAssessmentStore = create<AssessmentStore>()(
     }
   )
 );
+
+// Set up language synchronization with settings store
+languageSyncService.addListener((language: Language) => {
+  useAssessmentStore.getState().setLanguage(language);
+});

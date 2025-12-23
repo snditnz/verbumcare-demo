@@ -24,7 +24,15 @@
         "NSBluetoothPeripheralUsageDescription": "VerbumCare needs Bluetooth to connect to medical devices",
         "UIRequiresFullScreen": true,
         "UIStatusBarHidden": false,
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       },
       "requireFullScreen": true
     },
@@ -34,6 +42,7 @@
         "foregroundImage": "./VerbumCare-Logo-Mark.png",
         "backgroundColor": "#3D5A6C"
       },
+      "screenOrientation": "landscape",
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
@@ -49,6 +58,7 @@
         "android.permission.BLUETOOTH_CONNECT"
       ]
     },
+
     "plugins": [
       [
         "expo-camera",
@@ -63,7 +73,8 @@
           "modes": [],
           "bluetoothAlwaysPermission": "VerbumCare needs Bluetooth to connect to medical devices"
         }
-      ]
+      ],
+      "expo-screen-orientation"
     ],
     "extra": {
       "eas": {

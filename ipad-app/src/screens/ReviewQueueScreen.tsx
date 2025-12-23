@@ -12,6 +12,7 @@ import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { useAuthStore } from '@stores/authStore';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import VoiceReviewCard from '@components/VoiceReviewCard';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { ReviewQueueSkeleton } from '@components/ui/SkeletonLoader';
 import { FadeIn } from '@components/ui/AnimatedTransitions';
 import { ErrorMessage } from '@components/ui/ErrorBoundary';
@@ -140,6 +141,7 @@ export default function ReviewQueueScreen() {
           <Text style={styles.headerTitle}>{t('voiceReview.title')}</Text>
         </View>
         <View style={styles.headerActions}>
+          <ServerStatusIndicator compact />
           {queueCount() > 0 && (
             <View 
               style={styles.badge}

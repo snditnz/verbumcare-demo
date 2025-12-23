@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Card } from '@components/ui';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { TodaySchedule, ScheduleItem } from '@models/app';
@@ -242,6 +243,7 @@ export default function TodayScheduleScreen({ navigation }: Props) {
             </Text>
           )}
         </View>
+        <ServerStatusIndicator compact />
         <LanguageToggle />
       </View>
 

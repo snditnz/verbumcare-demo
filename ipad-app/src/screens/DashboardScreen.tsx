@@ -7,6 +7,7 @@ import { useAssessmentStore } from '@stores/assessmentStore';
 import { useCarePlanStore } from '@stores/carePlanStore';
 import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { LanguageToggle, NetworkStatusIndicator } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -268,6 +269,7 @@ export default function DashboardScreen({ navigation }: Props) {
           <Image source={logoMark} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.logo}>VerbumCare</Text>
           <NetworkStatusIndicator compact />
+          <ServerStatusIndicator compact showServerName tapToOpenSettings />
         </View>
         <View style={styles.headerCenter}>
           <Text style={styles.welcomeText}>
@@ -303,6 +305,12 @@ export default function DashboardScreen({ navigation }: Props) {
           </TouchableOpacity>
           <TouchableOpacity onPress={handleClearCache} style={styles.clearCacheButton}>
             <Ionicons name="refresh-outline" size={20} color={COLORS.white} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('Settings' as any)} 
+            style={styles.clearCacheButton}
+          >
+            <Ionicons name="settings-outline" size={20} color={COLORS.white} />
           </TouchableOpacity>
           <LanguageToggle />
           <Button

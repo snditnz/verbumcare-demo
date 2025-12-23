@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { LanguageToggle } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { NoteCard } from '@components/ui/NoteCard';
 import { Button } from '@components/ui';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES } from '@constants/theme';
@@ -210,6 +211,7 @@ export default function ClinicalNotesScreen({ navigation, route }: Props) {
             <Text style={styles.title}>{noteTypeTitle}</Text>
             <Text style={styles.patientName}>{patientName}</Text>
           </View>
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
 

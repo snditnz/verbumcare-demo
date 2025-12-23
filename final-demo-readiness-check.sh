@@ -177,6 +177,18 @@ check_result "Care Plan Creation" "pass" "false"
 check_result "Schedule Management" "pass" "true"
 check_result "Multi-language Support" "pass" "false"
 
+# 9. UI/UX CONFIGURATION
+echo ""
+echo -e "${PURPLE}📱 UI/UX CONFIGURATION${NC}"
+echo "======================"
+
+echo "Testing landscape orientation configuration..."
+if node test-landscape-orientation.js > /dev/null 2>&1; then
+    check_result "Landscape-Only Orientation" "pass" "false"
+else
+    check_result "Landscape-Only Orientation" "warn" "false"
+fi
+
 # 9. FINAL SUMMARY
 echo ""
 echo "=" $(printf '=%.0s' {1..50})

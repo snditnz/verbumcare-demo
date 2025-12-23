@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle, BLEIndicator } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card, Input, StatusIndicator } from '@components/ui';
 import { bleService } from '@services';
 import apiService from '@services/api';
@@ -547,6 +548,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
         </View>
         <View style={styles.headerRight}>
           <BLEIndicator status={bleStatus} isTransmitting={isTransmitting} />
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>

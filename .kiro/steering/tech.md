@@ -1,5 +1,19 @@
 # VerbumCare Technology Stack
 
+## 🌐 CRITICAL: mDNS Network Requirements
+
+**mDNS (Multicast DNS) is MANDATORY for VerbumCare deployment**
+
+- **DHCP Environment**: VerbumCare operates in DHCP environments where IP addresses change
+- **mDNS Hostnames**: All services MUST use mDNS hostnames, never hardcoded IP addresses
+- **Required Hostnames**:
+  - `verbumcarenomac-mini.local` - Current production server (Mac Mini)
+  - `verbumcare-lab.local` - Legacy server (pn51) available for rollback
+- **Client Configuration**: All client applications (iPad app, Admin Portal) MUST be configured to use mDNS hostnames
+- **Development**: Development environments MUST support mDNS resolution
+- **Network Requirements**: Local network MUST support mDNS/Bonjour protocol
+- **NO IP ADDRESSES**: Never use hardcoded IP addresses in configuration - they will change with DHCP
+
 ## Backend (Node.js/Express)
 
 ### Core Technologies
@@ -62,17 +76,21 @@
 
 ### Speech-to-Text
 - **Engine**: faster-whisper (optimized Whisper implementation)
+- **Server**: verbumcarenomac-mini.local (Mac Mini - current production)
 - **Model**: large-v3
 - **Language**: Japanese (ja) primary, with English/Chinese support
-- **Endpoint**: `http://localhost:8080`
+- **Endpoint**: `http://verbumcarenomac-mini.local:8080`
+- **Legacy**: Also available on verbumcare-lab.local:8080 (pn51 - rollback)
 
 ### LLM for Data Extraction
 - **Engine**: Ollama
+- **Server**: verbumcarenomac-mini.local (Mac Mini - current production)
 - **Model**: Llama 3.1 8B
 - **Context Window**: 2048 tokens (reduced for medical extraction)
 - **Temperature**: 0.1 (deterministic output)
 - **Threads**: 8
-- **Endpoint**: `http://localhost:11434`
+- **Endpoint**: `http://verbumcarenomac-mini.local:11434`
+- **Legacy**: Also available on verbumcare-lab.local:11434 (pn51 - rollback)
 
 ## Database (PostgreSQL 15)
 
@@ -98,11 +116,14 @@
 
 ### Deployment Environments
 - **Development**: docker-compose.yml (standard setup)
+- **Mac Mini Production**: docker-compose.macmini.yml (current production)
 - **Nagare**: docker-compose.nagare.yml (specific hardware config)
 - **Ubuntu**: docker-compose.ubuntu.yml (server deployment)
+- **Legacy**: docker-compose.yml on pn51 (rollback available)
 
 ### Network Configuration
-- **Hostname**: verbumcare-lab.local (mDNS)
+- **Current Production**: verbumcarenomac-mini.local (mDNS)
+- **Legacy/Rollback**: verbumcare-lab.local (mDNS)
 - **SSL**: Self-signed certificates via nginx reverse proxy
 - **CORS**: Permissive for LAN deployment (`origin: '*'`)
 
@@ -118,7 +139,13 @@
   - Backup: `/home/q/verbumcare-demo/ssl/certs/` (may be corrupted)
 
 ### 🐳 MANDATORY DOCKER CONTAINER NAMES
-**NEVER change these container names without explicit approval:**
+**Current Production (Mac Mini):**
+- **Database**: `macmini-postgres` (postgres:15-alpine)
+- **Backend**: `macmini-backend` (verbumcare-demo-backend)
+- **Reverse Proxy**: `macmini-nginx` (nginx:alpine)
+- **Network**: `macmini-network` (bridge)
+
+**Legacy (pn51) - Available for Rollback:**
 - **Database**: `nagare-postgres` (postgres:15-alpine)
 - **Backend**: `nagare-backend` (verbumcare-demo-backend)
 - **Reverse Proxy**: `nagare-nginx` (nginx:alpine)
@@ -126,14 +153,25 @@
 
 ### 🔄 MANDATORY DATABASE BACKUP PROTOCOL
 **BEFORE ANY DATABASE CHANGES:**
-1. **ALWAYS create backup first**: `docker exec nagare-postgres pg_dump -U nagare -d nagare_db > backup_$(date +%Y%m%d_%H%M%S).sql`
+
+**Current Production (Mac Mini):**
+1. **ALWAYS create backup first**: `ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec macmini-postgres pg_dump -U nagare -d nagare_db" > backup_$(date +%Y%m%d_%H%M%S).sql`
 2. **Verify backup integrity**: Check file size and content
 3. **Document changes**: Record what migration/change is being applied
 4. **Test rollback procedure**: Ensure backup can be restored if needed
 
+**Legacy (pn51) - For Rollback:**
+1. **Create backup**: `ssh verbumcare-lab.local "docker exec nagare-postgres pg_dump -U nagare -d nagare_db" > backup_pn51_$(date +%Y%m%d_%H%M%S).sql`
+
 ### 🏗️ SECURE ARCHITECTURE FLOW
+**Current Production (Mac Mini):**
 ```
-iPad App (HTTPS) → nginx:443 (SSL termination) → nagare-backend:3000 (internal only) → nagare-postgres:5432
+iPad App (HTTPS) → macmini-nginx:443 (SSL termination) → macmini-backend:3000 (internal only) → macmini-postgres:5432
+```
+
+**Legacy (pn51) - Available for Rollback:**
+```
+iPad App (HTTPS) → nagare-nginx:443 (SSL termination) → nagare-backend:3000 (internal only) → nagare-postgres:5432
 ```
 
 ### ⚠️ ARCHITECTURE VIOLATIONS - NEVER DO THESE:
@@ -145,50 +183,60 @@ iPad App (HTTPS) → nginx:443 (SSL termination) → nagare-backend:3000 (intern
 - ❌ **Architecture modifications** - Any changes require explicit approval first
 
 ### 🔧 CORRECT DEPLOYMENT VERIFICATION
+**Current Production (Mac Mini):**
 ```bash
 # ✅ Verify secure architecture
-docker ps | grep -E "(nagare-nginx|nagare-backend|nagare-postgres)"
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker ps | grep -E '(macmini-nginx|macmini-backend|macmini-postgres)'"
 
 # ✅ Verify SSL endpoints working
-curl -k "https://verbumcare-lab.local/health"
+curl -k "https://verbumcarenomac-mini.local/health"
 
 # ✅ Verify port 3000 blocked
-curl --connect-timeout 5 "http://verbumcare-lab.local:3000/health" || echo "Correctly blocked"
+curl --connect-timeout 5 "http://verbumcarenomac-mini.local:3000/health" || echo "Correctly blocked"
 
 # ✅ Verify database connectivity (internal only)
-docker exec nagare-postgres psql -U nagare -d nagare_db -c "SELECT 1;"
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec macmini-postgres psql -U nagare -d nagare_db -c 'SELECT 1;'"
+```
+
+**Legacy (pn51) - For Rollback Verification:**
+```bash
+# ✅ Verify legacy architecture
+ssh verbumcare-lab.local "docker ps | grep -E '(nagare-nginx|nagare-backend|nagare-postgres)'"
+
+# ✅ Verify legacy SSL endpoints
+curl -k "https://verbumcare-lab.local/health"
 ```
 
 ## Common Commands
 
 ### Backend Development
+**Current Production (Mac Mini):**
 ```bash
 # Start services
-docker-compose up -d
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker compose -f docker-compose.macmini.yml up -d"
 
 # View logs
-docker-compose logs -f backend
-docker-compose logs -f postgres
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker compose -f docker-compose.macmini.yml logs -f backend"
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker compose -f docker-compose.macmini.yml logs -f postgres"
 
 # Stop services
-docker-compose down
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker compose -f docker-compose.macmini.yml down"
 
 # Reset database (WARNING: destroys data)
-docker-compose down -v
-docker-compose up -d
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker compose -f docker-compose.macmini.yml down -v && docker compose -f docker-compose.macmini.yml up -d"
+```
 
-# Run migrations
-cd backend
-node src/db/run-migration.js
+**Legacy (pn51) - For Rollback:**
+```bash
+# Start services
+ssh verbumcare-lab.local "cd /home/q/verbumcare-demo && docker-compose up -d"
 
-# Seed database
-node src/db/seed.js
+# View logs
+ssh verbumcare-lab.local "cd /home/q/verbumcare-demo && docker-compose logs -f backend"
+ssh verbumcare-lab.local "cd /home/q/verbumcare-demo && docker-compose logs -f postgres"
 
-# Development mode (with auto-reload)
-npm run dev
-
-# Production mode
-npm start
+# Stop services
+ssh verbumcare-lab.local "cd /home/q/verbumcare-demo && docker-compose down"
 ```
 
 ### 🔄 CRITICAL: Updating Backend Code Changes
@@ -200,7 +248,39 @@ If you make changes to backend files but they don't take effect, it's because:
 - Only `/uploads` directory is mounted as volume
 - Source code is compiled into the Docker image
 
-#### How to Deploy Backend Code Changes:
+#### How to Deploy Backend Code Changes (Mac Mini Production):
+```bash
+# Method 1: Copy single file and restart (FASTEST)
+scp backend/src/path/to/changed-file.js vcadmin@verbumcarenomac-mini.local:~/verbumcare-demo/backend/src/path/to/changed-file.js
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker restart macmini-backend"
+
+# Method 2: Rebuild Docker image (COMPLETE)
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker compose -f docker-compose.macmini.yml build backend && docker compose -f docker-compose.macmini.yml up -d backend"
+
+# Method 3: Copy entire backend directory (COMPREHENSIVE)
+scp -r backend/ vcadmin@verbumcarenomac-mini.local:~/verbumcare-demo/
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && cd ~/verbumcare-demo && docker restart macmini-backend"
+```
+
+#### Verification Steps (Mac Mini):
+```bash
+# 1. Verify file was copied
+ssh vcadmin@verbumcarenomac-mini.local "ls -la ~/verbumcare-demo/backend/src/path/to/changed-file.js"
+
+# 2. Check if changes are in the file
+ssh vcadmin@verbumcarenomac-mini.local "grep -n 'your-change-marker' ~/verbumcare-demo/backend/src/path/to/changed-file.js"
+
+# 3. Restart backend to pick up changes
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker restart macmini-backend"
+
+# 4. Verify backend is running
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker logs macmini-backend --tail 10"
+
+# 5. Test the change
+curl -k "https://verbumcarenomac-mini.local/health"
+```
+
+#### Legacy Deployment (pn51) - For Rollback:
 ```bash
 # Method 1: Copy single file and restart (FASTEST)
 scp backend/src/path/to/changed-file.js verbumcare-lab.local:/home/q/verbumcare-demo/backend/src/path/to/changed-file.js
@@ -214,24 +294,6 @@ scp -r backend/ verbumcare-lab.local:/home/q/verbumcare-demo/
 ssh verbumcare-lab.local "cd /home/q/verbumcare-demo && docker restart nagare-backend"
 ```
 
-#### Verification Steps:
-```bash
-# 1. Verify file was copied
-ssh verbumcare-lab.local "ls -la /home/q/verbumcare-demo/backend/src/path/to/changed-file.js"
-
-# 2. Check if changes are in the file
-ssh verbumcare-lab.local "grep -n 'your-change-marker' /home/q/verbumcare-demo/backend/src/path/to/changed-file.js"
-
-# 3. Restart backend to pick up changes
-ssh verbumcare-lab.local "docker restart nagare-backend"
-
-# 4. Verify backend is running
-ssh verbumcare-lab.local "docker logs nagare-backend --tail 10"
-
-# 5. Test the change
-curl -k "https://verbumcare-lab.local/health"
-```
-
 #### Common Symptoms of Stale Code:
 - ❌ Changes to backend files don't take effect
 - ❌ New console.log statements don't appear in logs
@@ -239,16 +301,16 @@ curl -k "https://verbumcare-lab.local/health"
 - ❌ API endpoints return old behavior
 - ❌ Error messages remain unchanged
 
-#### Debug Commands:
+#### Debug Commands (Mac Mini):
 ```bash
 # Check if backend container is using old code
-ssh verbumcare-lab.local "docker exec nagare-backend cat /app/src/path/to/file.js | head -20"
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec macmini-backend cat /app/src/path/to/file.js | head -20"
 
 # Compare local vs remote file
-diff backend/src/path/to/file.js <(ssh verbumcare-lab.local "cat /home/q/verbumcare-demo/backend/src/path/to/file.js")
+diff backend/src/path/to/file.js <(ssh vcadmin@verbumcarenomac-mini.local "cat ~/verbumcare-demo/backend/src/path/to/file.js")
 
 # Check container mount points
-ssh verbumcare-lab.local "docker inspect nagare-backend | grep -A 10 Mounts"
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker inspect macmini-backend | grep -A 10 Mounts"
 ```
 
 ### iPad App Development
@@ -287,37 +349,64 @@ npm run preview
 ```
 
 ### Database Management
+**Current Production (Mac Mini):**
 ```bash
-# Connect to database (CURRENT PRODUCTION CREDENTIALS)
-docker exec -it nagare-postgres psql -U nagare -d nagare_db
+# Connect to database
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec -it macmini-postgres psql -U nagare -d nagare_db"
 
 # MANDATORY BACKUP BEFORE ANY CHANGES
-docker exec nagare-postgres pg_dump -U nagare -d nagare_db > backup_$(date +%Y%m%d_%H%M%S).sql
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec macmini-postgres pg_dump -U nagare -d nagare_db" > backup_macmini_$(date +%Y%m%d_%H%M%S).sql
 
 # Restore database (EMERGENCY ONLY)
-docker exec -i nagare-postgres psql -U nagare -d nagare_db < backup_YYYYMMDD_HHMMSS.sql
+cat backup_macmini_YYYYMMDD_HHMMSS.sql | ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec -i macmini-postgres psql -U nagare -d nagare_db"
 
 # Check database size
-docker exec nagare-postgres psql -U nagare -d nagare_db -c "SELECT pg_size_pretty(pg_database_size('nagare_db'));"
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec macmini-postgres psql -U nagare -d nagare_db -c \"SELECT pg_size_pretty(pg_database_size('nagare_db'));\""
 
 # Run migrations (BACKUP FIRST!)
-ssh verbumcare-lab.local "docker exec nagare-backend node src/db/run-migration.js MIGRATION_FILE.sql"
+ssh vcadmin@verbumcarenomac-mini.local "export PATH=/Applications/Docker.app/Contents/Resources/bin:\$PATH && docker exec macmini-backend node src/db/run-migration.js MIGRATION_FILE.sql"
+```
+
+**Legacy (pn51) - For Rollback:**
+```bash
+# Connect to legacy database
+ssh verbumcare-lab.local "docker exec -it nagare-postgres psql -U nagare -d nagare_db"
+
+# BACKUP legacy database
+ssh verbumcare-lab.local "docker exec nagare-postgres pg_dump -U nagare -d nagare_db" > backup_pn51_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 ### AI Services
+**Current Production (Mac Mini):**
 ```bash
 # Check Ollama status
-curl http://localhost:11434/api/tags
+ssh vcadmin@verbumcarenomac-mini.local "curl http://localhost:11434/api/tags"
 
 # Check Whisper status
-curl http://localhost:8080/health
+ssh vcadmin@verbumcarenomac-mini.local "curl http://localhost:8080/health"
 
 # Test Ollama generation
-curl http://localhost:11434/api/generate -d '{
+ssh vcadmin@verbumcarenomac-mini.local 'curl http://localhost:11434/api/generate -d '"'"'{
   "model": "llama3.1:8b",
   "prompt": "Hello",
   "stream": false
-}'
+}'"'"''
+```
+
+**Legacy (pn51) - For Rollback:**
+```bash
+# Check Ollama status (legacy)
+ssh verbumcare-lab.local "curl http://localhost:11434/api/tags"
+
+# Check Whisper status (legacy)
+ssh verbumcare-lab.local "curl http://localhost:8080/health"
+
+# Test Ollama generation (legacy)
+ssh verbumcare-lab.local 'curl http://localhost:11434/api/generate -d '"'"'{
+  "model": "llama3.1:8b",
+  "prompt": "Hello",
+  "stream": false
+}'"'"''
 ```
 
 ### nginx SSL Reverse Proxy Deployment
@@ -365,22 +454,32 @@ ssh verbumcare-lab.local "openssl x509 -in /opt/verbumcare/ssl/certs/nginx.crt -
 ```
 
 ### Health Checks
+**Current Production (Mac Mini):**
 ```bash
 # ✅ CORRECT: HTTPS health check (MANDATORY)
-curl -k "https://verbumcare-lab.local/health"
+curl -k "https://verbumcarenomac-mini.local/health"
 
 # ✅ CORRECT: HTTPS API endpoints (MANDATORY)
-curl -k "https://verbumcare-lab.local/api/patients"
+curl -k "https://verbumcarenomac-mini.local/api/patients"
 
 # ✅ CORRECT: HTTPS login test
-curl -k -X POST "https://verbumcare-lab.local/api/auth/login" \
+curl -k -X POST "https://verbumcarenomac-mini.local/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"username": "demo", "password": "demo123"}' | jq '.success'
 
-# ❌ WRONG: Direct backend access (SECURITY VIOLATION)
-# curl http://localhost:3000/health  # This should FAIL
-
 # ✅ Verify architecture security
+curl --connect-timeout 5 "http://verbumcarenomac-mini.local:3000/health" || echo "✅ Port 3000 correctly blocked"
+```
+
+**Legacy (pn51) - For Rollback:**
+```bash
+# ✅ CORRECT: HTTPS health check (LEGACY)
+curl -k "https://verbumcare-lab.local/health"
+
+# ✅ CORRECT: HTTPS API endpoints (LEGACY)
+curl -k "https://verbumcare-lab.local/api/patients"
+
+# ✅ Verify legacy architecture security
 curl --connect-timeout 5 "http://verbumcare-lab.local:3000/health" || echo "✅ Port 3000 correctly blocked"
 ```
 
@@ -404,18 +503,42 @@ curl --connect-timeout 5 "http://verbumcare-lab.local:3000/health" || echo "✅ 
 ## Environment Variables
 
 ### Backend (.env) - PRODUCTION CONFIGURATION
+**Current Production (Mac Mini):**
 ```env
 # PRODUCTION DATABASE (CURRENT)
+DATABASE_URL=postgres://nagare:nagare_secure_password_change_me@verbumcarenomac-mini.local:5432/nagare_db
+PORT=3000
+NODE_ENV=production
+
+# AI Services (Mac Mini production server)
+WHISPER_URL=http://verbumcarenomac-mini.local:8080
+WHISPER_MODEL=large-v3
+WHISPER_LANGUAGE=ja
+
+OLLAMA_URL=http://verbumcarenomac-mini.local:11434
+OLLAMA_MODEL=llama3.1:8b
+OLLAMA_NUM_CTX=2048
+OLLAMA_NUM_THREAD=8
+OLLAMA_TEMPERATURE=0.1
+
+# CORS (permissive for LAN)
+API_CORS_ORIGIN=*
+SOCKET_CORS_ORIGIN=*
+```
+
+**Legacy (pn51) - For Rollback:**
+```env
+# LEGACY DATABASE (ROLLBACK)
 DATABASE_URL=postgres://nagare:nagare_secure_password_change_me@verbumcare-lab.local:5432/nagare_db
 PORT=3000
 NODE_ENV=production
 
-# AI Services (localhost for single-server setup)
-WHISPER_URL=http://localhost:8080
+# AI Services (pn51 legacy server)
+WHISPER_URL=http://verbumcare-lab.local:8080
 WHISPER_MODEL=large-v3
 WHISPER_LANGUAGE=ja
 
-OLLAMA_URL=http://localhost:11434
+OLLAMA_URL=http://verbumcare-lab.local:11434
 OLLAMA_MODEL=llama3.1:8b
 OLLAMA_NUM_CTX=2048
 OLLAMA_NUM_THREAD=8
@@ -427,14 +550,29 @@ SOCKET_CORS_ORIGIN=*
 ```
 
 ### iPad App (.env) - SECURE CONFIGURATION
+**Current Production (Mac Mini):**
 ```env
 # ✅ MANDATORY: HTTPS endpoint only
+EXPO_PUBLIC_API_URL=https://verbumcarenomac-mini.local/api
+```
+
+**Legacy (pn51) - For Rollback:**
+```env
+# ✅ LEGACY: HTTPS endpoint for rollback
 EXPO_PUBLIC_API_URL=https://verbumcare-lab.local/api
 ```
 
 ### Admin Portal (.env) - SECURE CONFIGURATION
+**Current Production (Mac Mini):**
 ```env
 # ✅ MANDATORY: HTTPS endpoints only
+VITE_API_URL=https://verbumcarenomac-mini.local/api
+VITE_WS_URL=wss://verbumcarenomac-mini.local
+```
+
+**Legacy (pn51) - For Rollback:**
+```env
+# ✅ LEGACY: HTTPS endpoints for rollback
 VITE_API_URL=https://verbumcare-lab.local/api
 VITE_WS_URL=wss://verbumcare-lab.local
 ```

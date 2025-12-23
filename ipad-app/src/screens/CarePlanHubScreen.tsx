@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { useCarePlanStore } from '@stores/carePlanStore';
 import { LanguageToggle } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -68,6 +69,7 @@ export default function CarePlanHubScreen({ navigation }: Props) {
             <Text style={styles.screenTitle}>{t['carePlan.hub.title']}</Text>
           </View>
           <View style={styles.headerRight}>
+            <ServerStatusIndicator compact />
             <LanguageToggle />
           </View>
         </View>
@@ -98,6 +100,7 @@ export default function CarePlanHubScreen({ navigation }: Props) {
             <Text style={styles.screenTitle}>{t['carePlan.hub.title']}</Text>
           </View>
           <View style={styles.headerRight}>
+            <ServerStatusIndicator compact />
             <LanguageToggle />
           </View>
         </View>
@@ -167,6 +170,7 @@ export default function CarePlanHubScreen({ navigation }: Props) {
           <Text style={styles.screenTitle}>{t['carePlan.hub.title']}</Text>
         </View>
         <View style={styles.headerRight}>
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>

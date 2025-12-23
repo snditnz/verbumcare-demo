@@ -532,6 +532,85 @@ export const translations: Translations = {
     'voiceReview.helpStep2Description': '信頼度スコアはAIが抽出データについてどの程度確信しているかを示します。スコアが高いほどデータの信頼性が高くなります。',
     'voiceReview.pendingReviews': '保留中のレビュー',
 
+    // Settings and Server Configuration
+    'settings.title': '設定',
+    'settings.serverConfiguration': 'サーバー設定',
+    'settings.currentServer': '現在のサーバー',
+    'settings.availableServers': '利用可能なサーバー',
+    'settings.languageSettings': '言語設定',
+    'settings.displayLanguage': '表示言語',
+    'settings.connectionDetails': '接続詳細',
+    'settings.healthCheckResults': 'ヘルスチェック結果',
+    'settings.debugTroubleshooting': 'デバッグ・トラブルシューティング',
+    'settings.viewDebugLogs': 'デバッグログを表示',
+    'settings.exportDebugLogs': 'デバッグログをエクスポート',
+    'settings.helpTitle': 'サーバー切り替えガイド',
+    'settings.helpIntroduction': 'VerbumCareは複数のバックエンドサーバー間で切り替えることができます。このガイドでは安全で効率的な切り替え方法を説明します。',
+    
+    // Server switching help
+    'settings.serverSwitchingTitle': 'サーバー切り替えについて',
+    'settings.serverSwitchingDescription': 'サーバー切り替えにより、メンテナンス時やシステム障害時に別のサーバーに迅速に移行できます。',
+    'settings.serverSwitchingTip1': '切り替え前に現在の作業を保存してください',
+    'settings.serverSwitchingTip2': '接続テストを実行して新しいサーバーの状態を確認してください',
+    'settings.serverSwitchingTip3': '切り替え中は他の操作を避けてください',
+    'settings.serverSwitchingTip4': '問題が発生した場合は自動的に前のサーバーに戻ります',
+    
+    // Server descriptions and recommendations
+    'settings.macMiniTitle': 'Mac Mini（本番環境）',
+    'settings.macMiniDescription': 'Apple Silicon最適化による高性能な本番サーバー',
+    'settings.macMiniRecommendation': '推奨：日常業務での使用に最適',
+    'settings.macMiniFeature1': 'Apple Silicon Metal GPU加速',
+    'settings.macMiniFeature2': 'オフライン AI処理',
+    'settings.macMiniFeature3': '高速音声認識',
+    'settings.macMiniFeature4': '自動起動設定済み',
+    
+    'settings.pn51Title': 'pn51 レガシーサーバー',
+    'settings.pn51Description': 'ロールバックとテスト用の従来サーバー',
+    'settings.pn51Recommendation': '使用場面：Mac Miniに問題がある場合の緊急時',
+    'settings.pn51Feature1': 'バックアップサーバー',
+    'settings.pn51Feature2': 'ロールバック対応',
+    'settings.pn51Feature3': '安定した実績',
+    'settings.pn51Feature4': '緊急時対応',
+    
+    // Connection status help
+    'settings.connectionStatusTitle': '接続ステータスについて',
+    'settings.connectionStatusDescription': '接続ステータスは現在のサーバーとの通信状態を示します。',
+    'settings.connectionStatusConnected': '接続中：サーバーと正常に通信しています',
+    'settings.connectionStatusDisconnected': '未接続：サーバーとの通信ができません',
+    'settings.connectionStatusTesting': 'テスト中：接続テストを実行しています',
+    'settings.connectionStatusSwitching': '切り替え中：サーバーを切り替えています',
+    'settings.connectionStatusError': 'エラー：接続に問題があります',
+    
+    // Troubleshooting
+    'settings.troubleshootingTitle': 'トラブルシューティング',
+    'settings.troubleshootingDescription': '一般的な問題と解決方法',
+    'settings.connectionFailedTitle': '接続に失敗しました',
+    'settings.connectionFailedDescription': 'サーバーに接続できない場合の対処法',
+    'settings.connectionFailedSolution1': 'ネットワーク接続を確認してください',
+    'settings.connectionFailedSolution2': '別のサーバーに切り替えてみてください',
+    'settings.connectionFailedSolution3': 'アプリを再起動してください',
+    'settings.connectionFailedSolution4': 'デバッグログを確認してください',
+    
+    'settings.slowResponseTitle': '応答が遅い',
+    'settings.slowResponseDescription': 'サーバーの応答時間が長い場合の対処法',
+    'settings.slowResponseSolution1': 'ネットワーク品質を確認してください',
+    'settings.slowResponseSolution2': 'サーバーの負荷状況を確認してください',
+    'settings.slowResponseSolution3': '接続テストを実行してください',
+    'settings.slowResponseSolution4': '必要に応じて別のサーバーに切り替えてください',
+    
+    'settings.authenticationErrorTitle': '認証エラー',
+    'settings.authenticationErrorDescription': 'ログインに失敗する場合の対処法',
+    'settings.authenticationErrorSolution1': 'ユーザー名とパスワードを確認してください',
+    'settings.authenticationErrorSolution2': 'アプリを再起動してください',
+    'settings.authenticationErrorSolution3': 'サーバー管理者に連絡してください',
+    
+    // Tooltips
+    'settings.tooltip.serverSelector': 'タップしてサーバーを切り替えます。切り替え前に接続テストを実行することをお勧めします。',
+    'settings.tooltip.connectionTest': 'サーバーの接続状態をテストします。切り替え前の確認に使用してください。',
+    'settings.tooltip.languageSelector': '表示言語を変更します。変更は即座に反映されます。',
+    'settings.tooltip.healthCheck': 'サーバーの各エンドポイントの状態を表示します。',
+    'settings.tooltip.debugLogs': '詳細なログ情報を表示します。問題の診断に役立ちます。',
+
     // Voice Processing Notification
     'voiceProcessing.processing': '処理中...',
     'voiceProcessing.completed': '処理完了',
@@ -1130,6 +1209,85 @@ export const translations: Translations = {
     'voiceReview.helpStep2Description': 'Confidence scores show how certain the AI is about extracted data. Higher scores mean more reliable data.',
     'voiceReview.pendingReviews': 'pending reviews',
 
+    // Settings and Server Configuration
+    'settings.title': 'Settings',
+    'settings.serverConfiguration': 'Server Configuration',
+    'settings.currentServer': 'Current Server',
+    'settings.availableServers': 'Available Servers',
+    'settings.languageSettings': 'Language Settings',
+    'settings.displayLanguage': 'Display Language',
+    'settings.connectionDetails': 'Connection Details',
+    'settings.healthCheckResults': 'Health Check Results',
+    'settings.debugTroubleshooting': 'Debug & Troubleshooting',
+    'settings.viewDebugLogs': 'View Debug Logs',
+    'settings.exportDebugLogs': 'Export Debug Logs',
+    'settings.helpTitle': 'Server Switching Guide',
+    'settings.helpIntroduction': 'VerbumCare can switch between multiple backend servers. This guide explains how to switch safely and efficiently.',
+    
+    // Server switching help
+    'settings.serverSwitchingTitle': 'About Server Switching',
+    'settings.serverSwitchingDescription': 'Server switching allows you to quickly migrate to another server during maintenance or system failures.',
+    'settings.serverSwitchingTip1': 'Save your current work before switching',
+    'settings.serverSwitchingTip2': 'Run connection tests to verify the new server status',
+    'settings.serverSwitchingTip3': 'Avoid other operations during switching',
+    'settings.serverSwitchingTip4': 'The system will automatically revert to the previous server if issues occur',
+    
+    // Server descriptions and recommendations
+    'settings.macMiniTitle': 'Mac Mini (Production)',
+    'settings.macMiniDescription': 'High-performance production server with Apple Silicon optimization',
+    'settings.macMiniRecommendation': 'Recommended: Optimal for daily operations',
+    'settings.macMiniFeature1': 'Apple Silicon Metal GPU acceleration',
+    'settings.macMiniFeature2': 'Offline AI processing',
+    'settings.macMiniFeature3': 'High-speed voice recognition',
+    'settings.macMiniFeature4': 'Auto-start configured',
+    
+    'settings.pn51Title': 'pn51 Legacy Server',
+    'settings.pn51Description': 'Legacy server for rollback and testing',
+    'settings.pn51Recommendation': 'Use case: Emergency fallback when Mac Mini has issues',
+    'settings.pn51Feature1': 'Backup server',
+    'settings.pn51Feature2': 'Rollback support',
+    'settings.pn51Feature3': 'Proven stability',
+    'settings.pn51Feature4': 'Emergency response',
+    
+    // Connection status help
+    'settings.connectionStatusTitle': 'About Connection Status',
+    'settings.connectionStatusDescription': 'Connection status shows the current communication state with the server.',
+    'settings.connectionStatusConnected': 'Connected: Communicating normally with server',
+    'settings.connectionStatusDisconnected': 'Disconnected: Cannot communicate with server',
+    'settings.connectionStatusTesting': 'Testing: Running connection test',
+    'settings.connectionStatusSwitching': 'Switching: Switching servers',
+    'settings.connectionStatusError': 'Error: Connection problem detected',
+    
+    // Troubleshooting
+    'settings.troubleshootingTitle': 'Troubleshooting',
+    'settings.troubleshootingDescription': 'Common issues and solutions',
+    'settings.connectionFailedTitle': 'Connection Failed',
+    'settings.connectionFailedDescription': 'What to do when unable to connect to server',
+    'settings.connectionFailedSolution1': 'Check your network connection',
+    'settings.connectionFailedSolution2': 'Try switching to another server',
+    'settings.connectionFailedSolution3': 'Restart the application',
+    'settings.connectionFailedSolution4': 'Check debug logs',
+    
+    'settings.slowResponseTitle': 'Slow Response',
+    'settings.slowResponseDescription': 'What to do when server response time is long',
+    'settings.slowResponseSolution1': 'Check network quality',
+    'settings.slowResponseSolution2': 'Check server load status',
+    'settings.slowResponseSolution3': 'Run connection test',
+    'settings.slowResponseSolution4': 'Switch to another server if necessary',
+    
+    'settings.authenticationErrorTitle': 'Authentication Error',
+    'settings.authenticationErrorDescription': 'What to do when login fails',
+    'settings.authenticationErrorSolution1': 'Verify username and password',
+    'settings.authenticationErrorSolution2': 'Restart the application',
+    'settings.authenticationErrorSolution3': 'Contact server administrator',
+    
+    // Tooltips
+    'settings.tooltip.serverSelector': 'Tap to switch servers. We recommend running a connection test before switching.',
+    'settings.tooltip.connectionTest': 'Test server connection status. Use this to verify before switching.',
+    'settings.tooltip.languageSelector': 'Change display language. Changes take effect immediately.',
+    'settings.tooltip.healthCheck': 'Shows the status of each server endpoint.',
+    'settings.tooltip.debugLogs': 'View detailed log information. Helpful for diagnosing issues.',
+
     // Voice Processing Notification
     'voiceProcessing.processing': 'Processing...',
     'voiceProcessing.completed': 'Processing Complete',
@@ -1665,6 +1823,85 @@ const zhTWBase = {
   "voiceReview.helpStep2Title": "理解信心分數",
   "voiceReview.helpStep2Description": "信心分數顯示 AI 對提取數據的確定程度。分數越高，數據越可靠。",
   "voiceReview.pendingReviews": "待處理評論",
+
+  // Settings and Server Configuration
+  "settings.title": "設定",
+  "settings.serverConfiguration": "伺服器設定",
+  "settings.currentServer": "目前伺服器",
+  "settings.availableServers": "可用伺服器",
+  "settings.languageSettings": "語言設定",
+  "settings.displayLanguage": "顯示語言",
+  "settings.connectionDetails": "連線詳情",
+  "settings.healthCheckResults": "健康檢查結果",
+  "settings.debugTroubleshooting": "除錯與故障排除",
+  "settings.viewDebugLogs": "查看除錯日誌",
+  "settings.exportDebugLogs": "匯出除錯日誌",
+  "settings.helpTitle": "伺服器切換指南",
+  "settings.helpIntroduction": "VerbumCare 可以在多個後端伺服器之間切換。本指南說明如何安全有效地切換。",
+  
+  // Server switching help
+  "settings.serverSwitchingTitle": "關於伺服器切換",
+  "settings.serverSwitchingDescription": "伺服器切換允許您在維護或系統故障期間快速遷移到另一個伺服器。",
+  "settings.serverSwitchingTip1": "切換前請儲存您目前的工作",
+  "settings.serverSwitchingTip2": "執行連線測試以驗證新伺服器狀態",
+  "settings.serverSwitchingTip3": "切換期間避免其他操作",
+  "settings.serverSwitchingTip4": "如果發生問題，系統會自動回復到先前的伺服器",
+  
+  // Server descriptions and recommendations
+  "settings.macMiniTitle": "Mac Mini（生產環境）",
+  "settings.macMiniDescription": "具有 Apple Silicon 優化的高效能生產伺服器",
+  "settings.macMiniRecommendation": "建議：最適合日常操作",
+  "settings.macMiniFeature1": "Apple Silicon Metal GPU 加速",
+  "settings.macMiniFeature2": "離線 AI 處理",
+  "settings.macMiniFeature3": "高速語音識別",
+  "settings.macMiniFeature4": "已設定自動啟動",
+  
+  "settings.pn51Title": "pn51 舊版伺服器",
+  "settings.pn51Description": "用於回滾和測試的舊版伺服器",
+  "settings.pn51Recommendation": "使用情況：Mac Mini 出現問題時的緊急備援",
+  "settings.pn51Feature1": "備份伺服器",
+  "settings.pn51Feature2": "回滾支援",
+  "settings.pn51Feature3": "經過驗證的穩定性",
+  "settings.pn51Feature4": "緊急回應",
+  
+  // Connection status help
+  "settings.connectionStatusTitle": "關於連線狀態",
+  "settings.connectionStatusDescription": "連線狀態顯示與伺服器的目前通訊狀態。",
+  "settings.connectionStatusConnected": "已連線：與伺服器正常通訊",
+  "settings.connectionStatusDisconnected": "未連線：無法與伺服器通訊",
+  "settings.connectionStatusTesting": "測試中：正在執行連線測試",
+  "settings.connectionStatusSwitching": "切換中：正在切換伺服器",
+  "settings.connectionStatusError": "錯誤：偵測到連線問題",
+  
+  // Troubleshooting
+  "settings.troubleshootingTitle": "故障排除",
+  "settings.troubleshootingDescription": "常見問題和解決方案",
+  "settings.connectionFailedTitle": "連線失敗",
+  "settings.connectionFailedDescription": "無法連線到伺服器時的處理方法",
+  "settings.connectionFailedSolution1": "檢查您的網路連線",
+  "settings.connectionFailedSolution2": "嘗試切換到另一個伺服器",
+  "settings.connectionFailedSolution3": "重新啟動應用程式",
+  "settings.connectionFailedSolution4": "檢查除錯日誌",
+  
+  "settings.slowResponseTitle": "回應緩慢",
+  "settings.slowResponseDescription": "伺服器回應時間過長時的處理方法",
+  "settings.slowResponseSolution1": "檢查網路品質",
+  "settings.slowResponseSolution2": "檢查伺服器負載狀態",
+  "settings.slowResponseSolution3": "執行連線測試",
+  "settings.slowResponseSolution4": "必要時切換到另一個伺服器",
+  
+  "settings.authenticationErrorTitle": "認證錯誤",
+  "settings.authenticationErrorDescription": "登入失敗時的處理方法",
+  "settings.authenticationErrorSolution1": "驗證使用者名稱和密碼",
+  "settings.authenticationErrorSolution2": "重新啟動應用程式",
+  "settings.authenticationErrorSolution3": "聯絡伺服器管理員",
+  
+  // Tooltips
+  "settings.tooltip.serverSelector": "點擊以切換伺服器。我們建議在切換前執行連線測試。",
+  "settings.tooltip.connectionTest": "測試伺服器連線狀態。在切換前使用此功能進行驗證。",
+  "settings.tooltip.languageSelector": "更改顯示語言。更改會立即生效。",
+  "settings.tooltip.healthCheck": "顯示每個伺服器端點的狀態。",
+  "settings.tooltip.debugLogs": "查看詳細的日誌資訊。有助於診斷問題。",
 
   "voiceProcessing.processing": "處理中...",
   "voiceProcessing.completed": "處理完成",

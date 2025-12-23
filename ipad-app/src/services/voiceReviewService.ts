@@ -527,6 +527,11 @@ class VoiceReviewService {
    * @returns Formatted error
    */
   private handleError(error: any, defaultMessage: string): Error {
+    // Handle undefined or null error
+    if (!error) {
+      return new Error(defaultMessage);
+    }
+
     if (error.response?.data?.error) {
       return new Error(error.response.data.error);
     }

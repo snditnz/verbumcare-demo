@@ -1,0 +1,118 @@
+{
+  "timestamp": "2025-12-22T09:19:13.979Z",
+  "tests": {
+    "Internet connectivity (Google DNS)": {
+      "status": "pass",
+      "details": "PING 8.8.8.8 (8.8.8.8): 56 data bytes\n64 bytes from 8.8.8.8: icmp_seq=0 ttl=113 time=32.105 ms\n64 by"
+    },
+    "Local router connectivity": {
+      "status": "pass",
+      "details": "PING 192.168.0.1 (192.168.0.1): 56 data bytes\n64 bytes from 192.168.0.1: icmp_seq=0 ttl=64 time=3.75"
+    },
+    "mDNS resolution: verbumcaremac-mini": {
+      "status": "pass",
+      "details": "PING verbumcaremac-mini.tail609750.ts.net (100.107.201.72): 56 data bytes\n64 bytes from 100.107.201."
+    },
+    "mDNS resolution: verbumcaremac-mini.local": {
+      "status": "fail",
+      "details": "Command failed: ping -c 2 verbumcaremac-mini.local\nping: cannot resolve verbumcaremac-mini.local: Unknown host\n"
+    },
+    "mDNS resolution: verbumcarenomac-mini.local": {
+      "status": "pass",
+      "details": "PING verbumcarenomac-mini.local (192.168.0.21): 56 data bytes\n64 bytes from 192.168.0.21: icmp_seq=0"
+    },
+    "mDNS resolution: VerbumCarenoMac-mini.local": {
+      "status": "pass",
+      "details": "PING verbumcarenomac-mini.local (192.168.0.21): 56 data bytes\n64 bytes from 192.168.0.21: icmp_seq=0"
+    },
+    "Port 443 on verbumcarenomac-mini.local (HTTPS (Mac Mini))": {
+      "status": "pass",
+      "details": ""
+    },
+    "Port 80 on verbumcarenomac-mini.local (HTTP (Mac Mini))": {
+      "status": "pass",
+      "details": ""
+    },
+    "Port 443 on verbumcare-lab.local (HTTPS (pn51 legacy))": {
+      "status": "pass",
+      "details": ""
+    },
+    "Port 3000 on localhost (Development proxy)": {
+      "status": "pass",
+      "details": ""
+    },
+    "Port 8081 on localhost (Expo dev server)": {
+      "status": "pass",
+      "details": ""
+    },
+    "HTTP GET: http://localhost:3000/health": {
+      "status": "pass",
+      "details": "Status: 200, Response: {\"status\":\"healthy\",\"proxy\":\"development\",\"timesta..."
+    },
+    "HTTP GET: http://localhost:3000/api/health": {
+      "status": "pass",
+      "details": "Status: 200, Response: {\"status\":\"healthy\",\"timestamp\":\"2025-12-22T09:19:..."
+    },
+    "HTTP GET: https://verbumcarenomac-mini.local/health": {
+      "status": "pass",
+      "details": "Status: 200, Response: {\"status\":\"healthy\",\"timestamp\":\"2025-12-22T09:19:..."
+    },
+    "HTTP GET: https://verbumcarenomac-mini.local/api/health": {
+      "status": "pass",
+      "details": "Status: 404, Response: <!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta char..."
+    },
+    "HTTP GET: https://verbumcare-lab.local/health": {
+      "status": "pass",
+      "details": "Status: 200, Response: {\"status\":\"healthy\",\"timestamp\":\"2025-12-22T09:19:..."
+    },
+    "HTTP GET: https://verbumcare-lab.local/api/health": {
+      "status": "pass",
+      "details": "Status: 404, Response: <!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta char..."
+    },
+    "Development proxy process check": {
+      "status": "pass",
+      "details": "COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nnode    88774    q   16u  IPv6 "
+    },
+    "Proxy health endpoint": {
+      "status": "pass",
+      "details": "Status: 200, Response: {\"status\":\"healthy\",\"proxy\":\"development\",\"timesta..."
+    },
+    "Proxy API forwarding test": {
+      "status": "pass",
+      "details": "Status: 404, Response: <!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta char..."
+    },
+    "Default server configuration": {
+      "status": "pass",
+      "details": "Found default server in config"
+    },
+    "Localhost proxy configuration": {
+      "status": "pass",
+      "details": "Development proxy configured"
+    },
+    "mDNS hostname configuration": {
+      "status": "pass",
+      "details": "Mac Mini mDNS hostname found"
+    },
+    "Environment API URL": {
+      "status": "pass",
+      "details": "Points to development proxy"
+    },
+    "Mac Mini Docker services status": {
+      "status": "fail",
+      "details": "spawnSync /bin/sh ETIMEDOUT"
+    },
+    "Local IP addresses": {
+      "status": "pass",
+      "details": "inet 127.0.0.1 netmask 0xff000000\n\tinet 192.168.0.45 netmask 0xffffff00 broadcast 192.168.0.255\n\tine"
+    },
+    "Default route information": {
+      "status": "pass",
+      "details": "route to: default\ndestination: default\n       mask: default\n    gateway: 192.168.0.1\n  interface: en"
+    }
+  },
+  "summary": {
+    "passed": 25,
+    "failed": 2,
+    "warnings": 0
+  }
+}

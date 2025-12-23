@@ -4,14 +4,53 @@ import { APIResponse, APIVitalSigns, VoiceUploadResponse } from '@models/api';
 import { Patient, VitalSigns, BarthelIndex, IncidentReport, PatientUpdateDraft, MedicationAdmin, CarePlan, CarePlanItem, CarePlanWithPatient, ProblemTemplate, MonitoringRecord, TodaySchedule } from '@models';
 import { cacheService } from './cacheService';
 import { useAuthStore } from '@stores/authStore';
+import { ServerConfig } from '../config/servers';
+import { getCurrentServer } from '../stores/settingsStore';
+import { 
+  errorHandlingService, 
+  ErrorType, 
+  EnhancedError, 
+  OperationResult 
+} from './errorHandlingService';
+
+export interface HealthCheckResult {
+  endpoint: string;
+  status: 'success' | 'failure';
+  responseTime: number;
+  error?: string;
+}
+
+export interface ConnectionTestResult {
+  success: boolean;
+  responseTime: number;
+  error?: string;
+  healthChecks: HealthCheckResult[];
+}
 
 class APIService {
   private client: AxiosInstance;
+  private currentBaseURL: string;
+  private currentServer: ServerConfig | null = null;
 
-  constructor() {
+  constructor(baseURL?: string) {
+    // Use provided baseURL or fallback to API_CONFIG.BASE_URL during initialization
+    // The proper server configuration will be set later via updateBaseURL()
+    const effectiveBaseURL = baseURL || API_CONFIG.BASE_URL;
+    this.currentBaseURL = effectiveBaseURL;
+    
+    // Get server-specific timeout or fallback to API_CONFIG.TIMEOUT
+    let timeout = API_CONFIG.TIMEOUT;
+    try {
+      const currentServer = getCurrentServer();
+      timeout = currentServer.connectionTimeout;
+      console.log(`📡 API Service using server-specific timeout: ${timeout}ms for ${currentServer.displayName}`);
+    } catch (error) {
+      console.warn('Could not get server-specific timeout, using default:', timeout);
+    }
+    
     this.client = axios.create({
-      baseURL: API_CONFIG.BASE_URL,
-      timeout: API_CONFIG.TIMEOUT,
+      baseURL: effectiveBaseURL,
+      timeout: timeout,
       headers: {
         'Content-Type': 'application/json',
         'Accept-Language': 'ja',
@@ -38,11 +77,18 @@ class APIService {
       }
     );
 
-    // Add response interceptor to handle authentication errors
+    // Add response interceptor to handle authentication errors and server switches
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
         const originalRequest = error.config;
+        
+        // Handle server switch scenarios
+        if (this.isServerSwitchError(error)) {
+          console.warn('Server switch detected, request may need retry');
+          // Don't retry automatically - let the calling code handle it
+          return Promise.reject(error);
+        }
         
         // If 401 Unauthorized and we haven't retried yet
         if (error.response?.status === 401 && !originalRequest._retry) {
@@ -65,54 +111,346 @@ class APIService {
     );
   }
 
-  async getPatients(useCache: boolean = true): Promise<Patient[]> {
-    // OFFLINE-FIRST: Try cache first if enabled
-    if (useCache) {
-      const cached = await cacheService.getCachedPatients();
-      if (cached) {
-        console.log('[API] Using cached patients data');
-
-        // Try to update in background (silently fail if offline)
-        this.client.get<APIResponse<Patient[]>>('/patients', {
-          params: { facility_id: FACILITY_ID },
-        })
-          .then(response => {
-            cacheService.cachePatients(response.data.data);
-            cacheService.setLastSyncTime();
-            console.log('[API] Background refresh: updated patients cache');
-          })
-          .catch(error => {
-            console.log('[API] Background refresh failed (offline?):', error.message);
-          });
-
-        return cached;
-      }
-    }
-
-    // No cache - fetch from API and cache result
+  /**
+   * Initialize API service with current server configuration
+   * MUST be called after settings store is initialized
+   */
+  initializeFromSettings(): void {
     try {
-      const response = await this.client.get<APIResponse<Patient[]>>('/patients', {
-        params: { facility_id: FACILITY_ID },
-      });
-      const patients = response.data.data;
-
-      // Cache the result
-      await cacheService.cachePatients(patients);
-      await cacheService.setLastSyncTime();
-
-      return patients;
-    } catch (error: any) {
-      console.error('[API] Failed to fetch patients:', error.message);
+      const currentServer = getCurrentServer();
+      this.currentServer = currentServer;
+      this.currentBaseURL = currentServer.baseUrl;
+      this.client.defaults.baseURL = currentServer.baseUrl;
+      this.client.defaults.timeout = currentServer.connectionTimeout;
       
-      // Network failure fallback: try cache even if useCache was false
-      const fallbackCache = await cacheService.getCachedPatients();
-      if (fallbackCache) {
-        console.log('[API] Network failure - falling back to cached patients');
-        return fallbackCache;
-      }
-      
-      throw error; // No fallback available
+      console.log(`📡 API Service initialized with server: ${currentServer.displayName} (${currentServer.baseUrl})`);
+    } catch (error) {
+      console.warn('Could not initialize API service from settings, using default configuration');
     }
+  }
+
+  /**
+   * Get the effective base URL for the API client
+   * Uses current server configuration or falls back to default
+   */
+  private getEffectiveBaseURL(): string {
+    try {
+      const currentServer = getCurrentServer();
+      this.currentServer = currentServer;
+      console.log(`📡 API Service using server: ${currentServer.displayName} (${currentServer.baseUrl})`);
+      return currentServer.baseUrl;
+    } catch (error) {
+      console.warn('Could not get current server, using default API_CONFIG.BASE_URL');
+      return API_CONFIG.BASE_URL;
+    }
+  }
+
+  /**
+   * Check if an error is related to server switching
+   */
+  private isServerSwitchError(error: any): boolean {
+    // Connection refused, timeout, or host not found errors during server switches
+    return error.code === 'ECONNREFUSED' || 
+           error.code === 'ETIMEDOUT' || 
+           error.code === 'ENOTFOUND' ||
+           (error.response?.status >= 500 && error.response?.status < 600);
+  }
+
+  /**
+   * Update the API client's base URL dynamically
+   * Used during server switches
+   */
+  updateBaseURL(baseURL: string, serverConfig?: ServerConfig): void {
+    console.log(`📡 Updating API base URL from ${this.currentBaseURL} to ${baseURL}`);
+    
+    this.currentBaseURL = baseURL;
+    this.currentServer = serverConfig || null;
+    this.client.defaults.baseURL = baseURL;
+    
+    // Update timeout if server config provides it
+    if (serverConfig?.connectionTimeout) {
+      this.client.defaults.timeout = serverConfig.connectionTimeout;
+      console.log(`📡 Updated API timeout to ${serverConfig.connectionTimeout}ms for ${serverConfig.displayName}`);
+    }
+    
+    console.log('✅ API base URL updated successfully');
+  }
+
+  /**
+   * Get current base URL
+   */
+  getCurrentBaseURL(): string {
+    return this.currentBaseURL;
+  }
+
+  /**
+   * Get current server configuration
+   */
+  getCurrentServer(): ServerConfig | null {
+    return this.currentServer;
+  }
+
+  /**
+   * Perform health check on current server
+   */
+  async performHealthCheck(): Promise<HealthCheckResult[]> {
+    if (!this.currentServer) {
+      throw new Error('No current server configuration available for health check');
+    }
+
+    return this.performHealthCheckForServer(this.currentServer);
+  }
+
+  /**
+   * Perform health check on a specific server
+   */
+  async performHealthCheckForServer(server: ServerConfig): Promise<HealthCheckResult[]> {
+    const healthChecks: HealthCheckResult[] = [];
+    
+    for (const endpoint of server.healthCheckEndpoints) {
+      const startTime = Date.now();
+      
+      try {
+        const response = await axios.get(`${server.baseUrl}${endpoint}`, {
+          timeout: server.connectionTimeout,
+          httpsAgent: { rejectUnauthorized: false } as any,
+          headers: {
+            'Accept-Language': 'ja',
+            // Include auth headers if available
+            ...this.getAuthHeaders(),
+          },
+        });
+
+        healthChecks.push({
+          endpoint,
+          status: 'success',
+          responseTime: Date.now() - startTime,
+        });
+      } catch (error: any) {
+        healthChecks.push({
+          endpoint,
+          status: 'failure',
+          responseTime: Date.now() - startTime,
+          error: this.formatHealthCheckError(error),
+        });
+      }
+    }
+
+    return healthChecks;
+  }
+
+  /**
+   * Test connection to a server
+   */
+  async testConnection(server: ServerConfig): Promise<ConnectionTestResult> {
+    const startTime = Date.now();
+    
+    try {
+      const healthChecks = await this.performHealthCheckForServer(server);
+      const successfulChecks = healthChecks.filter(check => check.status === 'success');
+      
+      return {
+        success: successfulChecks.length > 0,
+        responseTime: Date.now() - startTime,
+        healthChecks,
+        error: successfulChecks.length === 0 ? 'All health checks failed' : undefined,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        responseTime: Date.now() - startTime,
+        healthChecks: [],
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Test connection to current server
+   */
+  async testCurrentConnection(): Promise<ConnectionTestResult> {
+    if (!this.currentServer) {
+      return {
+        success: false,
+        responseTime: 0,
+        healthChecks: [],
+        error: 'No current server configuration',
+      };
+    }
+
+    return this.testConnection(this.currentServer);
+  }
+
+  /**
+   * Get authentication headers for requests
+   */
+  private getAuthHeaders(): Record<string, string> {
+    const { tokens } = useAuthStore.getState();
+    if (tokens?.accessToken) {
+      return {
+        'Authorization': `Bearer ${tokens.accessToken}`,
+      };
+    }
+    return {};
+  }
+
+  /**
+   * Handle server switch - update API client configuration
+   * Implements Requirements 1.2, 4.2 (API client reconfiguration)
+   */
+  handleServerSwitch(newServer: ServerConfig): void {
+    console.log(`📡 API Service handling server switch to: ${newServer.displayName}`);
+    
+    // Update base URL and server configuration
+    this.updateBaseURL(newServer.baseUrl, newServer);
+    
+    // Update timeout if different
+    if (newServer.connectionTimeout !== this.client.defaults.timeout) {
+      this.client.defaults.timeout = newServer.connectionTimeout;
+      console.log(`📡 Updated API timeout to ${newServer.connectionTimeout}ms`);
+    }
+    
+    console.log('✅ API Service server switch completed');
+  }
+
+  /**
+   * Refresh server configuration from settings store
+   * Call this when server configuration might have changed
+   */
+  refreshServerConfiguration(): void {
+    try {
+      const currentServer = getCurrentServer();
+      if (!this.currentServer || this.currentServer.id !== currentServer.id) {
+        console.log(`📡 API Service refreshing server configuration: ${currentServer.displayName}`);
+        this.handleServerSwitch(currentServer);
+      }
+    } catch (error) {
+      console.warn('Could not refresh server configuration:', error);
+    }
+  }
+
+  /**
+   * Format health check errors for consistent reporting
+   */
+  private formatHealthCheckError(error: any): string {
+    if (error.code === 'ECONNREFUSED') {
+      return 'Connection refused';
+    } else if (error.code === 'ETIMEDOUT') {
+      return 'Connection timeout';
+    } else if (error.code === 'ENOTFOUND') {
+      return 'Host not found';
+    } else if (error.response) {
+      return `HTTP ${error.response.status}: ${error.response.statusText}`;
+    } else {
+      return error.message || 'Unknown error';
+    }
+  }
+
+  /**
+   * Gracefully handle server switch scenarios with comprehensive error handling
+   * Retries requests with exponential backoff during server transitions
+   * Implements Requirements 4.3, 4.4, 6.5
+   */
+  async executeWithServerSwitchHandling<T>(
+    operation: () => Promise<T>,
+    operationType: string = 'apiRequest',
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+  ): Promise<T> {
+    return errorHandlingService.executeWithErrorHandling(
+      operation,
+      operationType,
+      { 
+        currentServer: this.currentServer?.id || 'unknown',
+        baseURL: this.currentBaseURL 
+      },
+      {
+        maxAttempts: maxRetries,
+        baseDelay,
+        maxDelay: baseDelay * 8,
+        backoffMultiplier: 2,
+        jitter: true,
+        retryableErrors: [ErrorType.NETWORK_ERROR, ErrorType.TIMEOUT_ERROR, ErrorType.SERVER_ERROR]
+      }
+    ).then(result => {
+      if (result.success) {
+        return result.data!;
+      } else {
+        // Convert enhanced error back to regular error for API compatibility
+        const error = new Error(result.error?.message || 'API request failed');
+        (error as any).enhancedError = result.error;
+        (error as any).attempts = result.attempts;
+        (error as any).totalDuration = result.totalDuration;
+        throw error;
+      }
+    });
+  }
+
+  /**
+   * Enhanced request method with comprehensive error handling
+   */
+  private async makeRequest<T>(
+    requestFn: () => Promise<T>,
+    operationType: string = 'apiRequest',
+    enableRetry: boolean = true
+  ): Promise<T> {
+    if (enableRetry) {
+      return this.executeWithServerSwitchHandling(requestFn, operationType);
+    } else {
+      return requestFn();
+    }
+  }
+
+  async getPatients(useCache: boolean = true): Promise<Patient[]> {
+    return this.makeRequest(async () => {
+      // OFFLINE-FIRST: Try cache first if enabled
+      if (useCache) {
+        const cached = await cacheService.getCachedPatients();
+        if (cached) {
+          console.log('[API] Using cached patients data');
+
+          // Try to update in background (silently fail if offline)
+          this.client.get<APIResponse<Patient[]>>('/patients', {
+            params: { facility_id: FACILITY_ID },
+          })
+            .then(response => {
+              cacheService.cachePatients(response.data.data);
+              cacheService.setLastSyncTime();
+              console.log('[API] Background refresh: updated patients cache');
+            })
+            .catch(error => {
+              console.log('[API] Background refresh failed (offline?):', error.message);
+            });
+
+          return cached;
+        }
+      }
+
+      // No cache - fetch from API and cache result
+      try {
+        const response = await this.client.get<APIResponse<Patient[]>>('/patients', {
+          params: { facility_id: FACILITY_ID },
+        });
+        const patients = response.data.data;
+
+        // Cache the result
+        await cacheService.cachePatients(patients);
+        await cacheService.setLastSyncTime();
+
+        return patients;
+      } catch (error: any) {
+        console.error('[API] Failed to fetch patients:', error.message);
+        
+        // Network failure fallback: try cache even if useCache was false
+        const fallbackCache = await cacheService.getCachedPatients();
+        if (fallbackCache) {
+          console.log('[API] Network failure - falling back to cached patients');
+          return fallbackCache;
+        }
+        
+        throw error; // No fallback available
+      }
+    }, 'getPatients');
   }
 
   async getPatient(id: string): Promise<Patient> {
@@ -744,14 +1082,16 @@ class APIService {
       console.log(`[API] Using cached schedule for patient ${patientId}`);
 
       // Try to update in background (silently fail if offline)
-      this.client.get<APIResponse<TodaySchedule>>(`/dashboard/today-schedule/${patientId}`)
-        .then(response => {
-          cacheService.cacheTodaySchedule(patientId, response.data.data);
-          console.log(`[API] Background refresh: updated schedule for patient ${patientId}`);
-        })
-        .catch(error => {
-          console.log(`[API] Background refresh failed (offline?):`, error.message);
-        });
+      if (this.client) {
+        this.client.get<APIResponse<TodaySchedule>>(`/dashboard/today-schedule/${patientId}`)
+          .then(response => {
+            cacheService.cacheTodaySchedule(patientId, response.data.data);
+            console.log(`[API] Background refresh: updated schedule for patient ${patientId}`);
+          })
+          .catch(error => {
+            console.log(`[API] Background refresh failed (offline?):`, error.message);
+          });
+      }
 
       return cached;
     }
@@ -997,5 +1337,10 @@ class APIService {
   }
 }
 
+// Create singleton instance
 export const apiService = new APIService();
+
+// Export the class for testing and advanced usage
+export { APIService };
+
 export default apiService;

@@ -11,6 +11,7 @@ module.exports = {
     '^@stores/(.*)$': '<rootDir>/src/stores/$1',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
     '^@constants/(.*)$': '<rootDir>/src/constants/$1',
+    '^@config/(.*)$': '<rootDir>/src/config/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@models$': '<rootDir>/src/types',
     '^@models/(.*)$': '<rootDir>/src/types/$1',

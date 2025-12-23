@@ -51,4 +51,8 @@ const zhTWTranslations = {
   'common.cancel': '取消',
   'common.confirm': '確認',
   'common.discard': '放棄',
-  'common.save': '儲存',
+  'common.save': '儲存'
+};
+
+// Export the translations
+module.exports = zhTWTranslations;

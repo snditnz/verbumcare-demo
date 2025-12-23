@@ -6,6 +6,7 @@ export { BLEIndicator } from './BLEIndicator';
 export { VitalsDisplay } from './VitalsDisplay';
 export { VoiceRecorder } from './VoiceRecorder';
 export { NetworkStatusIndicator } from './NetworkStatusIndicator';
+export { ServerStatusIndicator } from './ServerStatusIndicator';
 export { default as TranscriptEditor } from './TranscriptEditor';
 export { default as VoiceReviewCard } from './VoiceReviewCard';
 export { default as ExtractedDataEditor } from './ExtractedDataEditor';

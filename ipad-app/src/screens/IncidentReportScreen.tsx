@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { LanguageToggle, VoiceRecorder } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -171,6 +172,7 @@ export default function IncidentReportScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>

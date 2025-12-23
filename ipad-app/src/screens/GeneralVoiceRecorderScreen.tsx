@@ -13,6 +13,7 @@ import { useAssessmentStore } from '@stores/assessmentStore';
 import { useAuthStore } from '@stores/authStore';
 import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { LanguageToggle, VoiceRecorder, VoiceProcessingNotification } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -147,6 +148,7 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>

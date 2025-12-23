@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import { PatientCard, LanguageToggle } from '@components';
+import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Patient } from '@models';
 import { apiService } from '@services';
 import { translations } from '@constants/translations';
@@ -103,6 +104,7 @@ export default function PatientListScreen({ navigation }: Props) {
           <TouchableOpacity onPress={() => debugStorage()}>
             <Ionicons name="bug-outline" size={24} color={COLORS.white} />
           </TouchableOpacity>
+          <ServerStatusIndicator compact showServerName />
           <LanguageToggle />
         </View>
       </View>

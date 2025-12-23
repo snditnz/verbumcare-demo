@@ -1,9 +1,23 @@
-// Server configuration
+import { getDefaultServer } from '../config/servers';
+
+// Development environment detection
+const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
+
+// Server configuration - now uses dynamic server configuration from iOS Settings
+// This will be overridden by the settings store when server switching is active
+const defaultServer = getDefaultServer();
+
 export const API_CONFIG = {
-  BASE_URL: 'https://verbumcare-lab.local/api',
-  WS_URL: 'wss://verbumcare-lab.local',
-  TIMEOUT: 60000, // 60 seconds - increased for demo reliability
-  RETRY_ATTEMPTS: 3,
+  // IMPORTANT: These are fallback values only - actual values come from iOS Settings
+  // The API service will use getCurrentServer() from settings store for actual URLs
+  BASE_URL: defaultServer.baseUrl, // Use default server instead of localhost
+  WS_URL: defaultServer.wsUrl,
+  TIMEOUT: isDevelopment ? 30000 : 60000, // Longer timeout in development for mDNS resolution
+  RETRY_ATTEMPTS: isDevelopment ? 5 : 3, // More retries in development
+  
+  // Legacy support - these will be deprecated once settings store is fully integrated
+  LEGACY_BASE_URL: 'https://verbumcare-lab.local/api',
+  LEGACY_WS_URL: 'wss://verbumcare-lab.local',
 };
 
 // Facility configuration
