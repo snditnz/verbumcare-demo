@@ -57,6 +57,7 @@ import {
 } from '../services/settingsInitializationService';
 import { uiOptimizationService } from '../services/uiOptimizationService';
 import { nativeSettingsService } from '../services/nativeSettingsService';
+import { smartServerSelector, ServerSelectionResult } from '../services/smartServerSelector';
 
 // Combined store interface
 interface SettingsStore extends SettingsState, SettingsActions {}
@@ -74,6 +75,138 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lastError: null,
   preferences: DEFAULT_USER_PREFERENCES,
   serverHistory: [],
+
+  // Smart server selection methods (defined early to be available for other methods)
+  performSmartDefaultSelection: async (): Promise<ServerConfig> => {
+    try {
+      console.log('[SettingsStore] Performing smart server selection...');
+      
+      const selectionResult: ServerSelectionResult = await smartServerSelector.selectBestServer();
+      
+      console.log(`[SettingsStore] Smart selection result: ${selectionResult.selectedServer.displayName}`);
+      console.log(`[SettingsStore] Selection reason: ${selectionResult.selectionReason}`);
+      
+      // Log test results for transparency
+      if (selectionResult.testResults.length > 0) {
+        console.log('[SettingsStore] Server test results:');
+        selectionResult.testResults.forEach(result => {
+          const status = result.success ? '✅' : '❌';
+          console.log(`  ${status} ${result.serverId}: ${result.responseTime}ms ${result.error ? `(${result.error})` : ''}`);
+        });
+      }
+      
+      return selectionResult.selectedServer;
+    } catch (error: any) {
+      console.error('[SettingsStore] Smart server selection failed:', error);
+      
+      // Fall back to default server
+      const fallbackServer = getDefaultServer();
+      console.log(`[SettingsStore] Using fallback server: ${fallbackServer.displayName}`);
+      
+      return fallbackServer;
+    }
+  },
+
+  // Server selection with priority system
+  selectServerWithPriority: async (): Promise<{
+    server: ServerConfig;
+    source: 'ios_settings' | 'user_explicit' | 'smart_default' | 'fallback';
+    reason: string;
+  }> => {
+    try {
+      // Priority 1: iOS Settings
+      const nativeResult = await nativeSettingsService.readNativeSettings();
+      const hasValidIOSSettings = nativeResult.success && nativeResult.serverConfig && 
+        (nativeResult.source === 'ios_settings' || nativeResult.source === 'cache');
+      
+      if (hasValidIOSSettings) {
+        return {
+          server: nativeResult.serverConfig!,
+          source: 'ios_settings',
+          reason: 'User configured server in iOS Settings'
+        };
+      }
+      
+      // Priority 2: User explicit choice (from persisted settings)
+      try {
+        const persistedSettings = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+        if (persistedSettings) {
+          const settings = JSON.parse(persistedSettings);
+          if (settings.currentServerId) {
+            const userServer = getServerById(settings.currentServerId);
+            if (userServer) {
+              return {
+                server: userServer,
+                source: 'user_explicit',
+                reason: 'User previously selected this server'
+              };
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[SettingsStore] Failed to read user explicit choice:', error);
+      }
+      
+      // Priority 3: Smart default selection
+      const smartServer = await get().performSmartDefaultSelection();
+      return {
+        server: smartServer,
+        source: 'smart_default',
+        reason: 'Auto-selected based on server availability'
+      };
+      
+    } catch (error: any) {
+      console.error('[SettingsStore] Server selection with priority failed:', error);
+      
+      // Priority 4: Emergency fallback
+      return {
+        server: getDefaultServer(),
+        source: 'fallback',
+        reason: 'Emergency fallback due to selection failure'
+      };
+    }
+  },
+
+  // DEBUG: Force clear settings and reload (for development/debugging)
+  debugClearAndReload: async (): Promise<void> => {
+    try {
+      console.log('[SettingsStore] DEBUG: Clearing persisted settings and reloading...');
+      await AsyncStorage.removeItem(SETTINGS_STORAGE_KEY);
+      
+      // Reset to default state
+      set({
+        currentServer: getDefaultServer(),
+        serverSource: 'fallback',
+        currentLanguage: DEFAULT_LANGUAGE,
+        serverHistory: [],
+        preferences: DEFAULT_USER_PREFERENCES,
+        lastError: null,
+        connectionStatus: 'disconnected',
+        detailedStatus: null,
+        serverSwitchState: DEFAULT_SWITCH_STATE,
+      });
+      
+      // Immediately reload settings to use iOS Settings
+      await get().loadSettings();
+      
+      console.log('[SettingsStore] ✅ DEBUG: Settings cleared and reloaded');
+    } catch (error: any) {
+      console.error('[SettingsStore] ❌ DEBUG: Failed to clear and reload:', error);
+    }
+  },
+
+  // Force clear persisted settings to allow iOS Settings to take precedence
+  clearPersistedSettings: async (): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(SETTINGS_STORAGE_KEY);
+      console.log('[SettingsStore] ✅ Persisted settings cleared - iOS Settings will now take precedence');
+      
+      // Reload settings to use iOS Settings
+      await get().loadSettings();
+    } catch (error: any) {
+      console.error('[SettingsStore] ❌ Failed to clear persisted settings:', error);
+    }
+  },
 
   // Server management actions
   switchServer: async (serverId: string): Promise<boolean> => {
@@ -303,7 +436,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
         if (switchSuccessful) {
           // Successful switch to new server
-          set({ currentServer: targetServer });
+          set({ 
+            currentServer: targetServer,
+            serverSource: 'user_explicit' // Mark as user's explicit choice
+          });
           
           // Schedule success notification with animation
           uiOptimizationService.scheduleSuccessNotification(
@@ -535,7 +671,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         try {
           const response = await axios.get(`${server.baseUrl}${endpoint}`, {
             timeout: server.connectionTimeout,
-            httpsAgent: { rejectUnauthorized: false } as any,
+            // Note: httpsAgent not supported in React Native
+            // Self-signed certificates are handled by the platform
           });
 
           healthChecks.push({
@@ -585,12 +722,41 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   refreshConnectionStatus: async (): Promise<void> => {
-    const { currentServer } = get();
+    const { currentServer, serverSource } = get();
     
     set({ connectionStatus: 'testing' });
     
     try {
       const status = await get().testServerConnectivity(currentServer.id);
+      
+      // Enhanced auto-fallback logic - only for non-user-explicit choices
+      if (status.status === 'error' && serverSource !== 'user_explicit') {
+        console.log(`[SettingsStore] ${currentServer.id} failed, attempting smart fallback...`);
+        
+        try {
+          // Use smart server selection to find alternative
+          const smartSelection = await get().performSmartDefaultSelection();
+          
+          if (smartSelection.id !== currentServer.id) {
+            console.log(`[SettingsStore] ✅ Smart fallback to ${smartSelection.displayName}`);
+            
+            set({
+              currentServer: smartSelection,
+              connectionStatus: 'connected',
+              detailedStatus: await get().testServerConnectivity(smartSelection.id),
+              lastError: `Automatically switched to ${smartSelection.displayName} (${currentServer.displayName} unavailable)`,
+              serverSource: 'smart_default'
+            });
+            
+            // Save the automatic switch
+            await get().saveSettings();
+            return;
+          }
+        } catch (fallbackError) {
+          console.warn('[SettingsStore] Smart fallback failed:', fallbackError);
+        }
+      }
+      
       set({ 
         connectionStatus: status.status,
         detailedStatus: status,
@@ -609,16 +775,19 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       console.log('[SettingsStore] Loading server configuration from iOS Settings...');
       
-      const nativeServerConfig = await nativeSettingsService.getEffectiveServerConfig();
-      const hasNativeOverride = await nativeSettingsService.hasNativeSettingsOverride();
+      const nativeResult = await nativeSettingsService.readNativeSettings();
+      const hasValidIOSSettings = nativeResult.success && nativeResult.serverConfig && 
+        (nativeResult.source === 'ios_settings' || nativeResult.source === 'cache');
+      
+      const effectiveServer = hasValidIOSSettings ? nativeResult.serverConfig : getDefaultServer();
       
       set({
-        currentServer: nativeServerConfig,
-        serverSource: hasNativeOverride ? 'ios_settings' : 'fallback',
+        currentServer: effectiveServer,
+        serverSource: hasValidIOSSettings ? 'ios_settings' : 'fallback',
         lastError: null,
       });
 
-      console.log(`[SettingsStore] ✅ Server loaded from ${hasNativeOverride ? 'iOS Settings' : 'fallback'}: ${nativeServerConfig.displayName}`);
+      console.log(`[SettingsStore] ✅ Server loaded from ${hasValidIOSSettings ? 'iOS Settings' : 'fallback'}: ${effectiveServer.displayName}`);
       
       // Test connectivity to the new server
       setTimeout(() => {
@@ -655,12 +824,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       console.log('[SettingsStore] Opening iOS Settings...');
       
-      // Import Linking dynamically to avoid issues
-      import('react-native').then(({ Linking }) => {
-        Linking.openSettings().catch((error: any) => {
-          console.error('[SettingsStore] ❌ Failed to open iOS Settings:', error);
-          set({ lastError: 'Failed to open iOS Settings. Please open Settings > VerbumCare manually.' });
-        });
+      // Use static import instead of dynamic import
+      const { Linking } = require('react-native');
+      Linking.openSettings().catch((error: any) => {
+        console.error('[SettingsStore] ❌ Failed to open iOS Settings:', error);
+        set({ lastError: 'Failed to open iOS Settings. Please open Settings > VerbumCare manually.' });
       });
     } catch (error: any) {
       console.error('[SettingsStore] ❌ Failed to open iOS Settings:', error);
@@ -805,27 +973,36 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   // Settings persistence actions
   loadSettings: async (): Promise<void> => {
     try {
-      console.log('[SettingsStore] Starting settings initialization...');
-      
-      // CRITICAL: Check iOS Settings app first for backend server configuration
-      // This allows users to configure backend BEFORE login
-      console.log('[SettingsStore] Checking iOS Settings app for backend configuration...');
-      const nativeServerConfig = await nativeSettingsService.getEffectiveServerConfig();
+      console.log('⚙️ [SETTINGS] Starting settings initialization...');
       
       // Use the dedicated initialization service
       const initResult: SettingsInitializationResult = await settingsInitializationService.initialize();
       
+      console.log('📋 [SETTINGS] Initialization result:', {
+        success: initResult.success,
+        isFirstRun: initResult.isFirstRun,
+        migrationPerformed: initResult.migrationPerformed,
+        warningsCount: initResult.warnings.length,
+        errorsCount: initResult.errors.length
+      });
+      
       if (initResult.success) {
-        // PRIORITY: Use native iOS Settings for server if available, otherwise use app settings
-        const hasNativeOverride = await nativeSettingsService.hasNativeSettingsOverride();
-        const effectiveServer = hasNativeOverride ? nativeServerConfig : 
-          (getServerById(initResult.settings.currentServerId) || getDefaultServer());
+        console.log('🎯 [SETTINGS] Performing priority-based server selection...');
         
-        console.log(`[SettingsStore] Using server: ${effectiveServer.displayName} (source: ${hasNativeOverride ? 'iOS Settings' : 'app settings'})`);
+        // Use priority-based server selection
+        const serverSelection = await get().selectServerWithPriority();
+        
+        console.log('✅ [SETTINGS] Server selection completed:', {
+          selectedServer: serverSelection.server.displayName,
+          serverId: serverSelection.server.id,
+          baseUrl: serverSelection.server.baseUrl,
+          source: serverSelection.source,
+          reason: serverSelection.reason
+        });
         
         set({
-          currentServer: effectiveServer,
-          serverSource: hasNativeOverride ? 'ios_settings' : 'fallback',
+          currentServer: serverSelection.server,
+          serverSource: serverSelection.source,
           currentLanguage: initResult.settings.currentLanguage,
           serverHistory: initResult.settings.serverHistory || [],
           preferences: { ...DEFAULT_USER_PREFERENCES, ...initResult.settings.preferences },
@@ -837,35 +1014,45 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
         // Log initialization result
         if (initResult.isFirstRun) {
-          console.log('[SettingsStore] ✅ First run - default settings applied');
+          console.log('🆕 [SETTINGS] First run - using smart server selection');
         } else {
-          console.log('[SettingsStore] ✅ Settings loaded from storage');
+          console.log('📂 [SETTINGS] Settings loaded from storage');
         }
 
         if (initResult.migrationPerformed) {
-          console.log('[SettingsStore] ✅ Settings migration completed');
+          console.log('🔄 [SETTINGS] Settings migration completed');
         }
 
         // Show warnings if any
         if (initResult.warnings.length > 0) {
-          console.warn('[SettingsStore] Settings loaded with warnings:', initResult.warnings);
+          console.warn('⚠️ [SETTINGS] Settings loaded with warnings:', initResult.warnings);
           set({ lastError: `Settings loaded with warnings: ${initResult.warnings.join(', ')}` });
         }
 
-        // Test connection to current server after initialization
+        // Test connection to selected server after initialization
+        console.log('🔍 [SETTINGS] Scheduling connection test in 1 second...');
         setTimeout(() => {
+          console.log('🌐 [SETTINGS] Starting connection test to selected server...');
           get().refreshConnectionStatus();
         }, 1000);
 
       } else {
-        // Initialization failed - use native settings or emergency fallback
-        console.error('[SettingsStore] ❌ Settings initialization failed, using native/emergency fallback');
+        // Initialization failed - use smart server selection as fallback
+        console.error('❌ [SETTINGS] Settings initialization failed, using smart server selection fallback');
+        console.error('📋 [SETTINGS] Initialization errors:', initResult.errors);
         
-        const hasNativeOverride = await nativeSettingsService.hasNativeSettingsOverride();
+        const serverSelection = await get().selectServerWithPriority();
+        
+        console.log('🔄 [SETTINGS] Fallback server selection:', {
+          selectedServer: serverSelection.server.displayName,
+          serverId: serverSelection.server.id,
+          source: serverSelection.source,
+          reason: serverSelection.reason
+        });
         
         set({
-          currentServer: nativeServerConfig, // Use native settings as fallback
-          serverSource: hasNativeOverride ? 'ios_settings' : 'fallback',
+          currentServer: serverSelection.server,
+          serverSource: serverSelection.source,
           currentLanguage: DEFAULT_LANGUAGE,
           serverHistory: [],
           preferences: DEFAULT_USER_PREFERENCES,
@@ -877,10 +1064,20 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       }
 
     } catch (error: any) {
-      console.error('[SettingsStore] ❌ Critical settings initialization error:', error);
+      console.error('💥 [SETTINGS] Critical settings initialization error:', {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        errorCode: error.code
+      });
       
       // Last resort fallback
       const fallbackServer = getDefaultServer();
+      console.log('🆘 [SETTINGS] Using emergency fallback server:', {
+        serverId: fallbackServer.id,
+        displayName: fallbackServer.displayName,
+        baseUrl: fallbackServer.baseUrl
+      });
+      
       set({
         currentServer: fallbackServer,
         serverSource: 'fallback',
@@ -1060,6 +1257,26 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     } catch (error: any) {
       console.error('[SettingsStore] ❌ Failed to process offline queue:', error);
       set({ lastError: `Failed to process offline queue: ${error.message}` });
+    }
+  },
+
+  // Smart server selector management
+  clearServerSelectionCache: async (): Promise<void> => {
+    try {
+      await smartServerSelector.clearCache();
+      console.log('[SettingsStore] ✅ Server selection cache cleared');
+    } catch (error: any) {
+      console.error('[SettingsStore] ❌ Failed to clear server selection cache:', error);
+      set({ lastError: `Failed to clear server selection cache: ${error.message}` });
+    }
+  },
+
+  getServerSelectionCacheStatus: async (): Promise<any> => {
+    try {
+      return await smartServerSelector.getCacheStatus();
+    } catch (error: any) {
+      console.error('[SettingsStore] ❌ Failed to get cache status:', error);
+      return { hasCachedSelection: false };
     }
   },
 }));

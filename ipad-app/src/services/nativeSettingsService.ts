@@ -43,6 +43,7 @@ export interface NativeSettingsResult {
 class NativeSettingsService {
   private cachedSettings: NativeSettingsInternal | null = null;
   private lastReadTime: number = 0;
+  private cachedSource: 'ios_settings' | 'cache' | 'default' = 'default'; // Track original source
   private readonly CACHE_DURATION = 5000; // 5 seconds cache
 
   /**
@@ -53,7 +54,7 @@ class NativeSettingsService {
     try {
       // Check cache first (avoid excessive native calls)
       if (this.cachedSettings && (Date.now() - this.lastReadTime) < this.CACHE_DURATION) {
-        return this.processSettings(this.cachedSettings, 'cache');
+        return this.processSettings(this.cachedSettings, this.cachedSource);
       }
 
       // Try to read from iOS Settings app via native module
@@ -73,6 +74,7 @@ class NativeSettingsService {
 
             this.cachedSettings = convertedSettings;
             this.lastReadTime = Date.now();
+            this.cachedSource = 'ios_settings'; // Remember this came from iOS Settings
             
             // Cache the settings for faster subsequent reads
             await AsyncStorage.setItem(NATIVE_SETTINGS_CACHE_KEY, JSON.stringify(convertedSettings));
@@ -89,6 +91,7 @@ class NativeSettingsService {
       if (cachedFromStorage) {
         const parsed = JSON.parse(cachedFromStorage);
         this.cachedSettings = parsed;
+        this.cachedSource = 'cache'; // This is truly from cache/storage
         return this.processSettings(parsed, 'cache');
       }
 
@@ -265,7 +268,9 @@ class NativeSettingsService {
   async hasNativeSettingsOverride(): Promise<boolean> {
     // Fallback to legacy method since native module doesn't have this method
     const result = await this.readNativeSettings();
-    return result.success && result.source === 'ios_settings';
+    const hasOverride = result.success && result.source === 'ios_settings';
+    console.log(`[NativeSettings] hasNativeSettingsOverride: ${hasOverride} (success: ${result.success}, source: ${result.source})`);
+    return hasOverride;
   }
 
   /**

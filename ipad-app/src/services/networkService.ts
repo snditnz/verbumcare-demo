@@ -222,7 +222,8 @@ class NetworkService {
       const primaryEndpoint = server.healthCheckEndpoints[0] || '/health';
       const response = await axios.get(`${server.baseUrl.replace('/api', '')}${primaryEndpoint}`, {
         timeout: server.connectionTimeout,
-        httpsAgent: { rejectUnauthorized: false } as any,
+        // Note: httpsAgent not supported in React Native
+        // Self-signed certificates are handled by the platform
       });
 
       const status: ServerConnectivityStatus = {

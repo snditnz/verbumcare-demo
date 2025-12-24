@@ -414,6 +414,48 @@ export default function SettingsScreen({ navigation }: Props) {
                   {assessmentLanguage === 'ja' ? 'ネイティブモジュールテスト' : 'Native Module Test'}
                 </Text>
               </TouchableOpacity>
+
+              {/* Force iOS Settings Button */}
+              <TouchableOpacity
+                style={[styles.actionButton, styles.settingsButton]}
+                onPress={async () => {
+                  Alert.alert(
+                    assessmentLanguage === 'ja' ? 'iOS設定を強制適用' : 'Force iOS Settings',
+                    assessmentLanguage === 'ja' 
+                      ? 'アプリの保存された設定をクリアして、iOS設定を強制的に適用しますか？'
+                      : 'Clear app saved settings and force iOS Settings to take precedence?',
+                    [
+                      {
+                        text: assessmentLanguage === 'ja' ? 'キャンセル' : 'Cancel',
+                        style: 'cancel',
+                      },
+                      {
+                        text: assessmentLanguage === 'ja' ? '強制適用' : 'Force Apply',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await useSettingsStore.getState().clearPersistedSettings();
+                            Alert.alert(
+                              assessmentLanguage === 'ja' ? '完了' : 'Complete',
+                              assessmentLanguage === 'ja' ? 'iOS設定が適用されました' : 'iOS Settings have been applied'
+                            );
+                          } catch (error) {
+                            Alert.alert(
+                              assessmentLanguage === 'ja' ? 'エラー' : 'Error',
+                              assessmentLanguage === 'ja' ? '設定のクリアに失敗しました' : 'Failed to clear settings'
+                            );
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="refresh-circle" size={ICON_SIZES.sm} color={COLORS.white} />
+                <Text style={styles.settingsButtonText}>
+                  {assessmentLanguage === 'ja' ? 'iOS設定を強制適用' : 'Force iOS Settings'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* Server Switch Progress */}

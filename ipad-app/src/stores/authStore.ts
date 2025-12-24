@@ -61,20 +61,51 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   currentServer: null,
 
   login: async (username: string, password: string) => {
+    console.log('🔐 [AUTH] Starting login process...', {
+      username,
+      hasPassword: !!password,
+      networkConnected: networkService.isConnected()
+    });
+
     try {
-      // Check network connectivity - required for new login
-      if (!networkService.isConnected()) {
-        console.error('❌ Login requires network connectivity');
-        return false;
+      // CRITICAL FIX: Don't rely solely on networkService.isConnected() 
+      // React Native NetInfo can incorrectly report offline status
+      // Instead, attempt the login request and handle network errors gracefully
+      const networkConnected = networkService.isConnected();
+      if (!networkConnected) {
+        console.warn('⚠️ [AUTH] Network service reports offline, but attempting login anyway (NetInfo can be unreliable)');
       }
 
       // Get current server configuration
       const currentServer = getCurrentServer();
+      console.log('📡 [AUTH] Using server configuration:', {
+        serverId: currentServer.id,
+        displayName: currentServer.displayName,
+        baseUrl: currentServer.baseUrl,
+        timeout: currentServer.connectionTimeout
+      });
+
       const baseUrl = currentServer.baseUrl.replace('/api', ''); // Remove /api suffix for auth endpoint
+      const loginUrl = `${baseUrl}/api/auth/login`;
+      
+      console.log('🌐 [AUTH] Making login request:', {
+        loginUrl,
+        timeout: currentServer.connectionTimeout + 'ms',
+        payload: {
+          username,
+          hasPassword: !!password,
+          deviceInfo: {
+            platform: 'ios',
+            appVersion: '1.0.0',
+          }
+        }
+      });
       
       // Call backend auth API using current server
+      // CRITICAL FIX: Remove httpsAgent for React Native compatibility
+      // React Native handles SSL differently than Node.js
       const response = await axios.post(
-        `${baseUrl}/api/auth/login`,
+        loginUrl,
         {
           username,
           password,
@@ -85,15 +116,38 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         },
         {
           timeout: currentServer.connectionTimeout,
-          httpsAgent: { rejectUnauthorized: false } as any,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept-Language': 'ja',
+          },
+          // Note: httpsAgent is not supported in React Native
+          // Self-signed certificates are handled by the platform
         }
       );
 
+      console.log('✅ [AUTH] Login response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        success: response.data.success,
+        hasUserData: !!response.data.data?.user,
+        hasTokens: !!(response.data.data?.accessToken && response.data.data?.refreshToken)
+      });
+
       if (!response.data.success) {
+        console.error('❌ [AUTH] Login failed - server returned success: false');
         return false;
       }
 
       const { user, accessToken, refreshToken, expiresIn } = response.data.data;
+
+      console.log('👤 [AUTH] User data received:', {
+        userId: user.userId,
+        username: user.username,
+        fullName: user.fullName,
+        role: user.role,
+        facilityId: user.facilityId,
+        tokenExpiresIn: expiresIn + 's'
+      });
 
       const userWithTimestamp: User = {
         ...user,
@@ -105,6 +159,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         refreshToken,
         expiresAt: new Date(Date.now() + expiresIn * 1000),
       };
+
+      console.log('💾 [AUTH] Saving authentication data to AsyncStorage...');
 
       // Save to AsyncStorage with server context
       await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userWithTimestamp));
@@ -124,16 +180,44 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       // Schedule automatic token refresh
       get().scheduleTokenRefresh();
 
-      console.log('✅ Login successful:', {
+      console.log('✅ [AUTH] Login successful and complete:', {
         username: user.username,
         staffId: user.staffId, // This is now the real UUID!
         role: user.role,
         server: currentServer.displayName,
+        tokenExpiresAt: tokens.expiresAt.toISOString()
       });
 
       return true;
     } catch (error: any) {
-      console.error('❌ Login error:', error.response?.data || error.message);
+      console.error('❌ [AUTH] Login error details:', {
+        errorCode: error.code,
+        errorMessage: error.message,
+        httpStatus: error.response?.status,
+        httpStatusText: error.response?.statusText,
+        responseData: error.response?.data,
+        isNetworkError: !error.response,
+        isTimeoutError: error.code === 'ECONNABORTED',
+        requestUrl: error.config?.url,
+        requestMethod: error.config?.method,
+        requestTimeout: error.config?.timeout
+      });
+      
+      // Provide more specific error context
+      if (error.code === 'ECONNABORTED') {
+        console.error('⏱️ [AUTH] Login timed out - server may be slow or unreachable');
+      } else if (error.code === 'ECONNREFUSED') {
+        console.error('🚫 [AUTH] Connection refused - server may be down');
+      } else if (error.code === 'ENOTFOUND') {
+        console.error('🔍 [AUTH] Host not found - check server hostname');
+      } else if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+        console.error('🌐 [AUTH] Network error - this may be a React Native network configuration issue');
+        console.error('🔧 [AUTH] Suggestion: Check iOS ATS settings, certificate configuration, or network permissions');
+      } else if (!error.response) {
+        console.error('🌐 [AUTH] Network error - no response received (this was the original issue)');
+        console.error('🔧 [AUTH] This suggests the request is not being sent at all');
+      }
+      
       return false;
     }
   },
@@ -146,7 +230,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       get().clearTokenRefreshTimer();
 
       // Call backend logout if network available and server context exists
-      if (tokens?.accessToken && networkService.isConnected() && currentServer) {
+      // CRITICAL FIX: Don't rely solely on networkService.isConnected()
+      if (tokens?.accessToken && currentServer) {
+        const networkConnected = networkService.isConnected();
+        if (!networkConnected) {
+          console.warn('⚠️ [AUTH] Network service reports offline, but attempting logout anyway (NetInfo can be unreliable)');
+        }
         try {
           const baseUrl = currentServer.baseUrl.replace('/api', '');
           await axios.post(
@@ -154,7 +243,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             { accessToken: tokens.accessToken },
             {
               timeout: 5000,
-              httpsAgent: { rejectUnauthorized: false } as any,
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              // Note: httpsAgent not supported in React Native
             }
           );
         } catch (error) {
@@ -263,24 +355,17 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       if (expiresAt < new Date()) {
         console.log('Token expired, attempting refresh...');
         
-        // Only attempt refresh if network is available
-        if (networkService.isConnected()) {
-          const refreshed = await get().refreshToken();
-          if (!refreshed) {
-            // Refresh failed, but keep session for offline use
-            console.log('Token refresh failed, maintaining offline session');
-            set({
-              currentUser: user,
-              tokens,
-              isAuthenticated: true,
-              isLoading: false,
-              lastUsername: storedLastUsername,
-              currentServer: serverContext,
-            });
-          }
-        } else {
-          // Offline - restore session anyway for offline operation
-          console.log('Offline - restoring session for offline operation');
+        // CRITICAL FIX: Don't rely solely on networkService.isConnected()
+        // Always attempt refresh and handle network errors gracefully
+        const networkConnected = networkService.isConnected();
+        if (!networkConnected) {
+          console.warn('⚠️ [AUTH] Network service reports offline, but attempting token refresh anyway (NetInfo can be unreliable)');
+        }
+        
+        const refreshed = await get().refreshToken();
+        if (!refreshed) {
+          // Refresh failed, but keep session for offline use
+          console.log('Token refresh failed, maintaining offline session');
           set({
             currentUser: user,
             tokens,
@@ -330,10 +415,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         return false;
       }
 
-      // Check network connectivity - required for token refresh
-      if (!networkService.isConnected()) {
-        console.log('Cannot refresh token - no network connectivity');
-        return false;
+      // CRITICAL FIX: Don't rely solely on networkService.isConnected()
+      // React Native NetInfo can incorrectly report offline status
+      // Instead, attempt the refresh request and handle network errors gracefully
+      const networkConnected = networkService.isConnected();
+      if (!networkConnected) {
+        console.warn('⚠️ [AUTH] Network service reports offline, but attempting token refresh anyway (NetInfo can be unreliable)');
       }
 
       // Use current server or fallback to default configuration
@@ -345,7 +432,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         { refreshToken: tokens.refreshToken },
         {
           timeout: server.connectionTimeout,
-          httpsAgent: { rejectUnauthorized: false } as any,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          // Note: httpsAgent not supported in React Native
         }
       );
 
@@ -457,29 +547,35 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await get().updateServerContext(newServer);
 
       // Check if we need to re-authenticate on the new server
-      if (networkService.isConnected()) {
-        try {
-          // Test if current token works on new server
-          const baseUrl = newServer.baseUrl.replace('/api', '');
-          const response = await axios.get(
-            `${baseUrl}/api/auth/verify`,
-            {
-              headers: {
-                'Authorization': `Bearer ${tokens.accessToken}`,
-              },
-              timeout: newServer.connectionTimeout,
-              httpsAgent: { rejectUnauthorized: false } as any,
-            }
-          );
-
-          if (response.data.success) {
-            console.log('✅ Token valid on new server');
-          } else {
-            console.log('⚠️ Token not valid on new server - re-authentication may be required');
+      // CRITICAL FIX: Don't rely solely on networkService.isConnected()
+      const networkConnected = networkService.isConnected();
+      if (!networkConnected) {
+        console.warn('⚠️ [AUTH] Network service reports offline, but attempting server verification anyway (NetInfo can be unreliable)');
+      }
+      
+      // Always attempt verification regardless of reported network status
+      try {
+        // Test if current token works on new server
+        const baseUrl = newServer.baseUrl.replace('/api', '');
+        const response = await axios.get(
+          `${baseUrl}/api/auth/verify`,
+          {
+            headers: {
+              'Authorization': `Bearer ${tokens.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: newServer.connectionTimeout,
+            // Note: httpsAgent not supported in React Native
           }
-        } catch (error) {
-          console.log('⚠️ Could not verify token on new server - re-authentication may be required');
+        );
+
+        if (response.data.success) {
+          console.log('✅ Token valid on new server');
+        } else {
+          console.log('⚠️ Token not valid on new server - re-authentication may be required');
         }
+      } catch (error) {
+        console.log('⚠️ Could not verify token on new server - re-authentication may be required');
       }
 
       console.log('✅ Server switch handled in auth store');

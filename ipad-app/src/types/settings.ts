@@ -89,7 +89,7 @@ export interface SettingsState {
   availableServers: ServerConfig[];
   connectionStatus: ConnectionStatus;
   detailedStatus?: DetailedConnectionStatus;
-  serverSource: 'ios_settings' | 'fallback';
+  serverSource: 'ios_settings' | 'user_explicit' | 'smart_default' | 'fallback';
   
   // Language settings
   currentLanguage: Language;
@@ -146,6 +146,16 @@ export interface SettingsActions {
   // Queue management
   clearOfflineQueue: () => Promise<void>;
   processOfflineQueue: () => Promise<void>;
+  
+  // Smart server selection
+  performSmartDefaultSelection: () => Promise<any>; // ServerConfig
+  selectServerWithPriority: () => Promise<{
+    server: any; // ServerConfig
+    source: 'ios_settings' | 'user_explicit' | 'smart_default' | 'fallback';
+    reason: string;
+  }>;
+  clearServerSelectionCache: () => Promise<void>;
+  getServerSelectionCacheStatus: () => Promise<any>;
 }
 
 /**

@@ -12,7 +12,8 @@ import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constan
 import { SESSION_CONFIG, DEMO_STAFF_ID } from '@constants/config';
 import apiService from '@services/api';
 import bleService from '@services/ble';
-import { BLEConnectionStatus, BPReading } from '@types/ble';
+import { enhancedBleService } from '@services/enhancedBle';
+import { BLEConnectionStatus, BPReading, DeviceReading, TemperatureReading } from '@types/ble';
 import { useAuthStore } from '@stores/authStore';
 import { voiceService } from '@services/voice';
 import { preserveNavigationContext } from '@utils/navigationContext';
@@ -64,7 +65,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
 
   const [scheduleData, setScheduleData] = useState<any>(null);
   const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
-  const [bleReading, setBleReading] = useState<BPReading | null>(null);
+  const [bleReading, setBleReading] = useState<DeviceReading | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastOpacity] = useState(new Animated.Value(0));
   const t = translations[language];
@@ -88,25 +89,25 @@ export default function PatientInfoScreen({ navigation }: Props) {
   // BLE initialization and lifecycle management
   const initializeBLE = async () => {
     try {
-      console.log('[PatientInfo] Initializing BLE...');
+      console.log('[PatientInfo] Initializing enhanced BLE...');
 
       // Ensure any previous state is cleaned up
-      await bleService.stopScan();
-      await bleService.disconnect();
+      await enhancedBleService.stopScan();
+      await enhancedBleService.disconnect();
 
       // Set status callback
-      bleService.setStatusCallback(setBleStatus);
+      enhancedBleService.setStatusCallback(setBleStatus);
 
       // Use persistent listener instead of callback
-      const unsubscribe = bleService.onReading(handleBLEReading);
-      console.log('[PatientInfo] BLE persistent listener registered');
+      const unsubscribe = enhancedBleService.onReading(handleBLEReading);
+      console.log('[PatientInfo] Enhanced BLE persistent listener registered');
 
-      const hasPermission = await bleService.requestPermissions();
+      const hasPermission = await enhancedBleService.requestPermissions();
       console.log('[PatientInfo] BLE permissions:', hasPermission);
 
       if (hasPermission) {
-        console.log('[PatientInfo] Starting BLE scan...');
-        await bleService.startScan();
+        console.log('[PatientInfo] Starting enhanced BLE scan...');
+        await enhancedBleService.startScan();
       } else {
         console.error('[PatientInfo] BLE permissions denied or Bluetooth not available');
         setBleStatus('error');
@@ -115,7 +116,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
       // Return cleanup function
       return unsubscribe;
     } catch (error) {
-      console.error('[PatientInfo] BLE initialization error:', error);
+      console.error('[PatientInfo] Enhanced BLE initialization error:', error);
       setBleStatus('error');
       return () => {}; // Return no-op cleanup
     }
@@ -125,7 +126,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
   const lastSavedTimestamp = useRef<number>(0);
 
   // Handle BLE reading - auto-save immediately (no duplicate check for BLE)
-  const handleBLEReading = async (reading: BPReading) => {
+  const handleBLEReading = async (reading: DeviceReading) => {
     console.log('[PatientInfo] ✅ BLE reading callback triggered!');
     console.log('[PatientInfo] Reading data:', reading);
 
@@ -138,13 +139,31 @@ export default function PatientInfoScreen({ navigation }: Props) {
     lastSavedTimestamp.current = readingTime;
 
     try {
-      // Save to session store
-      const vitalsData = {
-        blood_pressure_systolic: reading.systolic,
-        blood_pressure_diastolic: reading.diastolic,
-        heart_rate: reading.pulse,
-        measured_at: reading.timestamp,
-      };
+      let vitalsData: any = {};
+
+      // Handle different reading types
+      if (reading.type === 'blood_pressure') {
+        const bpReading = reading as BPReading;
+        console.log('[PatientInfo] Processing BP reading:', bpReading.data);
+        
+        vitalsData = {
+          blood_pressure_systolic: bpReading.data.systolic,
+          blood_pressure_diastolic: bpReading.data.diastolic,
+          heart_rate: bpReading.data.pulse,
+          measured_at: bpReading.timestamp,
+        };
+      } else if (reading.type === 'temperature') {
+        const tempReading = reading as TemperatureReading;
+        console.log('[PatientInfo] Processing temperature reading:', tempReading.data);
+        
+        vitalsData = {
+          temperature_celsius: tempReading.data.temperature_celsius,
+          measured_at: tempReading.timestamp,
+        };
+      } else {
+        console.log('[PatientInfo] ⚠️ Unknown reading type:', reading.type);
+        return;
+      }
 
       console.log('[PatientInfo] Saving vitals to session store...');
       setVitals(vitalsData);
@@ -157,15 +176,15 @@ export default function PatientInfoScreen({ navigation }: Props) {
           const recordedBy = currentUser?.userId || DEMO_STAFF_ID;
           console.log('[PatientInfo] Recording BLE vitals with user:', recordedBy);
           
-          const response = await api.recordVitals({
+          const backendData: any = {
             patient_id: currentPatient.patient_id,
-            blood_pressure_systolic: reading.systolic,
-            blood_pressure_diastolic: reading.diastolic,
-            heart_rate: reading.pulse,
             measured_at: reading.timestamp.toISOString(),
             input_method: 'iot_sensor',
             recorded_by: recordedBy,
-          });
+            ...vitalsData
+          };
+
+          const response = await api.recordVitals(backendData);
           console.log('[PatientInfo] ✅ BLE vitals persisted to backend successfully');
 
           // Update with backend metadata
@@ -226,8 +245,8 @@ export default function PatientInfoScreen({ navigation }: Props) {
       if (unsubscribeBLE) {
         unsubscribeBLE();
       }
-      bleService.stopScan();
-      bleService.disconnect();
+      enhancedBleService.stopScan();
+      enhancedBleService.disconnect();
     };
   }, []);
 
@@ -876,18 +895,30 @@ export default function PatientInfoScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.toastData}>
-              <View style={styles.toastDataRow}>
-                <Ionicons name="heart" size={20} color={COLORS.primary} />
-                <Text style={styles.toastDataText}>
-                  {language === 'ja' ? '血圧' : 'BP'}: {bleReading.systolic}/{bleReading.diastolic} mmHg
-                </Text>
-              </View>
-              <View style={styles.toastDataRow}>
-                <Ionicons name="pulse" size={20} color={COLORS.primary} />
-                <Text style={styles.toastDataText}>
-                  {language === 'ja' ? '脈拍' : 'Pulse'}: {bleReading.pulse} bpm
-                </Text>
-              </View>
+              {bleReading.type === 'blood_pressure' && (
+                <>
+                  <View style={styles.toastDataRow}>
+                    <Ionicons name="heart" size={20} color={COLORS.primary} />
+                    <Text style={styles.toastDataText}>
+                      {language === 'ja' ? '血圧' : 'BP'}: {(bleReading as BPReading).data.systolic}/{(bleReading as BPReading).data.diastolic} mmHg
+                    </Text>
+                  </View>
+                  <View style={styles.toastDataRow}>
+                    <Ionicons name="pulse" size={20} color={COLORS.primary} />
+                    <Text style={styles.toastDataText}>
+                      {language === 'ja' ? '脈拍' : 'Pulse'}: {(bleReading as BPReading).data.pulse} bpm
+                    </Text>
+                  </View>
+                </>
+              )}
+              {bleReading.type === 'temperature' && (
+                <View style={styles.toastDataRow}>
+                  <Ionicons name="thermometer" size={20} color={COLORS.primary} />
+                  <Text style={styles.toastDataText}>
+                    {language === 'ja' ? '体温' : 'Temperature'}: {(bleReading as TemperatureReading).data.temperature_celsius}°C
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.toastActions}>

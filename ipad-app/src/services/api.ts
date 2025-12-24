@@ -55,15 +55,28 @@ class APIService {
         'Content-Type': 'application/json',
         'Accept-Language': 'ja',
       },
-      httpsAgent: {
-        rejectUnauthorized: false, // For self-signed cert
-      } as any,
+      // Note: httpsAgent not supported in React Native
+      // Self-signed certificates are handled by the platform
     });
 
-    // Add request interceptor to include authentication headers
+    // Add request interceptor to include authentication headers and detailed logging
     this.client.interceptors.request.use(
       (config) => {
         const { tokens } = useAuthStore.getState();
+        
+        // DETAILED LOGGING: Log every request attempt
+        console.log('🌐 [API REQUEST]', {
+          method: config.method?.toUpperCase(),
+          url: config.url,
+          baseURL: config.baseURL,
+          fullURL: `${config.baseURL}${config.url}`,
+          timeout: config.timeout,
+          headers: {
+            'Content-Type': config.headers['Content-Type'],
+            'Accept-Language': config.headers['Accept-Language'],
+            'Authorization': tokens?.accessToken ? 'Bearer [TOKEN]' : 'None'
+          }
+        });
         
         // Add Authorization header if token exists
         if (tokens?.accessToken) {
@@ -73,25 +86,56 @@ class APIService {
         return config;
       },
       (error) => {
+        console.error('🚨 [API REQUEST ERROR]', error);
         return Promise.reject(error);
       }
     );
 
     // Add response interceptor to handle authentication errors and server switches
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // DETAILED LOGGING: Log successful responses
+        console.log('✅ [API RESPONSE SUCCESS]', {
+          method: response.config.method?.toUpperCase(),
+          url: response.config.url,
+          fullURL: `${response.config.baseURL}${response.config.url}`,
+          status: response.status,
+          statusText: response.statusText,
+          responseTime: response.headers['x-response-time'] || 'unknown',
+          dataSize: JSON.stringify(response.data).length + ' bytes'
+        });
+        return response;
+      },
       async (error) => {
+        // DETAILED LOGGING: Log all errors with full context
+        console.error('❌ [API RESPONSE ERROR]', {
+          method: error.config?.method?.toUpperCase(),
+          url: error.config?.url,
+          fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'unknown',
+          errorCode: error.code,
+          errorMessage: error.message,
+          httpStatus: error.response?.status,
+          httpStatusText: error.response?.statusText,
+          responseData: error.response?.data,
+          timeout: error.config?.timeout,
+          isNetworkError: !error.response,
+          isTimeoutError: error.code === 'ECONNABORTED',
+          isServerError: error.response?.status >= 500,
+          isClientError: error.response?.status >= 400 && error.response?.status < 500
+        });
+        
         const originalRequest = error.config;
         
         // Handle server switch scenarios
         if (this.isServerSwitchError(error)) {
-          console.warn('Server switch detected, request may need retry');
+          console.warn('🔄 [SERVER SWITCH DETECTED] Request may need retry');
           // Don't retry automatically - let the calling code handle it
           return Promise.reject(error);
         }
         
         // If 401 Unauthorized and we haven't retried yet
         if (error.response?.status === 401 && !originalRequest._retry) {
+          console.log('🔐 [AUTH ERROR] Attempting token refresh...');
           originalRequest._retry = true;
           
           // Attempt to refresh token
@@ -99,10 +143,13 @@ class APIService {
           const refreshed = await refreshToken();
           
           if (refreshed) {
+            console.log('✅ [TOKEN REFRESHED] Retrying original request...');
             // Retry original request with new token
             const { tokens } = useAuthStore.getState();
             originalRequest.headers.Authorization = `Bearer ${tokens?.accessToken}`;
             return this.client(originalRequest);
+          } else {
+            console.error('❌ [TOKEN REFRESH FAILED] User needs to login again');
           }
         }
         
@@ -213,12 +260,13 @@ class APIService {
       try {
         const response = await axios.get(`${server.baseUrl}${endpoint}`, {
           timeout: server.connectionTimeout,
-          httpsAgent: { rejectUnauthorized: false } as any,
           headers: {
             'Accept-Language': 'ja',
+            'Content-Type': 'application/json',
             // Include auth headers if available
             ...this.getAuthHeaders(),
           },
+          // Note: httpsAgent not supported in React Native
         });
 
         healthChecks.push({

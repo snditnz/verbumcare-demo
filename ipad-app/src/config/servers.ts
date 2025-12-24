@@ -51,10 +51,10 @@ export const AVAILABLE_SERVERS: ServerConfig[] = [
     baseUrl: 'https://verbumcarenomac-mini.local/api',
     wsUrl: 'wss://verbumcarenomac-mini.local',
     description: 'Current production server running on Mac Mini with Apple Silicon optimization',
-    isDefault: false,
-    healthCheckEndpoints: ['/health', '/api/patients', '/api/auth/login'],
-    connectionTimeout: 120000, // 120 seconds - increased for high network latency (350ms+ observed)
-    retryAttempts: 5, // Increased retries for mDNS issues
+    isDefault: true, // Make Mac Mini the default since it's the current production server
+    healthCheckEndpoints: ['/health'], // Health endpoint is at root level, not under /api
+    connectionTimeout: 10000, // Reduce to 10 seconds for faster testing
+    retryAttempts: 3, // Reduce retries for faster testing
     metadata: {
       region: 'local',
       environment: 'production',
@@ -68,10 +68,10 @@ export const AVAILABLE_SERVERS: ServerConfig[] = [
     baseUrl: 'https://verbumcare-lab.local/api',
     wsUrl: 'wss://verbumcare-lab.local',
     description: 'Legacy production server available for rollback and testing',
-    isDefault: true, // Make pn51 the default since it's stable
-    healthCheckEndpoints: ['/health', '/api/patients', '/api/auth/login'],
-    connectionTimeout: 20000, // 20 seconds - increased for mDNS resolution
-    retryAttempts: 5, // Increased retries for mDNS issues
+    isDefault: false, // Remove default from pn51 since Mac Mini is now production
+    healthCheckEndpoints: ['/health'], // Health endpoint is at root level, not under /api
+    connectionTimeout: 10000, // Reduce timeout for faster testing
+    retryAttempts: 3, // Reduce retries for faster testing
     metadata: {
       region: 'local',
       environment: 'production',

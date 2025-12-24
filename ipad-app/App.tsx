@@ -11,6 +11,8 @@ import { useCarePlanStore } from './src/stores/carePlanStore';
 import { useAuthStore } from './src/stores/authStore';
 import { useSettingsStore } from './src/stores/settingsStore';
 import { warmAllCaches, WarmCacheResult } from './src/services/cacheWarmer';
+import { apiService } from './src/services/api';
+import { serverConfigurationService } from './src/services/serverConfigurationService';
 import { COLORS } from './src/constants/theme';
 
 // Auth screens
@@ -179,29 +181,14 @@ export default function App() {
       try {
         console.log('[App] Initializing settings...');
         
-        // FOR TESTING: Set Mac Mini as default in native settings (using correct hostname)
-        try {
-          await (await import('./src/services/nativeSettingsService')).nativeSettingsService.writeNativeSettingsForTesting({
-            backendServerAddress: 'https://verbumcarenomac-mini.local/api',
-            connectionTimeout: 15,
-            autoSwitchOnFailure: true,
-            enableDetailedLogging: false
-          });
-          console.log('[App] ✅ Test native settings configured for Mac Mini (correct hostname)');
-        } catch (error) {
-          console.warn('[App] ⚠️ Could not set test native settings:', error);
-        }
-        
         await useSettingsStore.getState().loadSettings();
         console.log('[App] ✅ Settings initialization completed');
         
         // CRITICAL: Initialize API service with loaded server configuration
-        const { apiService } = await import('./src/services/api');
         apiService.initializeFromSettings();
         console.log('[App] ✅ API service initialized with current server configuration');
         
         // CRITICAL: Initialize server configuration service for automatic reconnection
-        const { serverConfigurationService } = await import('./src/services/serverConfigurationService');
         serverConfigurationService.initialize();
         console.log('[App] ✅ Server configuration service initialized');
       } catch (error) {
@@ -212,12 +199,10 @@ export default function App() {
           console.log('[App] ✅ Default settings initialized as fallback');
           
           // Initialize API service with default configuration
-          const { apiService } = await import('./src/services/api');
           apiService.initializeFromSettings();
           console.log('[App] ✅ API service initialized with default configuration');
           
           // Initialize server configuration service even with defaults
-          const { serverConfigurationService } = await import('./src/services/serverConfigurationService');
           serverConfigurationService.initialize();
           console.log('[App] ✅ Server configuration service initialized with defaults');
         } catch (fallbackError) {
@@ -269,9 +254,7 @@ export default function App() {
       sessionPersistenceService.cleanup();
       
       // Cleanup server configuration service
-      import('./src/services/serverConfigurationService').then(({ serverConfigurationService }) => {
-        serverConfigurationService.cleanup();
-      });
+      serverConfigurationService.cleanup();
     };
   }, []);
 

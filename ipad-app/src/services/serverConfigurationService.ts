@@ -13,6 +13,7 @@ import { socketService } from './socket';
 class ServerConfigurationService {
   private isInitialized = false;
   private unsubscribe: (() => void) | null = null;
+  private lastServer: any = null;
 
   /**
    * Initialize the service and set up subscriptions
@@ -25,13 +26,19 @@ class ServerConfigurationService {
 
     console.log('[ServerConfig] Initializing server configuration service...');
 
+    // Initialize with current server
+    this.lastServer = useSettingsStore.getState().currentServer;
+
     // Subscribe to server configuration changes
     this.unsubscribe = useSettingsStore.subscribe(
-      (state) => state.currentServer,
-      (newServer, prevServer) => {
+      (state) => {
+        const newServer = state.currentServer;
+        const prevServer = this.lastServer;
+        
         if (!prevServer || newServer.id !== prevServer.id || newServer.baseUrl !== prevServer.baseUrl) {
           console.log(`[ServerConfig] Server changed from ${prevServer?.displayName || 'none'} to ${newServer.displayName}`);
           this.handleServerChange(newServer, prevServer);
+          this.lastServer = newServer;
         }
       }
     );

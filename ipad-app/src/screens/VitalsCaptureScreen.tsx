@@ -7,8 +7,9 @@ import { LanguageToggle, BLEIndicator } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card, Input, StatusIndicator } from '@components/ui';
 import { bleService } from '@services';
+import { enhancedBleService } from '@services/enhancedBle';
 import apiService from '@services/api';
-import { BLEConnectionStatus, BPReading } from '@models/ble';
+import { BLEConnectionStatus, BPReading, DeviceReading, TemperatureReading } from '@models/ble';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { DEMO_STAFF_ID } from '@constants/config';
@@ -40,7 +41,7 @@ type Props = {
 export default function VitalsCaptureScreen({ navigation }: Props) {
   const { currentPatient, sessionVitals, sessionPatientUpdates, setVitals, setCurrentStep, language } = useAssessmentStore();
   const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
-  const [reading, setReading] = useState<BPReading | null>(null);
+  const [reading, setReading] = useState<DeviceReading | null>(null);
   const [isTransmitting, setIsTransmitting] = useState(false);
 
   // Manual input state - Original vitals
@@ -202,8 +203,8 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
       if (unsubscribeBLE) {
         unsubscribeBLE();
       }
-      bleService.stopScan();
-      bleService.disconnect();
+      enhancedBleService.stopScan();
+      enhancedBleService.disconnect();
     };
   }, []);
 
@@ -211,29 +212,53 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
     // Auto-populate from BLE reading
     if (reading) {
       console.log('[VitalsCapture] 📥 BLE reading received:', reading);
-      console.log('[VitalsCapture] Setting form fields: systolic:', reading.systolic, 'diastolic:', reading.diastolic, 'pulse:', reading.pulse);
+      
+      // Handle different reading types
+      if (reading.type === 'blood_pressure') {
+        const bpReading = reading as BPReading;
+        console.log('[VitalsCapture] Processing BP reading:', bpReading.data);
+        
+        setSystolic(bpReading.data.systolic.toString());
+        setDiastolic(bpReading.data.diastolic.toString());
+        setPulse(bpReading.data.pulse.toString());
 
-      setSystolic(reading.systolic.toString());
-      setDiastolic(reading.diastolic.toString());
-      setPulse(reading.pulse.toString());
+        console.log('[VitalsCapture] Saving BP to store via setVitals');
+        // Save to store so PatientInfo tile updates
+        setVitals({
+          blood_pressure_systolic: bpReading.data.systolic,
+          blood_pressure_diastolic: bpReading.data.diastolic,
+          heart_rate: bpReading.data.pulse,
+          measured_at: bpReading.timestamp,
+        });
 
-      console.log('[VitalsCapture] Saving to store via setVitals');
-      // Save to store so PatientInfo tile updates
-      setVitals({
-        blood_pressure_systolic: reading.systolic,
-        blood_pressure_diastolic: reading.diastolic,
-        heart_rate: reading.pulse,
-        measured_at: reading.timestamp,
-      });
+        console.log('[VitalsCapture] Updating originalValues for BP');
+        // Update originalValues so these are treated as NEW values (not duplicates)
+        setOriginalValues(prev => ({
+          ...prev,
+          systolic: bpReading.data.systolic,
+          diastolic: bpReading.data.diastolic,
+          pulse: bpReading.data.pulse,
+        }));
+      } else if (reading.type === 'temperature') {
+        const tempReading = reading as TemperatureReading;
+        console.log('[VitalsCapture] Processing temperature reading:', tempReading.data);
+        
+        setTemperature(tempReading.data.temperature_celsius.toString());
 
-      console.log('[VitalsCapture] Updating originalValues');
-      // Update originalValues so these are treated as NEW values (not duplicates)
-      setOriginalValues(prev => ({
-        ...prev,
-        systolic: reading.systolic,
-        diastolic: reading.diastolic,
-        pulse: reading.pulse,
-      }));
+        console.log('[VitalsCapture] Saving temperature to store via setVitals');
+        // Save to store so PatientInfo tile updates
+        setVitals({
+          temperature_celsius: tempReading.data.temperature_celsius,
+          measured_at: tempReading.timestamp,
+        });
+
+        console.log('[VitalsCapture] Updating originalValues for temperature');
+        // Update originalValues so these are treated as NEW values (not duplicates)
+        setOriginalValues(prev => ({
+          ...prev,
+          temperature: tempReading.data.temperature_celsius,
+        }));
+      }
 
       // Flash the BLE indicator during data transmission
       setIsTransmitting(true);
@@ -246,17 +271,18 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
   }, [reading, setVitals]);
 
   const initializeBLE = async () => {
-    bleService.setStatusCallback(setBleStatus);
+    // Use enhanced BLE service for multi-device support
+    enhancedBleService.setStatusCallback(setBleStatus);
 
     // Use persistent listener instead of callback
-    const unsubscribe = bleService.onReading((newReading) => {
+    const unsubscribe = enhancedBleService.onReading((newReading) => {
       console.log('[VitalsCapture] 📥 Received BLE reading:', newReading);
       setReading(newReading);
     });
 
-    const hasPermission = await bleService.requestPermissions();
+    const hasPermission = await enhancedBleService.requestPermissions();
     if (hasPermission) {
-      await bleService.startScan();
+      await enhancedBleService.startScan();
     }
 
     // Return cleanup function

@@ -1,38 +1,62 @@
-import { BleManager, Device, Characteristic } from 'react-native-ble-plx';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BLE_CONFIG } from '@constants/config';
-import { AD_BP_SERVICE_UUID, AD_BP_CHARACTERISTIC_UUID, AD_DEVICE_NAME } from '@models/ble';
-import type { BLEConnectionStatus, BPReading, PairedDevice } from '@models/ble';
+import type { BLEConnectionStatus, BPReading, DeviceReading } from '@models/ble';
+import { enhancedBleService } from './enhancedBle';
 
-const PAIRED_DEVICES_KEY = '@verbumcare_paired_ble_devices';
-
+/**
+ * Legacy BLE Service - Maintains backward compatibility
+ * Delegates to enhancedBleService for actual functionality
+ */
 class BLEService {
-  private manager: BleManager;
-  private device: Device | null = null;
   private statusCallback: ((status: BLEConnectionStatus) => void) | null = null;
-  private readingCallback: ((reading: BPReading) => void) | null = null;
-  private scanTimeoutId: NodeJS.Timeout | null = null;
-  private receivedDataSuccessfully: boolean = false;
-  private lastReading: BPReading | null = null;
-  private readingDebounceTimer: NodeJS.Timeout | null = null;
   private readingListeners: Array<(reading: BPReading) => void> = [];
-  private pairedDevices: Map<string, PairedDevice> = new Map();
 
   constructor() {
-    this.manager = new BleManager();
-    this.loadPairedDevices();
+    // Set up delegation to enhanced service
+    this.setupDelegation();
+  }
+
+  private setupDelegation(): void {
+    // Forward status updates from enhanced service
+    enhancedBleService.setStatusCallback((status) => {
+      this.statusCallback?.(status);
+    });
+
+    // Convert enhanced readings to legacy format for backward compatibility
+    enhancedBleService.onReading((reading: DeviceReading) => {
+      // Only forward BP readings to maintain backward compatibility
+      if (reading.type === 'blood_pressure') {
+        const bpReading = reading as any; // Cast to bypass type issues
+        // Convert to legacy format
+        const legacyReading: BPReading = {
+          systolic: bpReading.data.systolic,
+          diastolic: bpReading.data.diastolic,
+          pulse: bpReading.data.pulse,
+          timestamp: bpReading.timestamp,
+          deviceId: bpReading.deviceId,
+          deviceModel: bpReading.deviceModel,
+        } as any;
+
+        // Notify legacy listeners
+        this.readingListeners.forEach(listener => {
+          try {
+            listener(legacyReading);
+          } catch (error) {
+            console.error('[BLEService] Error in legacy reading listener:', error);
+          }
+        });
+      }
+    });
   }
 
   setStatusCallback(callback: (status: BLEConnectionStatus) => void): void {
     this.statusCallback = callback;
   }
 
+  // Legacy callback method - converts to new listener format
   setReadingCallback(callback: (reading: BPReading) => void): void {
-    this.readingCallback = callback;
+    this.readingListeners.push(callback);
   }
 
-  // Subscribe to BLE reading events (persistent across screen unmounts)
+  // New persistent listener method
   onReading(callback: (reading: BPReading) => void): () => void {
     this.readingListeners.push(callback);
     // Return unsubscribe function
@@ -44,491 +68,40 @@ class BLEService {
     };
   }
 
-  // Load paired devices from storage
-  private async loadPairedDevices(): Promise<void> {
-    try {
-      const stored = await AsyncStorage.getItem(PAIRED_DEVICES_KEY);
-      if (stored) {
-        const devices: PairedDevice[] = JSON.parse(stored);
-        devices.forEach(device => {
-          this.pairedDevices.set(device.id, device);
-        });
-        console.log('[BLE] Loaded', this.pairedDevices.size, 'paired devices');
-      }
-    } catch (error) {
-      console.error('[BLE] Failed to load paired devices:', error);
-    }
-  }
-
-  // Save paired devices to storage
-  private async savePairedDevices(): Promise<void> {
-    try {
-      const devices = Array.from(this.pairedDevices.values());
-      await AsyncStorage.setItem(PAIRED_DEVICES_KEY, JSON.stringify(devices));
-      console.log('[BLE] Saved', devices.length, 'paired devices');
-    } catch (error) {
-      console.error('[BLE] Failed to save paired devices:', error);
-    }
-  }
-
-  // Add a device to paired devices list
-  private async addPairedDevice(device: Device, serviceUUID: string): Promise<void> {
-    const pairedDevice: PairedDevice = {
-      id: device.id,
-      name: device.name,
-      serviceUUID,
-      pairedAt: new Date().toISOString(),
-      lastConnectedAt: new Date().toISOString(),
-    };
-    this.pairedDevices.set(device.id, pairedDevice);
-    await this.savePairedDevices();
-    console.log('[BLE] Device paired:', device.name, device.id);
-  }
-
-  // Update last connected time for a paired device
-  private async updatePairedDeviceConnection(deviceId: string): Promise<void> {
-    const pairedDevice = this.pairedDevices.get(deviceId);
-    if (pairedDevice) {
-      pairedDevice.lastConnectedAt = new Date().toISOString();
-      await this.savePairedDevices();
-    }
-  }
-
-  // Check if a device is paired
-  isPaired(deviceId: string): boolean {
-    return this.pairedDevices.has(deviceId);
-  }
-
-  // Get all paired devices
-  getPairedDevices(): PairedDevice[] {
-    return Array.from(this.pairedDevices.values());
-  }
-
-  // Remove a paired device
-  async unpairDevice(deviceId: string): Promise<void> {
-    this.pairedDevices.delete(deviceId);
-    await this.savePairedDevices();
-    console.log('[BLE] Device unpaired:', deviceId);
-  }
-
-  // Verify device identity by service UUID
-  private async verifyDeviceIdentity(device: Device): Promise<boolean> {
-    try {
-      console.log('[BLE] Verifying device identity for:', device.name, device.id);
-      
-      // Check if device name matches expected pattern
-      if (!device.name || !device.name.toUpperCase().includes('UA-651')) {
-        console.log('[BLE] Device name does not match expected pattern');
-        return false;
-      }
-
-      // Connect temporarily to verify service UUID
-      const connectedDevice = await device.connect({ timeout: BLE_CONFIG.CONNECT_TIMEOUT });
-      await connectedDevice.discoverAllServicesAndCharacteristics();
-      
-      // Check if device has the expected service UUID
-      const services = await connectedDevice.services();
-      const hasExpectedService = services.some(service => 
-        service.uuid.toUpperCase() === AD_BP_SERVICE_UUID.toUpperCase()
-      );
-
-      if (hasExpectedService) {
-        console.log('[BLE] ✅ Device identity verified - has expected service UUID');
-        return true;
-      } else {
-        console.log('[BLE] ❌ Device identity verification failed - missing expected service UUID');
-        await connectedDevice.cancelConnection();
-        return false;
-      }
-    } catch (error) {
-      console.error('[BLE] Device identity verification error:', error);
-      return false;
-    }
-  }
-
   async requestPermissions(): Promise<boolean> {
-    if (Platform.OS === 'android') {
-      // Android 12+ requires BLUETOOTH_SCAN and BLUETOOTH_CONNECT permissions
-      // These are handled by the app.json permissions configuration
-      return true;
-    }
-
-    // Check if Bluetooth is powered on
-    const state = await this.manager.state();
-    console.log('[BLE] Bluetooth state:', state);
-
-    if (state !== 'PoweredOn') {
-      console.error('[BLE] Bluetooth is not powered on. Current state:', state);
-      return false;
-    }
-
-    return true;
+    return enhancedBleService.requestPermissions();
   }
 
   async startScan(useTimeout: boolean = false): Promise<void> {
-    console.log('[BLE] Starting scan for A&D BP monitors...');
-    console.log('[BLE] Looking for device name containing:', AD_DEVICE_NAME);
-    console.log('[BLE] Service UUID:', AD_BP_SERVICE_UUID);
-    console.log('[BLE] Paired devices:', this.pairedDevices.size);
-    this.statusCallback?.('scanning');
-
-    // Clear any existing timeout
-    if (this.scanTimeoutId) {
-      clearTimeout(this.scanTimeoutId);
-      this.scanTimeoutId = null;
-    }
-
-    await this.manager.startDeviceScan(
-      null, // Scan for ALL devices to see what's available
-      { allowDuplicates: false },
-      async (error, device) => {
-        if (error) {
-          console.error('[BLE] Scan error:', error);
-          this.statusCallback?.('error');
-          return;
-        }
-
-        if (device) {
-          // Check if device name contains our target (case-insensitive, partial match)
-          if (device.name && device.name.toUpperCase().includes('UA-651')) {
-            console.log('[BLE] ✅ Found matching A&D BP monitor:', device.name);
-            
-            // Check if this is a previously paired device (device-initiated connection)
-            const isPaired = this.isPaired(device.id);
-            if (isPaired) {
-              console.log('[BLE] 🔗 Device is already paired - accepting device-initiated connection');
-              await this.manager.stopDeviceScan();
-              if (this.scanTimeoutId) {
-                clearTimeout(this.scanTimeoutId);
-                this.scanTimeoutId = null;
-              }
-              await this.updatePairedDeviceConnection(device.id);
-              await this.connectToDevice(device, true); // Skip identity verification for paired devices
-            } else {
-              console.log('[BLE] 🆕 New device - verifying identity before pairing');
-              await this.manager.stopDeviceScan();
-              if (this.scanTimeoutId) {
-                clearTimeout(this.scanTimeoutId);
-                this.scanTimeoutId = null;
-              }
-              
-              // Verify device identity before first connection
-              const isValid = await this.verifyDeviceIdentity(device);
-              if (isValid) {
-                // Device is verified, add to paired devices
-                await this.addPairedDevice(device, AD_BP_SERVICE_UUID);
-                // Device is already connected from verification, continue with monitoring
-                this.device = device;
-                this.statusCallback?.('connected');
-                await this.monitorBPCharacteristic();
-              } else {
-                console.log('[BLE] ❌ Device identity verification failed - not connecting');
-                this.statusCallback?.('disconnected');
-                // Resume scanning for valid devices
-                setTimeout(() => {
-                  this.startScan();
-                }, 2000);
-              }
-            }
-          }
-        }
-      }
-    );
-
-    // Only use timeout if explicitly requested (for testing/debugging)
-    if (useTimeout) {
-      this.scanTimeoutId = setTimeout(async () => {
-        console.log('[BLE] Scan timeout reached');
-        await this.manager.stopDeviceScan();
-        this.scanTimeoutId = null;
-        if (!this.device) {
-          console.log('[BLE] No device found after timeout');
-          this.statusCallback?.('disconnected');
-        }
-      }, BLE_CONFIG.SCAN_TIMEOUT);
-    } else {
-      console.log('[BLE] Scanning continuously (no timeout)...');
-    }
-  }
-
-  private async connectToDevice(device: Device, skipVerification: boolean = false): Promise<void> {
-    try {
-      this.statusCallback?.('connecting');
-
-      this.device = await device.connect({
-        timeout: BLE_CONFIG.CONNECT_TIMEOUT,
-      });
-
-      console.log('[BLE] Connected to device, discovering services...');
-      await this.device.discoverAllServicesAndCharacteristics();
-
-      this.statusCallback?.('connected');
-      console.log('[BLE] Device connected, waiting for device to be ready...');
-
-      // Give device a moment to be ready to transmit (A&D devices need this)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Start monitoring BP characteristic
-      await this.monitorBPCharacteristic();
-
-    } catch (error: any) {
-      const errorMsg = error.message || '';
-
-      // Expected errors - silently handle (graceful disconnect handling)
-      if (errorMsg.includes('Operation was cancelled') ||
-          errorMsg.includes('Operation timed out') ||
-          errorMsg.includes('is not connected')) {
-        console.log('[BLE] Device connection attempt ended (cancelled, timed out, or disconnected) - this is normal behavior');
-      } else {
-        // Unexpected errors - log details
-        console.error('[BLE] Connection error:', error);
-        console.error('[BLE] Error details:', error.message, error.code);
-      }
-
-      this.statusCallback?.('disconnected');
-      await this.disconnect();
-
-      // Restart scanning after connection failure
-      console.log('[BLE] Waiting 2s before resuming scan...');
-      setTimeout(() => {
-        console.log('[BLE] Resuming scan...');
-        this.startScan();
-      }, 2000);
-    }
-  }
-
-  private async monitorBPCharacteristic(): Promise<void> {
-    if (!this.device) return;
-
-    try {
-      console.log('[BLE] Setting up characteristic monitoring...');
-      console.log('[BLE] Service:', AD_BP_SERVICE_UUID);
-      console.log('[BLE] Characteristic:', AD_BP_CHARACTERISTIC_UUID);
-
-      this.device.monitorCharacteristicForService(
-        AD_BP_SERVICE_UUID,
-        AD_BP_CHARACTERISTIC_UUID,
-        async (error, characteristic) => {
-          if (error) {
-            // Graceful disconnect handling - check if this is an expected disconnect
-            const errorMsg = error.message || '';
-            const isExpectedDisconnect = this.receivedDataSuccessfully ||
-              errorMsg.includes('was disconnected') ||
-              errorMsg.includes('Operation was cancelled') ||
-              errorMsg.includes('Device disconnected');
-
-            if (isExpectedDisconnect) {
-              if (this.receivedDataSuccessfully) {
-                console.log('[BLE] ✅ Device disconnected after successful data transmission (normal behavior)');
-                this.receivedDataSuccessfully = false;
-                // Go back to scanning for next reading (device-initiated connection)
-                await this.disconnect();
-                // Wait 3 seconds before resuming scan to allow device to be ready
-                console.log('[BLE] Waiting 3s before resuming scan for next device-initiated connection...');
-                setTimeout(() => {
-                  this.startScan();
-                }, 3000);
-              }
-              // Silently ignore expected disconnects (graceful handling)
-              return;
-            }
-
-            // Only log truly unexpected errors (not cancellation/disconnect errors)
-            if (!errorMsg.includes('cancel') && !errorMsg.includes('disconnect')) {
-              console.error('[BLE] ❌ Unexpected monitor error:', error);
-              console.error('[BLE] Error details:', error.message, error.code);
-            }
-            return;
-          }
-
-          if (characteristic?.value) {
-            console.log('[BLE] 📦 Received data from device-initiated connection:', characteristic.value);
-            const reading = this.parseBPData(characteristic);
-            if (reading) {
-              console.log('[BLE] ✅ Parsed BP reading from device:', reading);
-              this.receivedDataSuccessfully = true; // Mark successful receipt
-
-              // Store this reading and debounce - only save the last reading from a batch
-              this.lastReading = reading;
-
-              // Clear existing timer
-              if (this.readingDebounceTimer) {
-                clearTimeout(this.readingDebounceTimer);
-              }
-
-              // Set new timer - if no new readings in 500ms, this is the final reading
-              this.readingDebounceTimer = setTimeout(() => {
-                if (this.lastReading) {
-                  console.log('[BLE] 📤 Sending final reading from batch:', this.lastReading);
-                  // Notify all persistent listeners first
-                  this.readingListeners.forEach(listener => {
-                    try {
-                      listener(this.lastReading!);
-                    } catch (error) {
-                      console.error('[BLE] Error in reading listener:', error);
-                    }
-                  });
-                  // Then call callback if it exists (for backwards compatibility)
-                  this.readingCallback?.(this.lastReading);
-                  this.lastReading = null;
-                }
-                this.readingDebounceTimer = null;
-              }, 500);
-
-              // Device will disconnect shortly - this is normal for A&D BP monitors (graceful disconnect)
-            } else {
-              console.log('[BLE] ⚠️ Failed to parse BP data');
-            }
-          }
-        }
-      );
-      console.log('[BLE] ✅ Monitor setup complete, waiting for BP reading from device...');
-    } catch (error) {
-      console.error('[BLE] ❌ Monitor setup error:', error);
-    }
-  }
-
-  private parseBPData(characteristic: Characteristic): BPReading | null {
-    try {
-      const base64 = characteristic.value;
-      console.log('[BLE] 🔍 Parsing base64:', base64);
-
-      if (!base64) {
-        console.log('[BLE] ⚠️ No base64 data');
-        return null;
-      }
-
-      // Decode base64 to Uint8Array (React Native compatible)
-      const binaryString = atob(base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      console.log('[BLE] 🔍 Buffer length:', bytes.length);
-      console.log('[BLE] 🔍 Buffer bytes:', Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
-
-      // Standard Bluetooth Blood Pressure Measurement format (GATT Specification)
-      // Byte 0: Flags
-      //   Bit 0: Blood pressure units (0=mmHg, 1=kPa)
-      //   Bit 1: Time stamp present
-      //   Bit 2: Pulse rate present
-      //   Bit 3: User ID present
-      //   Bit 4: Measurement status present
-      // Bytes 1-2: Systolic (IEEE 11073 SFLOAT, little-endian)
-      // Bytes 3-4: Diastolic (IEEE 11073 SFLOAT, little-endian)
-      // Bytes 5-6: Mean Arterial Pressure (IEEE 11073 SFLOAT, little-endian)
-      // If Pulse rate present (Bit 2 set):
-      //   Bytes 7-8: Pulse Rate (IEEE 11073 SFLOAT, little-endian)
-
-      const flags = bytes[0];
-      console.log('[BLE] 🔍 Flags:', flags.toString(2).padStart(8, '0'));
-
-      const hasPulseRate = (flags & 0x04) !== 0;
-      console.log('[BLE] 🔍 Has pulse rate:', hasPulseRate);
-
-      // Parse IEEE 11073 SFLOAT (16-bit float)
-      const parseSFloat = (byte1: number, byte2: number): number => {
-        // Combine two bytes (little-endian)
-        const value = byte1 | (byte2 << 8);
-
-        // SFLOAT format: 4-bit exponent, 12-bit mantissa
-        const mantissa = value & 0x0FFF;
-        const exponent = (value >> 12) & 0x0F;
-
-        // Handle signed mantissa (12-bit two's complement)
-        const signedMantissa = mantissa & 0x0800 ? mantissa | 0xFFFFF000 : mantissa;
-
-        // Calculate final value
-        return signedMantissa * Math.pow(10, exponent);
-      };
-
-      const systolic = Math.round(parseSFloat(bytes[1], bytes[2]));
-      const diastolic = Math.round(parseSFloat(bytes[3], bytes[4]));
-
-      let pulse = 0;
-      if (hasPulseRate && bytes.length >= 9) {
-        pulse = Math.round(parseSFloat(bytes[7], bytes[8]));
-      }
-
-      console.log('[BLE] 🔍 Extracted values - Systolic:', systolic, 'Diastolic:', diastolic, 'Pulse:', pulse);
-
-      // Validate readings are within physiological ranges
-      // 2047 is a sentinel value in SFLOAT indicating invalid/missing data
-      const isValidBP = systolic > 0 && systolic < 300 &&
-                        diastolic > 0 && diastolic < 200 &&
-                        systolic !== 2047 && diastolic !== 2047;
-
-      const isValidPulse = pulse === 0 || (pulse > 0 && pulse < 250 && pulse !== 2047);
-
-      if (isValidBP && isValidPulse) {
-        const reading: BPReading = {
-          systolic,
-          diastolic,
-          pulse: pulse > 0 ? pulse : 0, // Pulse is optional
-          timestamp: new Date(),
-          deviceId: this.device?.id,
-          deviceModel: this.device?.name || 'Unknown',
-        };
-        console.log('[BLE] ✅ Valid reading:', reading);
-        return reading;
-      }
-
-      console.log('[BLE] ⚠️ Invalid values - out of physiological range or sentinel value detected');
-      console.log('[BLE] BP valid:', isValidBP, 'Pulse valid:', isValidPulse);
-      return null;
-    } catch (error) {
-      console.error('[BLE] ❌ Parse BP data error:', error);
-      return null;
-    }
+    return enhancedBleService.startScan(useTimeout);
   }
 
   async stopScan(): Promise<void> {
-    console.log('[BLE] Stopping scan...');
-    if (this.scanTimeoutId) {
-      clearTimeout(this.scanTimeoutId);
-      this.scanTimeoutId = null;
-    }
-    if (this.readingDebounceTimer) {
-      clearTimeout(this.readingDebounceTimer);
-      this.readingDebounceTimer = null;
-    }
-    await this.manager.stopDeviceScan();
+    return enhancedBleService.stopScan();
   }
 
   async disconnect(): Promise<void> {
-    if (this.readingDebounceTimer) {
-      clearTimeout(this.readingDebounceTimer);
-      this.readingDebounceTimer = null;
-    }
-    if (this.device) {
-      try {
-        await this.device.cancelConnection();
-      } catch (error: any) {
-        // Ignore "Operation was cancelled" - device already disconnected
-        if (!error.message?.includes('Operation was cancelled')) {
-          console.error('Disconnect error:', error);
-        }
-      } finally {
-        this.device = null;
-        this.statusCallback?.('disconnected');
-      }
-    }
-  }
-
-  private async retry(): Promise<void> {
-    await this.disconnect();
-    
-    setTimeout(() => {
-      this.startScan();
-    }, BLE_CONFIG.RETRY_DELAY);
+    return enhancedBleService.disconnect();
   }
 
   async destroy(): Promise<void> {
-    await this.stopScan();
-    await this.disconnect();
-    await this.manager.destroy();
+    return enhancedBleService.destroy();
+  }
+
+  // Legacy methods for backward compatibility
+  isPaired(deviceId: string): boolean {
+    return enhancedBleService.isPaired(deviceId);
+  }
+
+  getPairedDevices(): any[] {
+    return enhancedBleService.getPairedDevices();
+  }
+
+  async unpairDevice(deviceId: string): Promise<void> {
+    return enhancedBleService.unpairDevice(deviceId);
   }
 }
 
+// Export singleton instance
 export const bleService = new BLEService();
 export default bleService;
