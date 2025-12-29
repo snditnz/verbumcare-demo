@@ -17,7 +17,10 @@ export class BPMonitorPlugin implements DevicePlugin {
     if (!device.name) return false;
     
     const nameMatches = device.name.toUpperCase().includes('UA-651');
-    console.log(`[BPMonitorPlugin] Device name check: ${device.name} -> ${nameMatches}`);
+    
+    if (nameMatches) {
+      console.log(`[BPMonitorPlugin] ✅ Device name MATCHES: ${device.name}`);
+    }
     
     return nameMatches;
   }

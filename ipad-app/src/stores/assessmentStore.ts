@@ -260,8 +260,19 @@ export const useAssessmentStore = create<AssessmentStore>()(
       // Ensure currentSession.vitals is always an array (migration from old state)
       const existingVitals = Array.isArray(currentSession.vitals) ? currentSession.vitals : [];
 
-      // Append new vital to history array (or set to empty if null)
-      const newVitalsArray = vitals ? [...existingVitals, vitals] : existingVitals;
+      // MERGE new vitals with existing sessionVitals to preserve all vital types
+      // This prevents BLE readings (e.g., BP only) from clearing other vitals (e.g., temperature)
+      let mergedVitals: VitalSigns | null = vitals;
+      if (vitals && state.sessionVitals) {
+        mergedVitals = {
+          ...state.sessionVitals, // Keep existing vitals (temperature, SpO2, etc.)
+          ...vitals, // Override with new values (BP, pulse, etc.)
+        };
+        console.log('[setVitals] 🔀 Merged vitals - preserved existing fields');
+      }
+
+      // Append merged vital to history array (or set to empty if null)
+      const newVitalsArray = mergedVitals ? [...existingVitals, mergedVitals] : existingVitals;
 
       const newSession = {
         ...currentSession,
@@ -275,14 +286,15 @@ export const useAssessmentStore = create<AssessmentStore>()(
 
       console.log('[setVitals] 🔵 Setting vitals for patient:', patientId);
       console.log('[setVitals] 🔵 New vitals:', vitals);
+      console.log('[setVitals] 🔵 Merged vitals:', mergedVitals);
       console.log('[setVitals] 🔵 Total vitals in history:', newVitalsArray.length);
 
       return {
         ...state, // ← CRITICAL: preserve all other state
-        vitals, // Keep for backward compatibility with PatientInfoScreen
+        vitals: mergedVitals, // Keep for backward compatibility with PatientInfoScreen
         patientSessions: newPatientSessions,
         // Compute session data IN THE SAME UPDATE to avoid async issues
-        // Extract latest vital from array
+        // Extract latest vital from array (which is now merged)
         sessionVitals: newVitalsArray.length > 0 ? newVitalsArray[newVitalsArray.length - 1] : null,
         sessionMedications: newSession.medications,
         sessionPatientUpdates: newSession.patientUpdates,

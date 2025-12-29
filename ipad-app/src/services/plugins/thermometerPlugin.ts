@@ -24,7 +24,9 @@ export class ThermometerPlugin implements DevicePlugin {
                         deviceNameUpper.includes('A&D UT') ||
                         deviceNameUpper.includes('THERMO');
     
-    console.log(`[ThermometerPlugin] Device name check: ${device.name} -> ${nameMatches}`);
+    if (nameMatches) {
+      console.log(`[ThermometerPlugin] ✅ Device name MATCHES: ${device.name}`);
+    }
     
     return nameMatches;
   }
@@ -224,25 +226,46 @@ export class ThermometerPlugin implements DevicePlugin {
   private parseSFloat16(byte1: number, byte2: number): number {
     // IEEE 11073 SFLOAT: 4-bit exponent, 12-bit mantissa
     const value = byte1 | (byte2 << 8);
-    const mantissa = value & 0x0FFF;
-    const exponent = (value >> 12) & 0x0F;
+    let mantissa = value & 0x0FFF;
+    let exponent = (value >> 12) & 0x0F;
     
     // Handle signed mantissa (12-bit two's complement)
-    const signedMantissa = mantissa & 0x0800 ? mantissa | 0xFFFFF000 : mantissa;
+    if (mantissa & 0x0800) {
+      mantissa = mantissa - 0x1000;
+    }
     
-    return signedMantissa * Math.pow(10, exponent);
+    // Handle signed exponent (4-bit two's complement)
+    if (exponent & 0x08) {
+      exponent = exponent - 0x10;
+    }
+    
+    return mantissa * Math.pow(10, exponent);
   }
 
   private parseFloat32(byte1: number, byte2: number, byte3: number, byte4: number): number {
-    // IEEE 11073 FLOAT: 8-bit exponent, 24-bit mantissa
-    const value = byte1 | (byte2 << 8) | (byte3 << 16) | (byte4 << 24);
-    const mantissa = value & 0x00FFFFFF;
-    const exponent = (value >> 24) & 0xFF;
+    // IEEE 11073 FLOAT: 8-bit exponent, 24-bit mantissa (little-endian)
+    // Format: mantissa (3 bytes) + exponent (1 byte)
+    let mantissa = byte1 | (byte2 << 8) | (byte3 << 16);
+    let exponent = byte4;
+    
+    console.log('[ThermometerPlugin] 🔍 Raw mantissa:', mantissa, 'exponent byte:', exponent);
     
     // Handle signed mantissa (24-bit two's complement)
-    const signedMantissa = mantissa & 0x00800000 ? mantissa | 0xFF000000 : mantissa;
+    if (mantissa & 0x800000) {
+      mantissa = mantissa - 0x1000000;
+    }
     
-    return signedMantissa * Math.pow(10, exponent);
+    // Handle signed exponent (8-bit two's complement)
+    if (exponent & 0x80) {
+      exponent = exponent - 0x100;
+    }
+    
+    console.log('[ThermometerPlugin] 🔍 Signed mantissa:', mantissa, 'signed exponent:', exponent);
+    
+    const result = mantissa * Math.pow(10, exponent);
+    console.log('[ThermometerPlugin] 🔍 Calculated result:', result);
+    
+    return result;
   }
 
   private isRecoverableError(error: Error): boolean {

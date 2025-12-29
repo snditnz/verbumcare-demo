@@ -238,13 +238,20 @@ class EnhancedBLEService {
 
   private async handleDiscoveredDevice(device: Device): Promise<void> {
     try {
-      console.log('[EnhancedBLE] 🔍 Discovered device:', device.name, device.id);
+      // Log ALL discovered devices for debugging (even unnamed ones)
+      if (device.name) {
+        console.log('[EnhancedBLE] 🔍 Discovered device:', device.name, device.id);
+      }
       
       // Find plugin that can handle this device
       const plugin = await deviceRegistry.getPluginForDevice(device);
       
       if (!plugin) {
         // Not a supported device, continue scanning
+        // Only log if device has a name (to reduce noise)
+        if (device.name) {
+          console.log('[EnhancedBLE] ⏭️ No plugin for device:', device.name);
+        }
         return;
       }
       

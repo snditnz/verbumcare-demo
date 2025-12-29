@@ -37,7 +37,7 @@ export const VOICE_CONFIG = {
 // BLE configuration
 export const BLE_CONFIG = {
   SCAN_TIMEOUT: 60000, // 60 seconds - long enough to take a BP reading
-  CONNECT_TIMEOUT: 5000, // 5 seconds
+  CONNECT_TIMEOUT: 15000, // 15 seconds - increased for thermometer pairing
   RETRY_DELAY: 2000, // 2 seconds
   MAX_RETRIES: 3,
 };
