@@ -66,6 +66,16 @@ export interface UserPreferences {
   enableGracefulFallback: boolean; // Enable automatic fallback on failures
   preserveDataOnFailure: boolean; // Preserve user data during failures
   showSuggestedActions: boolean; // Show recovery suggestions in error messages
+  // Streaming voice transcription preferences (Task 11.2, Task 9.1)
+  enableStreamingTranscription: boolean; // Enable real-time streaming transcription
+  showProgressiveTranscript: boolean; // Show progressive transcript during recording
+  // Audio configuration for streaming (Task 9.1)
+  audioConfig: {
+    sampleRate: number;      // 32000 recommended for voice
+    channels: number;        // 1 for mono
+    bitsPerSample: number;   // 16 for adequate quality
+    bufferSize: number;      // 4096 recommended
+  };
 }
 
 /**
@@ -171,6 +181,16 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   enableGracefulFallback: true,
   preserveDataOnFailure: true,
   showSuggestedActions: true,
+  // Streaming voice transcription defaults (Task 11.2, Task 9.1)
+  enableStreamingTranscription: true, // Enable streaming - with local backup always active
+  showProgressiveTranscript: true, // Show transcript when streaming is enabled
+  // Audio configuration defaults (Task 9.1)
+  audioConfig: {
+    sampleRate: 32000,      // 32kHz for optimal voice recognition
+    channels: 1,            // Mono for reduced bandwidth
+    bitsPerSample: 16,      // 16-bit for adequate quality
+    bufferSize: 4096,       // Balanced latency and efficiency
+  },
 };
 
 /**

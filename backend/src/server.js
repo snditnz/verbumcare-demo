@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import db from './db/index.js';
 import modelManager from './services/modelManager.js';
 import backgroundProcessor from './services/backgroundProcessor.js';
+import { initializeStreamingHandlers } from './services/streamingHandler.js';
 import patientRoutes from './routes/patients.js';
 import medicationRoutes from './routes/medications.js';
 import vitalRoutes from './routes/vitals.js';
@@ -111,6 +112,9 @@ io.on('connection', (socket) => {
     console.log(`Socket ${socket.id} joined facility ${facilityId}`);
   });
 });
+
+// Initialize streaming handlers for real-time voice transcription
+initializeStreamingHandlers(io);
 
 async function startServer() {
   try {

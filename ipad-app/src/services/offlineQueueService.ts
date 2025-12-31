@@ -1,706 +1,557 @@
 /**
- * Offline Queue Service
+ * OfflineQueueService
  * 
- * Manages queued operations when offline, including server switch requests.
- * Handles operation persistence, retry logic, and execution when connectivity returns.
+ * Manages local storage and processing of offline recordings.
+ * Implements offline-first architecture for voice documentation.
  * 
- * Implements Requirements 2.3, 4.4 (offline mode handling for server switches)
+ * Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { networkService } from './networkService';
-import { ServerConfig } from '../config/servers';
+import { v4 as uuidv4 } from 'uuid';
+import NetInfo from '@react-native-community/netinfo';
+import { apiService } from './api';
+
+// Storage keys
+const OFFLINE_QUEUE_KEY = '@verbumcare/offline_recordings';
+const QUEUE_VERSION = 1;
+
+// Constants
+const MAX_RETRY_COUNT = 3;
+const URGENCY_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
- * Types of operations that can be queued
+ * Recording status types
  */
-export type QueuedOperationType = 
-  | 'server_switch'
-  | 'language_change'
-  | 'settings_update'
-  | 'connectivity_test';
+export type RecordingStatus = 'pending' | 'processing' | 'failed' | 'completed';
 
 /**
- * Base interface for queued operations
+ * Offline recording interface
+ * Property 13: Must contain all required metadata
  */
-export interface QueuedOperation {
+export interface OfflineRecording {
   id: string;
-  type: QueuedOperationType;
-  timestamp: Date;
+  audioUri: string;
+  duration: number;
+  recordedAt: Date;
+  patientId?: string;
+  contextType: 'patient' | 'global';
+  language: string;
+  userId: string;
+  status: RecordingStatus;
   retryCount: number;
-  maxRetries: number;
-  priority: number; // Higher number = higher priority
-  data: any;
+  lastError?: string;
+  isUrgent?: boolean;
 }
 
 /**
- * Server switch operation data
+ * Processing result interface
  */
-export interface ServerSwitchOperation extends QueuedOperation {
-  type: 'server_switch';
-  data: {
-    fromServerId: string;
-    toServerId: string;
-    preserveUserData: boolean;
-    enableFallback: boolean;
-    userInitiated: boolean;
-  };
-}
-
-/**
- * Language change operation data
- */
-export interface LanguageChangeOperation extends QueuedOperation {
-  type: 'language_change';
-  data: {
-    language: string;
-  };
-}
-
-/**
- * Settings update operation data
- */
-export interface SettingsUpdateOperation extends QueuedOperation {
-  type: 'settings_update';
-  data: {
-    preferences: Record<string, any>;
-  };
-}
-
-/**
- * Connectivity test operation data
- */
-export interface ConnectivityTestOperation extends QueuedOperation {
-  type: 'connectivity_test';
-  data: {
-    serverId: string;
-  };
-}
-
-/**
- * Queue execution result
- */
-export interface QueueExecutionResult {
+export interface ProcessingResult {
+  recordingId: string;
   success: boolean;
-  processedCount: number;
-  failedCount: number;
-  errors: Array<{ operationId: string; error: string }>;
+  reviewId?: string;
+  transcription?: string;
+  error?: string;
+  processedAt: Date;
 }
 
 /**
- * Offline server configuration
+ * Queue storage format
  */
-export interface OfflineServerConfig {
-  serverId: string;
-  serverConfig: ServerConfig;
-  lastKnownGood: Date;
-  offlineCapabilities: {
-    canViewData: boolean;
-    canEditData: boolean;
-    canSync: boolean;
-  };
+interface OfflineQueueStorage {
+  recordings: SerializedRecording[];
+  lastProcessedAt: string | null;
+  version: number;
 }
 
-const QUEUE_STORAGE_KEY = 'verbumcare_offline_queue';
-const OFFLINE_CONFIG_STORAGE_KEY = 'verbumcare_offline_server_config';
-const MAX_QUEUE_SIZE = 100;
-const DEFAULT_MAX_RETRIES = 3;
+/**
+ * Serialized recording for storage (dates as strings)
+ */
+interface SerializedRecording extends Omit<OfflineRecording, 'recordedAt'> {
+  recordedAt: string;
+}
+
+/**
+ * Event callback types
+ */
+type QueueChangeCallback = (queue: OfflineRecording[]) => void;
+type ProcessingCompleteCallback = (result: ProcessingResult) => void;
 
 class OfflineQueueService {
-  private queue: QueuedOperation[] = [];
-  private isProcessing: boolean = false;
-  private offlineServerConfig: OfflineServerConfig | null = null;
-  private listeners: Array<(result: QueueExecutionResult) => void> = [];
+  private queueChangeCallbacks: QueueChangeCallback[] = [];
+  private processingCompleteCallbacks: ProcessingCompleteCallback[] = [];
+  private isProcessing = false;
+  private networkUnsubscribe: (() => void) | null = null;
 
   constructor() {
-    this.initialize();
+    this.initializeNetworkListener();
   }
 
   /**
-   * Initialize the offline queue service
+   * Initialize network connectivity listener
+   * Requirement 5.8: Monitor connectivity changes
    */
-  private async initialize(): Promise<void> {
-    try {
-      // Load persisted queue
-      await this.loadQueue();
-      
-      // Load offline server configuration
-      await this.loadOfflineServerConfig();
-      
-      // Listen for network connectivity changes
-      networkService.onReconnection(() => {
-        this.processQueueOnReconnection();
-      });
-
-      console.log('[OfflineQueue] Service initialized');
-    } catch (error) {
-      console.error('[OfflineQueue] Initialization failed:', error);
-    }
-  }
-
-  /**
-   * Load queue from persistent storage
-   */
-  private async loadQueue(): Promise<void> {
-    try {
-      const queueData = await AsyncStorage.getItem(QUEUE_STORAGE_KEY);
-      if (queueData) {
-        const parsedQueue = JSON.parse(queueData);
-        // Convert timestamp strings back to Date objects
-        this.queue = parsedQueue.map((op: any) => ({
-          ...op,
-          timestamp: new Date(op.timestamp)
-        }));
-        
-        console.log(`[OfflineQueue] Loaded ${this.queue.length} queued operations`);
-      }
-    } catch (error) {
-      console.error('[OfflineQueue] Failed to load queue:', error);
-      this.queue = [];
-    }
-  }
-
-  /**
-   * Save queue to persistent storage
-   */
-  private async saveQueue(): Promise<void> {
-    try {
-      await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(this.queue));
-    } catch (error) {
-      console.error('[OfflineQueue] Failed to save queue:', error);
-    }
-  }
-
-  /**
-   * Load offline server configuration
-   */
-  private async loadOfflineServerConfig(): Promise<void> {
-    try {
-      const configData = await AsyncStorage.getItem(OFFLINE_CONFIG_STORAGE_KEY);
-      if (configData) {
-        const parsedConfig = JSON.parse(configData);
-        this.offlineServerConfig = {
-          ...parsedConfig,
-          lastKnownGood: new Date(parsedConfig.lastKnownGood)
-        };
-        
-        console.log(`[OfflineQueue] Loaded offline config for server: ${this.offlineServerConfig.serverId}`);
-      }
-    } catch (error) {
-      console.error('[OfflineQueue] Failed to load offline config:', error);
-    }
-  }
-
-  /**
-   * Save offline server configuration
-   */
-  private async saveOfflineServerConfig(): Promise<void> {
-    try {
-      if (this.offlineServerConfig) {
-        await AsyncStorage.setItem(OFFLINE_CONFIG_STORAGE_KEY, JSON.stringify(this.offlineServerConfig));
-      }
-    } catch (error) {
-      console.error('[OfflineQueue] Failed to save offline config:', error);
-    }
-  }
-
-  /**
-   * Preserve last known server configuration when going offline
-   * Implements Requirements 2.3 (preserve last known server configuration when offline)
-   */
-  async preserveServerConfiguration(server: ServerConfig): Promise<void> {
-    try {
-      this.offlineServerConfig = {
-        serverId: server.id,
-        serverConfig: server,
-        lastKnownGood: new Date(),
-        offlineCapabilities: {
-          canViewData: true, // Can view cached data
-          canEditData: true, // Can edit with local storage
-          canSync: false,    // Cannot sync while offline
-        }
-      };
-
-      await this.saveOfflineServerConfig();
-      
-      console.log(`[OfflineQueue] Preserved server configuration: ${server.displayName}`);
-    } catch (error) {
-      console.error('[OfflineQueue] Failed to preserve server config:', error);
-    }
-  }
-
-  /**
-   * Get last known server configuration
-   */
-  getLastKnownServerConfig(): OfflineServerConfig | null {
-    return this.offlineServerConfig;
-  }
-
-  /**
-   * Queue a server switch operation for when connectivity returns
-   * Implements Requirements 2.3, 4.4 (queue server switch requests for when connectivity returns)
-   */
-  async queueServerSwitch(
-    fromServerId: string,
-    toServerId: string,
-    options: {
-      preserveUserData?: boolean;
-      enableFallback?: boolean;
-      userInitiated?: boolean;
-      priority?: number;
-      maxRetries?: number;
-    } = {}
-  ): Promise<string> {
-    const operation: ServerSwitchOperation = {
-      id: this.generateOperationId(),
-      type: 'server_switch',
-      timestamp: new Date(),
-      retryCount: 0,
-      maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
-      priority: options.priority || 5, // High priority for server switches
-      data: {
-        fromServerId,
-        toServerId,
-        preserveUserData: options.preserveUserData ?? true,
-        enableFallback: options.enableFallback ?? true,
-        userInitiated: options.userInitiated ?? true,
-      }
-    };
-
-    return this.addToQueue(operation);
-  }
-
-  /**
-   * Queue a language change operation
-   */
-  async queueLanguageChange(language: string, priority: number = 3): Promise<string> {
-    const operation: LanguageChangeOperation = {
-      id: this.generateOperationId(),
-      type: 'language_change',
-      timestamp: new Date(),
-      retryCount: 0,
-      maxRetries: DEFAULT_MAX_RETRIES,
-      priority,
-      data: { language }
-    };
-
-    return this.addToQueue(operation);
-  }
-
-  /**
-   * Queue a settings update operation
-   */
-  async queueSettingsUpdate(preferences: Record<string, any>, priority: number = 2): Promise<string> {
-    const operation: SettingsUpdateOperation = {
-      id: this.generateOperationId(),
-      type: 'settings_update',
-      timestamp: new Date(),
-      retryCount: 0,
-      maxRetries: DEFAULT_MAX_RETRIES,
-      priority,
-      data: { preferences }
-    };
-
-    return this.addToQueue(operation);
-  }
-
-  /**
-   * Queue a connectivity test operation
-   */
-  async queueConnectivityTest(serverId: string, priority: number = 1): Promise<string> {
-    const operation: ConnectivityTestOperation = {
-      id: this.generateOperationId(),
-      type: 'connectivity_test',
-      timestamp: new Date(),
-      retryCount: 0,
-      maxRetries: 1, // Only retry once for connectivity tests
-      priority,
-      data: { serverId }
-    };
-
-    return this.addToQueue(operation);
-  }
-
-  /**
-   * Add operation to queue
-   */
-  private async addToQueue(operation: QueuedOperation): Promise<string> {
-    try {
-      // Check for duplicate operations
-      const existingIndex = this.queue.findIndex(op => 
-        op.type === operation.type && 
-        JSON.stringify(op.data) === JSON.stringify(operation.data)
-      );
-
-      if (existingIndex !== -1) {
-        // Update existing operation with newer timestamp and reset retry count
-        this.queue[existingIndex] = {
-          ...operation,
-          id: this.queue[existingIndex].id, // Keep original ID
-          retryCount: 0 // Reset retry count
-        };
-        console.log(`[OfflineQueue] Updated existing ${operation.type} operation: ${operation.id}`);
-      } else {
-        // Add new operation
-        this.queue.push(operation);
-        console.log(`[OfflineQueue] Queued ${operation.type} operation: ${operation.id}`);
-      }
-
-      // Maintain queue size limit
-      if (this.queue.length > MAX_QUEUE_SIZE) {
-        // Remove oldest, lowest priority operations
-        this.queue.sort((a, b) => {
-          if (a.priority !== b.priority) {
-            return b.priority - a.priority; // Higher priority first
-          }
-          return a.timestamp.getTime() - b.timestamp.getTime(); // Older first for same priority
+  private initializeNetworkListener(): void {
+    this.networkUnsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected && state.isInternetReachable) {
+        // Network restored - attempt to process queue
+        this.processQueue().catch(err => {
+          console.log('Background queue processing failed:', err.message);
         });
-        
-        const removed = this.queue.splice(MAX_QUEUE_SIZE);
-        console.log(`[OfflineQueue] Removed ${removed.length} old operations to maintain queue size`);
       }
+    });
+  }
 
-      await this.saveQueue();
-      return operation.id;
-    } catch (error) {
-      console.error('[OfflineQueue] Failed to add operation to queue:', error);
-      throw error;
+  /**
+   * Add a recording to the offline queue
+   * Requirement 10.1: Store recordings locally when offline
+   * Property 13: Ensure all required metadata is present
+   * 
+   * @param recording - Recording to add (without id and status)
+   * @returns Recording ID
+   */
+  async addToQueue(recording: Omit<OfflineRecording, 'id' | 'status' | 'retryCount'>): Promise<string> {
+    const id = uuidv4();
+    
+    const newRecording: OfflineRecording = {
+      ...recording,
+      id,
+      status: 'pending',
+      retryCount: 0,
+      recordedAt: recording.recordedAt instanceof Date 
+        ? recording.recordedAt 
+        : new Date(recording.recordedAt),
+    };
+
+    // Validate required metadata (Property 13)
+    this.validateRecordingMetadata(newRecording);
+
+    const queue = await this.getQueue();
+    queue.push(newRecording);
+    await this.saveQueue(queue);
+
+    this.notifyQueueChange(queue);
+    console.log(`📥 Added recording to offline queue: ${id}`);
+
+    return id;
+  }
+
+  /**
+   * Validate that recording has all required metadata
+   * Property 13: Offline Queue Metadata Completeness
+   */
+  private validateRecordingMetadata(recording: OfflineRecording): void {
+    const requiredFields: (keyof OfflineRecording)[] = [
+      'id', 'audioUri', 'duration', 'recordedAt', 
+      'contextType', 'language', 'userId', 'status', 'retryCount'
+    ];
+
+    for (const field of requiredFields) {
+      if (recording[field] === undefined || recording[field] === null) {
+        throw new Error(`Missing required field: ${field}`);
+      }
+    }
+
+    if (recording.duration <= 0) {
+      throw new Error('Duration must be positive');
+    }
+
+    if (!['patient', 'global'].includes(recording.contextType)) {
+      throw new Error('Invalid contextType');
     }
   }
 
   /**
-   * Process queue when connectivity is restored
-   * Implements Requirements 4.4 (handle connectivity restoration gracefully)
+   * Get all recordings in the queue
+   * @returns Array of offline recordings
    */
-  private async processQueueOnReconnection(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
+  async getQueue(): Promise<OfflineRecording[]> {
+    try {
+      const data = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+      if (!data) {
+        return [];
+      }
+
+      const storage: OfflineQueueStorage = JSON.parse(data);
+      
+      // Migrate if needed
+      if (storage.version !== QUEUE_VERSION) {
+        return this.migrateQueue(storage);
+      }
+
+      // Deserialize dates and calculate urgency
+      return storage.recordings.map(r => this.deserializeRecording(r));
+    } catch (error) {
+      console.error('Failed to get offline queue:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Deserialize a recording from storage
+   */
+  private deserializeRecording(serialized: SerializedRecording): OfflineRecording {
+    const recordedAt = new Date(serialized.recordedAt);
+    const age = Date.now() - recordedAt.getTime();
+    
+    return {
+      ...serialized,
+      recordedAt,
+      // Property 16: Flag items older than 24 hours as urgent
+      isUrgent: age > URGENCY_THRESHOLD_MS,
+    };
+  }
+
+  /**
+   * Serialize a recording for storage
+   */
+  private serializeRecording(recording: OfflineRecording): SerializedRecording {
+    const { isUrgent, ...rest } = recording;
+    const recordedAtDate = recording.recordedAt instanceof Date 
+      ? recording.recordedAt 
+      : new Date(recording.recordedAt);
+    return {
+      ...rest,
+      recordedAt: recordedAtDate.toISOString(),
+    };
+  }
+
+  /**
+   * Migrate queue from older version
+   */
+  private async migrateQueue(storage: OfflineQueueStorage): Promise<OfflineRecording[]> {
+    // For now, just update version and return
+    const recordings = storage.recordings.map(r => this.deserializeRecording(r));
+    await this.saveQueue(recordings);
+    return recordings;
+  }
+
+  /**
+   * Save queue to storage
+   */
+  private async saveQueue(queue: OfflineRecording[]): Promise<void> {
+    const storage: OfflineQueueStorage = {
+      recordings: queue.map(r => this.serializeRecording(r)),
+      lastProcessedAt: new Date().toISOString(),
+      version: QUEUE_VERSION,
+    };
+
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(storage));
+  }
+
+  /**
+   * Remove a recording from the queue
+   * @param recordingId - ID of recording to remove
+   */
+  async removeFromQueue(recordingId: string): Promise<void> {
+    const queue = await this.getQueue();
+    const filtered = queue.filter(r => r.id !== recordingId);
+    
+    if (filtered.length === queue.length) {
+      console.warn(`Recording not found in queue: ${recordingId}`);
       return;
     }
 
-    console.log(`[OfflineQueue] Processing ${this.queue.length} queued operations after reconnection`);
-    
-    try {
-      const result = await this.processQueue();
-      
-      // Notify listeners
-      this.notifyListeners(result);
-      
-      console.log(`[OfflineQueue] Queue processing completed: ${result.processedCount} processed, ${result.failedCount} failed`);
-    } catch (error) {
-      console.error('[OfflineQueue] Queue processing failed:', error);
-    }
+    await this.saveQueue(filtered);
+    this.notifyQueueChange(filtered);
+    console.log(`🗑️ Removed recording from offline queue: ${recordingId}`);
   }
 
   /**
-   * Process all queued operations
+   * Update a recording in the queue
    */
-  async processQueue(): Promise<QueueExecutionResult> {
+  private async updateRecording(
+    recordingId: string, 
+    updates: Partial<OfflineRecording>
+  ): Promise<void> {
+    const queue = await this.getQueue();
+    const index = queue.findIndex(r => r.id === recordingId);
+    
+    if (index === -1) {
+      throw new Error(`Recording not found: ${recordingId}`);
+    }
+
+    queue[index] = { ...queue[index], ...updates };
+    await this.saveQueue(queue);
+    this.notifyQueueChange(queue);
+  }
+
+  /**
+   * Process all pending recordings in the queue
+   * Requirement 10.3: Process in chronological order
+   * Property 14: Oldest recordedAt first
+   * 
+   * @returns Array of processing results
+   */
+  async processQueue(): Promise<ProcessingResult[]> {
     if (this.isProcessing) {
-      throw new Error('Queue is already being processed');
+      console.log('Queue processing already in progress');
+      return [];
+    }
+
+    // Check network connectivity
+    const netInfo = await NetInfo.fetch();
+    if (!netInfo.isConnected || !netInfo.isInternetReachable) {
+      console.log('No network connectivity - skipping queue processing');
+      return [];
     }
 
     this.isProcessing = true;
-    const result: QueueExecutionResult = {
-      success: true,
-      processedCount: 0,
-      failedCount: 0,
-      errors: []
-    };
+    const results: ProcessingResult[] = [];
 
     try {
-      // Sort queue by priority (highest first) and timestamp (oldest first)
-      const sortedQueue = [...this.queue].sort((a, b) => {
-        if (a.priority !== b.priority) {
-          return b.priority - a.priority;
-        }
-        return a.timestamp.getTime() - b.timestamp.getTime();
-      });
+      const queue = await this.getQueue();
+      
+      // Filter pending recordings and sort by recordedAt (oldest first)
+      // Property 14: Processing order by chronological order
+      const pending = queue
+        .filter(r => r.status === 'pending' || r.status === 'failed')
+        .filter(r => r.retryCount < MAX_RETRY_COUNT)
+        .sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
 
-      for (const operation of sortedQueue) {
-        try {
-          const success = await this.executeOperation(operation);
-          
-          if (success) {
-            result.processedCount++;
-            // Remove successful operation from queue
-            this.queue = this.queue.filter(op => op.id !== operation.id);
-          } else {
-            // Increment retry count
-            operation.retryCount++;
-            
-            if (operation.retryCount >= operation.maxRetries) {
-              result.failedCount++;
-              result.errors.push({
-                operationId: operation.id,
-                error: `Max retries (${operation.maxRetries}) exceeded`
-              });
-              
-              // Remove failed operation from queue
-              this.queue = this.queue.filter(op => op.id !== operation.id);
-            }
-          }
-        } catch (error: any) {
-          result.failedCount++;
-          result.errors.push({
-            operationId: operation.id,
-            error: error.message
-          });
-          
-          // Remove operation that caused an exception
-          this.queue = this.queue.filter(op => op.id !== operation.id);
-        }
+      console.log(`📤 Processing ${pending.length} offline recordings...`);
+
+      for (const recording of pending) {
+        const result = await this.processRecording(recording.id);
+        results.push(result);
+
+        // Small delay between uploads to avoid overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      // Save updated queue
-      await this.saveQueue();
-      
-      result.success = result.failedCount === 0;
-      return result;
+      return results;
     } finally {
       this.isProcessing = false;
     }
   }
 
   /**
-   * Execute a single queued operation
+   * Process a single recording
+   * Requirement 10.5: Retry up to 3 times
+   * Property 15: Enforce retry limit
+   * 
+   * @param recordingId - ID of recording to process
+   * @returns Processing result
    */
-  private async executeOperation(operation: QueuedOperation): Promise<boolean> {
-    console.log(`[OfflineQueue] Executing ${operation.type} operation: ${operation.id}`);
+  async processRecording(recordingId: string): Promise<ProcessingResult> {
+    const queue = await this.getQueue();
+    const recording = queue.find(r => r.id === recordingId);
+
+    if (!recording) {
+      return {
+        recordingId,
+        success: false,
+        error: 'Recording not found',
+        processedAt: new Date(),
+      };
+    }
+
+    // Property 15: Check retry limit
+    if (recording.retryCount >= MAX_RETRY_COUNT) {
+      return {
+        recordingId,
+        success: false,
+        error: 'Max retry limit reached',
+        processedAt: new Date(),
+      };
+    }
+
+    // Update status to processing
+    await this.updateRecording(recordingId, { status: 'processing' });
+
+    try {
+      console.log(`📤 Processing recording: ${recordingId}`);
+
+      // Upload the recording
+      const uploadResult = await this.uploadRecording(recording);
+
+      // Update status to completed
+      await this.updateRecording(recordingId, { status: 'completed' });
+
+      const result: ProcessingResult = {
+        recordingId,
+        success: true,
+        reviewId: uploadResult.reviewId,
+        transcription: uploadResult.transcription,
+        processedAt: new Date(),
+      };
+
+      this.notifyProcessingComplete(result);
+      console.log(`✅ Recording processed successfully: ${recordingId}`);
+
+      // Remove from queue after successful processing
+      await this.removeFromQueue(recordingId);
+
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Increment retry count
+      const newRetryCount = recording.retryCount + 1;
+      const newStatus: RecordingStatus = newRetryCount >= MAX_RETRY_COUNT ? 'failed' : 'pending';
+
+      await this.updateRecording(recordingId, {
+        status: newStatus,
+        retryCount: newRetryCount,
+        lastError: errorMessage,
+      });
+
+      const result: ProcessingResult = {
+        recordingId,
+        success: false,
+        error: errorMessage,
+        processedAt: new Date(),
+      };
+
+      this.notifyProcessingComplete(result);
+      console.log(`❌ Recording processing failed: ${recordingId} (attempt ${newRetryCount}/${MAX_RETRY_COUNT})`);
+
+      return result;
+    }
+  }
+
+  /**
+   * Upload a recording to the server
+   */
+  private async uploadRecording(recording: OfflineRecording): Promise<{
+    reviewId: string;
+    transcription: string;
+  }> {
+    // Create form data for upload
+    const formData = new FormData();
     
-    try {
-      switch (operation.type) {
-        case 'server_switch':
-          return await this.executeServerSwitch(operation as ServerSwitchOperation);
-        
-        case 'language_change':
-          return await this.executeLanguageChange(operation as LanguageChangeOperation);
-        
-        case 'settings_update':
-          return await this.executeSettingsUpdate(operation as SettingsUpdateOperation);
-        
-        case 'connectivity_test':
-          return await this.executeConnectivityTest(operation as ConnectivityTestOperation);
-        
-        default:
-          console.warn(`[OfflineQueue] Unknown operation type: ${operation.type}`);
-          return false;
-      }
-    } catch (error) {
-      console.error(`[OfflineQueue] Operation execution failed:`, error);
-      return false;
+    // Add audio file
+    formData.append('audio', {
+      uri: recording.audioUri,
+      type: 'audio/wav',
+      name: `recording_${recording.id}.wav`,
+    } as any);
+
+    // Add metadata
+    formData.append('duration', String(recording.duration));
+    formData.append('language', recording.language);
+    formData.append('contextType', recording.contextType);
+    if (recording.patientId) {
+      formData.append('patientId', recording.patientId);
     }
-  }
 
-  /**
-   * Execute server switch operation
-   */
-  private async executeServerSwitch(operation: ServerSwitchOperation): Promise<boolean> {
-    try {
-      // Use require for better Jest compatibility
-      let settingsStoreModule;
-      if (process.env.NODE_ENV === 'test') {
-        // In test environment, use require to get the mocked module
-        settingsStoreModule = require('../stores/settingsStore');
-      } else {
-        // In production, use dynamic import
-        settingsStoreModule = await import('../stores/settingsStore');
-      }
-      
-      const { useSettingsStore } = settingsStoreModule;
-      const state = useSettingsStore.getState();
-      const { switchServer } = state;
-      
-      const success = await switchServer(operation.data.toServerId);
-      
-      if (success) {
-        console.log(`[OfflineQueue] Server switch executed: ${operation.data.fromServerId} → ${operation.data.toServerId}`);
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('[OfflineQueue] Server switch execution failed:', error);
-      return false;
+    // Upload to voice endpoint
+    const response = await apiService.uploadVoiceRecording(formData);
+
+    if (!response.success) {
+      throw new Error(response.error || 'Upload failed');
     }
-  }
 
-  /**
-   * Execute language change operation
-   */
-  private async executeLanguageChange(operation: LanguageChangeOperation): Promise<boolean> {
-    try {
-      // Use require for better Jest compatibility
-      let settingsStoreModule;
-      if (process.env.NODE_ENV === 'test') {
-        // In test environment, use require to get the mocked module
-        settingsStoreModule = require('../stores/settingsStore');
-      } else {
-        // In production, use dynamic import
-        settingsStoreModule = await import('../stores/settingsStore');
-      }
-      
-      const { useSettingsStore } = settingsStoreModule;
-      const { setLanguage } = useSettingsStore.getState();
-      
-      await setLanguage(operation.data.language as any);
-      
-      console.log(`[OfflineQueue] Language change executed: ${operation.data.language}`);
-      return true;
-    } catch (error) {
-      console.error('[OfflineQueue] Language change execution failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Execute settings update operation
-   */
-  private async executeSettingsUpdate(operation: SettingsUpdateOperation): Promise<boolean> {
-    try {
-      // Import settings store dynamically to avoid circular dependency
-      const { useSettingsStore } = await import('../stores/settingsStore');
-      const { updatePreferences } = useSettingsStore.getState();
-      
-      await updatePreferences(operation.data.preferences);
-      
-      console.log(`[OfflineQueue] Settings update executed`);
-      return true;
-    } catch (error) {
-      console.error('[OfflineQueue] Settings update execution failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Execute connectivity test operation
-   */
-  private async executeConnectivityTest(operation: ConnectivityTestOperation): Promise<boolean> {
-    try {
-      // Import settings store dynamically to avoid circular dependency
-      const { useSettingsStore } = await import('../stores/settingsStore');
-      const { testServerConnectivity } = useSettingsStore.getState();
-      
-      const result = await testServerConnectivity(operation.data.serverId);
-      
-      console.log(`[OfflineQueue] Connectivity test executed for ${operation.data.serverId}: ${result.status}`);
-      return result.status === 'connected';
-    } catch (error) {
-      console.error('[OfflineQueue] Connectivity test execution failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get current queue status
-   */
-  getQueueStatus(): {
-    queueLength: number;
-    isProcessing: boolean;
-    operationsByType: Record<QueuedOperationType, number>;
-    oldestOperation?: Date;
-    newestOperation?: Date;
-  } {
-    const operationsByType: Record<QueuedOperationType, number> = {
-      server_switch: 0,
-      language_change: 0,
-      settings_update: 0,
-      connectivity_test: 0,
-    };
-
-    this.queue.forEach(op => {
-      operationsByType[op.type]++;
-    });
-
-    const timestamps = this.queue.map(op => op.timestamp);
-    
     return {
-      queueLength: this.queue.length,
-      isProcessing: this.isProcessing,
-      operationsByType,
-      oldestOperation: timestamps.length > 0 ? new Date(Math.min(...timestamps.map(t => t.getTime()))) : undefined,
-      newestOperation: timestamps.length > 0 ? new Date(Math.max(...timestamps.map(t => t.getTime()))) : undefined,
+      reviewId: response.data.reviewId,
+      transcription: response.data.transcription || '',
     };
   }
 
   /**
-   * Clear all queued operations
+   * Get count of pending recordings
+   * @returns Number of pending recordings
+   */
+  async getPendingCount(): Promise<number> {
+    const queue = await this.getQueue();
+    return queue.filter(r => r.status === 'pending' || r.status === 'processing').length;
+  }
+
+  /**
+   * Get age of oldest pending recording in milliseconds
+   * @returns Age in ms or null if no pending recordings
+   */
+  async getOldestPendingAge(): Promise<number | null> {
+    const queue = await this.getQueue();
+    const pending = queue.filter(r => r.status === 'pending');
+
+    if (pending.length === 0) {
+      return null;
+    }
+
+    // Sort by recordedAt ascending
+    pending.sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+    
+    return Date.now() - pending[0].recordedAt.getTime();
+  }
+
+  /**
+   * Get recordings flagged as urgent (older than 24 hours)
+   * Requirement 10.6: Flag items older than 24 hours
+   * Property 16: Age-based urgency flagging
+   */
+  async getUrgentRecordings(): Promise<OfflineRecording[]> {
+    const queue = await this.getQueue();
+    return queue.filter(r => r.isUrgent && r.status !== 'completed');
+  }
+
+  /**
+   * Register callback for queue changes
+   */
+  onQueueChange(callback: QueueChangeCallback): () => void {
+    this.queueChangeCallbacks.push(callback);
+    return () => {
+      this.queueChangeCallbacks = this.queueChangeCallbacks.filter(cb => cb !== callback);
+    };
+  }
+
+  /**
+   * Register callback for processing completion
+   */
+  onProcessingComplete(callback: ProcessingCompleteCallback): () => void {
+    this.processingCompleteCallbacks.push(callback);
+    return () => {
+      this.processingCompleteCallbacks = this.processingCompleteCallbacks.filter(cb => cb !== callback);
+    };
+  }
+
+  /**
+   * Notify all queue change listeners
+   */
+  private notifyQueueChange(queue: OfflineRecording[]): void {
+    for (const callback of this.queueChangeCallbacks) {
+      try {
+        callback(queue);
+      } catch (error) {
+        console.error('Queue change callback error:', error);
+      }
+    }
+  }
+
+  /**
+   * Notify all processing complete listeners
+   */
+  private notifyProcessingComplete(result: ProcessingResult): void {
+    for (const callback of this.processingCompleteCallbacks) {
+      try {
+        callback(result);
+      } catch (error) {
+        console.error('Processing complete callback error:', error);
+      }
+    }
+  }
+
+  /**
+   * Clear all recordings from the queue
+   * Use with caution - for testing/debugging only
    */
   async clearQueue(): Promise<void> {
-    this.queue = [];
-    await this.saveQueue();
-    console.log('[OfflineQueue] Queue cleared');
+    await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY);
+    this.notifyQueueChange([]);
+    console.log('🗑️ Offline queue cleared');
   }
 
   /**
-   * Remove specific operation from queue
+   * Cleanup resources
    */
-  async removeOperation(operationId: string): Promise<boolean> {
-    const initialLength = this.queue.length;
-    this.queue = this.queue.filter(op => op.id !== operationId);
-    
-    if (this.queue.length < initialLength) {
-      await this.saveQueue();
-      console.log(`[OfflineQueue] Removed operation: ${operationId}`);
-      return true;
+  destroy(): void {
+    if (this.networkUnsubscribe) {
+      this.networkUnsubscribe();
+      this.networkUnsubscribe = null;
     }
-    
-    return false;
-  }
-
-  /**
-   * Check if offline functionality is available for current server
-   * Implements Requirements 2.3 (maintain offline functionality regardless of selected server)
-   */
-  isOfflineFunctionalityAvailable(): boolean {
-    return this.offlineServerConfig?.offlineCapabilities.canViewData ?? false;
-  }
-
-  /**
-   * Check if offline editing is available
-   */
-  isOfflineEditingAvailable(): boolean {
-    return this.offlineServerConfig?.offlineCapabilities.canEditData ?? false;
-  }
-
-  /**
-   * Register listener for queue processing results
-   */
-  onQueueProcessed(listener: (result: QueueExecutionResult) => void): void {
-    this.listeners.push(listener);
-  }
-
-  /**
-   * Unregister queue processing listener
-   */
-  offQueueProcessed(listener: (result: QueueExecutionResult) => void): void {
-    this.listeners = this.listeners.filter(l => l !== listener);
-  }
-
-  /**
-   * Notify listeners of queue processing results
-   */
-  private notifyListeners(result: QueueExecutionResult): void {
-    this.listeners.forEach(listener => {
-      try {
-        listener(result);
-      } catch (error) {
-        console.error('[OfflineQueue] Listener error:', error);
-      }
-    });
-  }
-
-  /**
-   * Generate unique operation ID
-   */
-  private generateOperationId(): string {
-    return `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  /**
-   * Clean up resources
-   */
-  cleanup(): void {
-    this.listeners = [];
-    networkService.offReconnection(this.processQueueOnReconnection);
+    this.queueChangeCallbacks = [];
+    this.processingCompleteCallbacks = [];
   }
 }
 

@@ -30,6 +30,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile.arm64
     container_name: macmini-backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
       - PORT=3000

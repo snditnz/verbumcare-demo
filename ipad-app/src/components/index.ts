@@ -12,6 +12,8 @@ export { default as VoiceReviewCard } from './VoiceReviewCard';
 export { default as ExtractedDataEditor } from './ExtractedDataEditor';
 export { default as ConfidenceIndicator } from './ConfidenceIndicator';
 export { default as VoiceProcessingNotification } from './VoiceProcessingNotification';
+export { default as ProgressiveTranscript } from './ProgressiveTranscript';
+export type { TranscriptSegment } from './ProgressiveTranscript';
 
 // UI Components
 export * from './ui/SkeletonLoader';

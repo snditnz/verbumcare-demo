@@ -87,9 +87,9 @@ class WhisperLocalService {
 
       const response = await axios.post(`${WHISPER_URL}/transcribe`, formData, {
         headers: formData.getHeaders(),
-        timeout: 120000, // 2 minutes max
-        maxContentLength: 50 * 1024 * 1024, // 50MB max file size
-        maxBodyLength: 50 * 1024 * 1024
+        timeout: 600000, // 10 minutes max for longer recordings
+        maxContentLength: 100 * 1024 * 1024, // 100MB max file size for 10-min recordings
+        maxBodyLength: 100 * 1024 * 1024
       });
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -140,11 +140,227 @@ class WhisperLocalService {
 
   /**
    * Transcribe with streaming support (for real-time feedback)
+   * Returns transcription with confidence scores per segment
+   * 
+   * @param {string} audioFilePath - Path to audio file
+   * @param {string} language - Language code (ja, en, zh)
+   * @param {Function} onProgress - Callback for progress updates
+   * @returns {Promise<{text: string, segments: Array, confidence: number}>}
    */
   async transcribeStream(audioFilePath, language = 'ja', onProgress) {
-    // For future implementation with streaming support
-    // Currently returns full transcription
-    return this.transcribe(audioFilePath, language);
+    try {
+      // Check if file exists
+      await fs.access(audioFilePath);
+
+      // Read audio file
+      const audioBuffer = await fs.readFile(audioFilePath);
+
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', audioBuffer, {
+        filename: 'audio.wav',
+        contentType: 'audio/wav'
+      });
+      formData.append('language', this.mapLanguageCode(language));
+      formData.append('model', WHISPER_MODEL);
+      formData.append('response_format', 'verbose_json'); // Request detailed output
+
+      // Enhanced parameters for Japanese medical terminology
+      if (language === 'ja') {
+        formData.append('initial_prompt', '医療記録、バイタルサイン、看護評価');
+        formData.append('temperature', '0.0');
+      }
+
+      console.log(`🎤 Streaming transcription (${language}) with ${WHISPER_MODEL}...`);
+      console.log(`🎤 Audio file size: ${audioBuffer.length} bytes`);
+      const startTime = Date.now();
+
+      const response = await axios.post(`${WHISPER_URL}/transcribe`, formData, {
+        headers: formData.getHeaders(),
+        timeout: 60000, // 60 seconds for streaming chunks (shorter for real-time)
+        maxContentLength: 20 * 1024 * 1024, // 20MB max for streaming chunks
+        maxBodyLength: 20 * 1024 * 1024
+      });
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`✅ Streaming transcription completed in ${duration}s`);
+
+      // Parse response and extract segments with confidence
+      const result = this.parseTranscriptionResponse(response.data);
+      
+      // Call progress callback with final result
+      if (onProgress) {
+        onProgress({
+          text: result.text,
+          confidence: result.confidence,
+          isFinal: true,
+          segments: result.segments
+        });
+      }
+
+      return result;
+
+    } catch (error) {
+      console.error('❌ Streaming transcription error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Transcribe audio buffer directly (for streaming chunks)
+   * 
+   * @param {Buffer} audioBuffer - Audio data buffer
+   * @param {string} language - Language code
+   * @returns {Promise<{text: string, segments: Array, confidence: number}>}
+   */
+  async transcribeBuffer(audioBuffer, language = 'ja') {
+    try {
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', audioBuffer, {
+        filename: 'audio.wav',
+        contentType: 'audio/wav'
+      });
+      formData.append('language', this.mapLanguageCode(language));
+      formData.append('model', WHISPER_MODEL);
+      formData.append('response_format', 'verbose_json');
+
+      // Enhanced parameters for Japanese medical terminology
+      if (language === 'ja') {
+        formData.append('initial_prompt', '医療記録、バイタルサイン、看護評価');
+        formData.append('temperature', '0.0');
+      }
+
+      const startTime = Date.now();
+
+      const response = await axios.post(`${WHISPER_URL}/transcribe`, formData, {
+        headers: formData.getHeaders(),
+        timeout: 60000, // Shorter timeout for chunks
+        maxContentLength: 10 * 1024 * 1024,
+        maxBodyLength: 10 * 1024 * 1024
+      });
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`✅ Buffer transcription completed in ${duration}s`);
+
+      return this.parseTranscriptionResponse(response.data);
+
+    } catch (error) {
+      console.error('❌ Buffer transcription error:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Parse transcription response and extract segments with confidence
+   * 
+   * @param {Object} responseData - Response from Whisper API
+   * @returns {{text: string, segments: Array, confidence: number}}
+   */
+  parseTranscriptionResponse(responseData) {
+    // Check for error response
+    if (responseData && responseData.status === 'error') {
+      throw new Error(`Whisper service error: ${responseData.error}`);
+    }
+
+    let text = '';
+    let segments = [];
+    let confidence = 0.85; // Default confidence
+
+    // Handle different response formats
+    if (typeof responseData === 'string') {
+      text = responseData.trim();
+      segments = [{
+        id: 0,
+        text: text,
+        start: 0,
+        end: 0,
+        confidence: 0.85
+      }];
+    } else if (responseData.segments && Array.isArray(responseData.segments)) {
+      // Verbose JSON format with segments
+      segments = responseData.segments.map((seg, idx) => ({
+        id: idx,
+        text: seg.text?.trim() || '',
+        start: seg.start || 0,
+        end: seg.end || 0,
+        confidence: this.calculateSegmentConfidence(seg)
+      }));
+      text = segments.map(s => s.text).join(' ').trim();
+      
+      // Calculate overall confidence from segments
+      if (segments.length > 0) {
+        confidence = segments.reduce((sum, s) => sum + s.confidence, 0) / segments.length;
+      }
+    } else if (responseData.full_text) {
+      text = responseData.full_text.trim();
+      segments = [{
+        id: 0,
+        text: text,
+        start: 0,
+        end: 0,
+        confidence: 0.85
+      }];
+    } else if (responseData.text) {
+      text = responseData.text.trim();
+      segments = [{
+        id: 0,
+        text: text,
+        start: 0,
+        end: 0,
+        confidence: 0.85
+      }];
+    } else if (responseData.transcription) {
+      text = responseData.transcription.trim();
+      segments = [{
+        id: 0,
+        text: text,
+        start: 0,
+        end: 0,
+        confidence: 0.85
+      }];
+    } else {
+      throw new Error('Invalid response format from Whisper service');
+    }
+
+    return {
+      text,
+      segments,
+      confidence: Math.round(confidence * 100) / 100
+    };
+  }
+
+  /**
+   * Calculate confidence score for a segment
+   * Based on Whisper's internal metrics when available
+   * 
+   * @param {Object} segment - Whisper segment object
+   * @returns {number} Confidence score 0-1
+   */
+  calculateSegmentConfidence(segment) {
+    // Whisper provides various metrics we can use
+    if (segment.avg_logprob !== undefined) {
+      // Convert log probability to confidence (higher is better)
+      // avg_logprob typically ranges from -1 to 0
+      const logprob = segment.avg_logprob;
+      return Math.max(0, Math.min(1, 1 + logprob));
+    }
+    
+    if (segment.no_speech_prob !== undefined) {
+      // Lower no_speech_prob means higher confidence
+      return Math.max(0, Math.min(1, 1 - segment.no_speech_prob));
+    }
+
+    if (segment.confidence !== undefined) {
+      return segment.confidence;
+    }
+
+    // Default confidence based on text length
+    const textLength = (segment.text || '').trim().length;
+    if (textLength === 0) return 0.3;
+    if (textLength < 5) return 0.6;
+    if (textLength < 20) return 0.75;
+    return 0.85;
   }
 
   /**

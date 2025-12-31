@@ -220,7 +220,6 @@ export default function ADLVoiceScreen({ navigation }: Props) {
         <View style={styles.voiceRecorderCompact}>
           <VoiceRecorder
             onRecordingComplete={handleRecordingComplete}
-            maxDuration={120000}
           />
           {recordingUri && (
             <View style={styles.recordingBadge}>

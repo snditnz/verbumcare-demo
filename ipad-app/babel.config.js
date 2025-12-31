@@ -16,7 +16,8 @@ module.exports = function(api) {
             '@stores': './src/stores',
             '@models': './src/types',
             '@utils': './src/utils',
-            '@constants': './src/constants'
+            '@constants': './src/constants',
+            '@hooks': './src/hooks'
           }
         }
       ]

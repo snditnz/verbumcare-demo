@@ -2,12 +2,13 @@ module.exports = {
   preset: 'react-native',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   transformIgnorePatterns: [
-    'node_modules/(?!(react-native|@react-native|@react-navigation|expo|@expo|expo-.*|zustand|socket.io-client|react-native-ble-plx)/)',
+    'node_modules/(?!(react-native|@react-native|@react-navigation|expo|@expo|expo-.*|zustand|socket.io-client|react-native-ble-plx|uuid)/)',
   ],
   moduleNameMapper: {
     '^@components/(.*)$': '<rootDir>/src/components/$1',
     '^@screens/(.*)$': '<rootDir>/src/screens/$1',
     '^@services/(.*)$': '<rootDir>/src/services/$1',
+    '^@services$': '<rootDir>/src/services',
     '^@stores/(.*)$': '<rootDir>/src/stores/$1',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
     '^@constants/(.*)$': '<rootDir>/src/constants/$1',
@@ -15,6 +16,8 @@ module.exports = {
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@models$': '<rootDir>/src/types',
     '^@models/(.*)$': '<rootDir>/src/types/$1',
+    '^@hooks$': '<rootDir>/src/hooks',
+    '^@hooks/(.*)$': '<rootDir>/src/hooks/$1',
   },
   testMatch: ['**/__tests__/**/*.test.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
   collectCoverageFrom: [

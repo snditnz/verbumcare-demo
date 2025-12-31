@@ -66,6 +66,12 @@
       ],
       "@models/*": [
         "./src/types/*"
+      ],
+      "@hooks": [
+        "./src/hooks"
+      ],
+      "@hooks/*": [
+        "./src/hooks/*"
       ]
     }
   },

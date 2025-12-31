@@ -267,7 +267,6 @@ export default function IncidentReportScreen({ navigation }: Props) {
 
           <VoiceRecorder
             onRecordingComplete={handleRecordingComplete}
-            maxDuration={120000}
           />
           {recordingUri && (
             <View style={styles.recordingBadge}>

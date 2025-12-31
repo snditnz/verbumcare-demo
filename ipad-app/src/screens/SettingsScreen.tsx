@@ -18,6 +18,7 @@ import {
   Alert,
   RefreshControl,
   Linking,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -63,6 +64,7 @@ export default function SettingsScreen({ navigation }: Props) {
     getOfflineStatus,
     clearOfflineQueue,
     processOfflineQueue,
+    updatePreferences,
   } = useSettingsStore();
 
   const { language: assessmentLanguage } = useAssessmentStore();
@@ -234,6 +236,32 @@ export default function SettingsScreen({ navigation }: Props) {
       Alert.alert(
         assessmentLanguage === 'ja' ? 'エラー' : 'Error',
         assessmentLanguage === 'ja' ? 'キューの処理に失敗しました' : 'Failed to process offline queue'
+      );
+    }
+  };
+
+  // Handle streaming toggle change (Task 9.2)
+  const handleStreamingToggle = async (enabled: boolean) => {
+    try {
+      await updatePreferences({ enableStreamingTranscription: enabled });
+    } catch (error) {
+      console.error('Failed to update streaming preference:', error);
+      Alert.alert(
+        assessmentLanguage === 'ja' ? 'エラー' : 'Error',
+        assessmentLanguage === 'ja' ? '設定の保存に失敗しました' : 'Failed to save setting'
+      );
+    }
+  };
+
+  // Handle progressive transcript toggle change (Task 9.2)
+  const handleProgressiveTranscriptToggle = async (enabled: boolean) => {
+    try {
+      await updatePreferences({ showProgressiveTranscript: enabled });
+    } catch (error) {
+      console.error('Failed to update progressive transcript preference:', error);
+      Alert.alert(
+        assessmentLanguage === 'ja' ? 'エラー' : 'Error',
+        assessmentLanguage === 'ja' ? '設定の保存に失敗しました' : 'Failed to save setting'
       );
     }
   };
@@ -523,6 +551,79 @@ export default function SettingsScreen({ navigation }: Props) {
                   )}
                 </TouchableOpacity>
               ))}
+            </View>
+          </Card>
+        </View>
+
+        {/* Voice Recording Settings Section (Task 9.2) */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="mic" size={ICON_SIZES.md} color={COLORS.success} />
+            <Text style={styles.sectionTitle}>
+              {assessmentLanguage === 'ja' ? '音声録音設定' : 'Voice Recording Settings'}
+            </Text>
+          </View>
+
+          <Card style={styles.voiceSettingsCard}>
+            {/* Streaming Mode Toggle */}
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>
+                  {assessmentLanguage === 'ja' ? 'リアルタイム文字起こし' : 'Real-time Transcription'}
+                </Text>
+                <Text style={styles.settingDescription}>
+                  {assessmentLanguage === 'ja' 
+                    ? '録音中にリアルタイムで文字起こしを表示します。オフの場合は録音完了後に処理されます。'
+                    : 'Show transcription in real-time during recording. When off, transcription is processed after recording completes.'
+                  }
+                </Text>
+              </View>
+              <Switch
+                value={preferences.enableStreamingTranscription}
+                onValueChange={handleStreamingToggle}
+                trackColor={{ false: COLORS.border, true: COLORS.success }}
+                thumbColor={preferences.enableStreamingTranscription ? '#FFFFFF' : COLORS.text.secondary}
+                ios_backgroundColor={COLORS.border}
+              />
+            </View>
+
+            {/* Progressive Transcript Toggle - Only show when streaming is enabled */}
+            {preferences.enableStreamingTranscription && (
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <Text style={styles.settingLabel}>
+                    {assessmentLanguage === 'ja' ? '進行中の文字起こしを表示' : 'Show Progressive Transcript'}
+                  </Text>
+                  <Text style={styles.settingDescription}>
+                    {assessmentLanguage === 'ja' 
+                      ? '録音中に文字起こしの進行状況を画面に表示します。'
+                      : 'Display transcription progress on screen during recording.'
+                    }
+                  </Text>
+                </View>
+                <Switch
+                  value={preferences.showProgressiveTranscript}
+                  onValueChange={handleProgressiveTranscriptToggle}
+                  trackColor={{ false: COLORS.border, true: COLORS.success }}
+                  thumbColor={preferences.showProgressiveTranscript ? '#FFFFFF' : COLORS.text.secondary}
+                  ios_backgroundColor={COLORS.border}
+                />
+              </View>
+            )}
+
+            {/* Current Mode Status */}
+            <View style={styles.modeStatusContainer}>
+              <Ionicons 
+                name={preferences.enableStreamingTranscription ? 'flash' : 'cloud-upload'} 
+                size={ICON_SIZES.sm} 
+                color={preferences.enableStreamingTranscription ? COLORS.success : COLORS.primary} 
+              />
+              <Text style={styles.modeStatusText}>
+                {preferences.enableStreamingTranscription 
+                  ? (assessmentLanguage === 'ja' ? '現在のモード: ストリーミング' : 'Current mode: Streaming')
+                  : (assessmentLanguage === 'ja' ? '現在のモード: アップロード' : 'Current mode: Upload')
+                }
+              </Text>
             </View>
           </Card>
         </View>
@@ -961,5 +1062,44 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.text.secondary,
     lineHeight: TYPOGRAPHY.lineHeight.normal * TYPOGRAPHY.fontSize.sm,
+  },
+  // Voice Recording Settings styles (Task 9.2)
+  voiceSettingsCard: {
+    padding: SPACING.lg,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: SPACING.md,
+  },
+  settingLabel: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text.primary,
+    marginBottom: SPACING.xs,
+  },
+  settingDescription: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
+    lineHeight: TYPOGRAPHY.lineHeight.normal * TYPOGRAPHY.fontSize.sm,
+  },
+  modeStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  modeStatusText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.text.secondary,
+    marginLeft: SPACING.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
 });

@@ -27,7 +27,7 @@ export const DEMO_STAFF_ID = STAFF_ID; // Alias for demo purposes
 
 // Voice processing configuration
 export const VOICE_CONFIG = {
-  MAX_DURATION: 120000, // 120 seconds (2 minutes)
+  MAX_DURATION: 600000, // 600 seconds (10 minutes)
   FORMAT: 'm4a',
   SAMPLE_RATE: 44100,
   CHANNELS: 1,
