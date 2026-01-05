@@ -25,9 +25,25 @@ const processingLocks = new Map();
 const pendingProcessing = new Map();
 
 /**
- * Minimum chunks required before processing (reduced from 5 to 3 for faster initial feedback)
+ * Last processing time for each session
+ * Key: sessionId, Value: timestamp (ms)
  */
-const MIN_CHUNKS_FOR_PROCESSING = 3;
+const lastProcessingTime = new Map();
+
+/**
+ * Minimum chunks required before processing
+ * At 32kHz, 16-bit mono, 4096 bytes = ~64ms per chunk
+ * For good transcription quality, we need at least 3 seconds of audio
+ * 3 seconds = ~47 chunks, 3.2 seconds = 50 chunks
+ * We use 50 chunks (~3.2 seconds) for better context and fewer hallucinations
+ */
+const MIN_CHUNKS_FOR_PROCESSING = 50;
+
+/**
+ * Maximum time between processing batches (in ms)
+ * Even if we don't have enough chunks, process after this time
+ */
+const MAX_PROCESSING_INTERVAL_MS = 3000;
 
 /**
  * Error codes for streaming
@@ -135,6 +151,13 @@ export function initializeStreamingHandlers(io) {
 
         if (transcriptionResult) {
           console.log(`[StreamingHandler] ✅ Got transcription result, preparing to emit...`);
+          
+          // Skip if empty or very short
+          if (!transcriptionResult.text || transcriptionResult.text.trim().length < 2) {
+            console.log(`[StreamingHandler] ⏭️ Skipping empty transcription`);
+            return;
+          }
+          
           // Process segments with confidence-based marking
           // Requirement 2.3: Mark segments with confidence < 0.7 as uncertain
           const processedSegments = (transcriptionResult.segments || []).map(seg => ({
@@ -144,7 +167,7 @@ export function initializeStreamingHandlers(io) {
             isUncertain: seg.confidence < 0.7,
             start: seg.start,
             end: seg.end,
-          }));
+          })).filter(seg => seg.text && seg.text.length > 0);
 
           // Emit partial transcription result with segments
           const transcriptionPayload = {
@@ -305,6 +328,10 @@ export function initializeStreamingHandlers(io) {
  * Uses a processing lock to prevent concurrent Whisper calls
  * When lock is held, marks session for reprocessing after current batch completes
  * 
+ * Processing triggers:
+ * 1. When MIN_CHUNKS_FOR_PROCESSING chunks are accumulated (~2.5 seconds)
+ * 2. When MAX_PROCESSING_INTERVAL_MS has passed since last processing (3 seconds)
+ * 
  * @param {Object} session - Session object
  * @param {Object} chunk - Audio chunk
  * @param {import('socket.io').Socket} socket - Socket for emitting results
@@ -317,9 +344,19 @@ async function processChunkForTranscription(session, chunk, socket) {
       session.sessionId
     );
 
-    if (unprocessedChunks.length < MIN_CHUNKS_FOR_PROCESSING) {
-      // Not enough chunks yet, wait for more
-      console.log(`[StreamingHandler] Waiting for more chunks: ${unprocessedChunks.length}/${MIN_CHUNKS_FOR_PROCESSING}`);
+    // Get time since last processing
+    const lastTime = lastProcessingTime.get(session.sessionId) || session.createdAt.getTime();
+    const timeSinceLastProcessing = Date.now() - lastTime;
+    
+    // Determine if we should process based on chunk count OR time
+    const hasEnoughChunks = unprocessedChunks.length >= MIN_CHUNKS_FOR_PROCESSING;
+    const timeThresholdReached = timeSinceLastProcessing >= MAX_PROCESSING_INTERVAL_MS && unprocessedChunks.length >= 10; // At least 10 chunks (~640ms)
+    
+    if (!hasEnoughChunks && !timeThresholdReached) {
+      // Not enough chunks yet and time threshold not reached, wait for more
+      if (unprocessedChunks.length % 20 === 0) { // Log every 20 chunks to reduce spam
+        console.log(`[StreamingHandler] Waiting for more chunks: ${unprocessedChunks.length}/${MIN_CHUNKS_FOR_PROCESSING} (${timeSinceLastProcessing}ms since last processing)`);
+      }
       return null;
     }
 
@@ -334,7 +371,8 @@ async function processChunkForTranscription(session, chunk, socket) {
     // Acquire processing lock
     processingLocks.set(session.sessionId, true);
     pendingProcessing.delete(session.sessionId); // Clear pending flag
-    console.log(`[StreamingHandler] 🔒 Acquired processing lock for session ${session.sessionId}`);
+    lastProcessingTime.set(session.sessionId, Date.now()); // Update last processing time
+    console.log(`[StreamingHandler] 🔒 Acquired processing lock for session ${session.sessionId} (${unprocessedChunks.length} chunks, trigger: ${hasEnoughChunks ? 'chunk_count' : 'time_threshold'})`);
 
     try {
       // Process current batch
@@ -457,6 +495,14 @@ async function processChunkBatch(session, unprocessedChunks) {
 }
 
 /**
+ * Minimum chunks required for final processing
+ * If we have fewer chunks than this, they're likely just trailing silence
+ * At 32kHz, 16-bit mono, 4096 bytes = ~64ms per chunk
+ * 10 chunks = ~640ms - minimum for meaningful speech
+ */
+const MIN_FINAL_CHUNKS = 10;
+
+/**
  * Process final chunks when stream stops
  * 
  * @param {Object} session - Session object
@@ -466,6 +512,15 @@ async function processChunkBatch(session, unprocessedChunks) {
 async function processFinalChunks(session, chunks) {
   if (chunks.length === 0) return null;
 
+  // Skip processing if we have too few chunks (likely just trailing silence)
+  if (chunks.length < MIN_FINAL_CHUNKS) {
+    console.log(`[StreamingHandler] ⏭️ Skipping final chunk processing - only ${chunks.length} chunks (< ${MIN_FINAL_CHUNKS} minimum)`);
+    // Mark as processed anyway to clean up
+    const processedSequences = chunks.map(c => c.sequenceNumber);
+    streamingSessionManager.markChunksProcessed(session.sessionId, processedSequences);
+    return null;
+  }
+
   try {
     const combinedBuffer = combineAudioChunks(chunks);
     const tempFilePath = `/tmp/stream_final_${session.sessionId}_${Date.now()}.wav`;
@@ -473,7 +528,7 @@ async function processFinalChunks(session, chunks) {
     await fs.writeFile(tempFilePath, combinedBuffer);
 
     try {
-      // Use streaming transcription for confidence scores
+      // Use streaming transcription - VAD in Whisper will filter silence
       const result = await whisperService.transcribeStream(
         tempFilePath,
         session.language
@@ -484,6 +539,12 @@ async function processFinalChunks(session, chunks) {
       streamingSessionManager.markChunksProcessed(session.sessionId, processedSequences);
 
       await fs.unlink(tempFilePath).catch(() => {});
+
+      // Skip if empty result (VAD filtered everything as silence)
+      if (!result.text || result.text.trim().length < 2) {
+        console.log(`[StreamingHandler] ⏭️ Final transcription empty (VAD filtered silence)`);
+        return null;
+      }
 
       return {
         text: result.text,

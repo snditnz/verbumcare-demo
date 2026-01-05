@@ -166,10 +166,17 @@ class WhisperLocalService {
       formData.append('response_format', 'verbose_json'); // Request detailed output
 
       // Enhanced parameters for Japanese medical terminology
+      // These parameters help reduce hallucinations during silence
       if (language === 'ja') {
-        formData.append('initial_prompt', '医療記録、バイタルサイン、看護評価');
+        formData.append('initial_prompt', '医療記録、バイタルサイン、看護評価、患者情報');
         formData.append('temperature', '0.0');
       }
+      
+      // Anti-hallucination parameters
+      formData.append('no_speech_threshold', '0.6'); // Higher threshold to detect silence
+      formData.append('condition_on_previous_text', 'false'); // Don't condition on previous text to avoid repetition
+      formData.append('compression_ratio_threshold', '2.4'); // Detect repetitive/hallucinated text
+      formData.append('logprob_threshold', '-1.0'); // Filter low-confidence outputs
 
       console.log(`🎤 Streaming transcription (${language}) with ${WHISPER_MODEL}...`);
       console.log(`🎤 Audio file size: ${audioBuffer.length} bytes`);

@@ -102,43 +102,42 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
 
   // Handle transcription updates from VoiceRecorder (Task 8.1)
   const handleTranscriptionUpdate = useCallback((update: TranscriptionUpdate) => {
+    console.log('[GeneralVoiceRecorder] 📝 handleTranscriptionUpdate called:', {
+      text: update.text?.substring(0, 50),
+      isFinal: update.isFinal,
+      segmentId: update.segmentId,
+      confidence: update.confidence,
+    });
+    
     setTranscriptSegments(prev => {
-      // If this is a final segment or new segment, add it
-      if (update.isFinal || !update.segmentId) {
-        const newSegment: TranscriptSegment = {
-          id: update.segmentId || `segment-${++segmentIdCounter.current}`,
-          text: update.text,
-          confidence: update.confidence,
-          isFinal: update.isFinal,
-          isUncertain: update.confidence < 0.7,
-          timestamp: Date.now(),
-        };
-        
-        // Check if we're updating an existing segment
-        const existingIndex = prev.findIndex(s => s.id === update.segmentId);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = newSegment;
-          return updated;
-        }
-        
-        return [...prev, newSegment];
-      }
+      console.log('[GeneralVoiceRecorder] 📝 Current segments count:', prev.length);
       
-      // Update existing non-final segment
-      const existingIndex = prev.findIndex(s => s.id === update.segmentId);
+      // Generate a segment ID if not provided
+      const segmentId = update.segmentId || `segment-${++segmentIdCounter.current}`;
+      
+      // Check if segment already exists
+      const existingIndex = prev.findIndex(s => s.id === segmentId);
+      
+      const newSegment: TranscriptSegment = {
+        id: segmentId,
+        text: update.text,
+        confidence: update.confidence,
+        isFinal: update.isFinal,
+        isUncertain: update.confidence < 0.7,
+        timestamp: Date.now(),
+      };
+      
       if (existingIndex >= 0) {
+        // Update existing segment
+        console.log('[GeneralVoiceRecorder] 📝 Updating existing segment at index:', existingIndex);
         const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          text: update.text,
-          confidence: update.confidence,
-          isUncertain: update.confidence < 0.7,
-        };
+        updated[existingIndex] = newSegment;
         return updated;
       }
       
-      return prev;
+      // Add new segment
+      console.log('[GeneralVoiceRecorder] 📝 Adding new segment, new count will be:', prev.length + 1);
+      return [...prev, newSegment];
     });
   }, []);
 
@@ -570,7 +569,17 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
         )}
 
         {/* Progressive Transcript (Task 8.1) - Show when streaming is active or has segments */}
-        {isStreamingEnabled && currentRecordingMode === 'live-streaming' && (isRecordingActive || transcriptSegments.length > 0) && (
+        {(() => {
+          const shouldShow = isStreamingEnabled && currentRecordingMode === 'live-streaming' && (isRecordingActive || transcriptSegments.length > 0);
+          console.log('[GeneralVoiceRecorder] 🎯 ProgressiveTranscript render check:', {
+            isStreamingEnabled,
+            currentRecordingMode,
+            isRecordingActive,
+            transcriptSegmentsLength: transcriptSegments.length,
+            shouldShow,
+          });
+          return shouldShow;
+        })() && (
           <View style={styles.transcriptContainer}>
             <ProgressiveTranscript
               segments={transcriptSegments}
