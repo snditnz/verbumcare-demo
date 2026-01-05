@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Al
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle } from '@components';
+import { LanguageToggle, HeaderNav, ServerStatusIndicator } from '@components';
 import { Button, Card } from '@components/ui';
 import { socketService, apiService } from '@services';
 import { sessionPersistenceService } from '@services/sessionPersistence';
@@ -210,16 +210,22 @@ export default function ReviewConfirmScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Button variant="text" onPress={() => navigation.navigate('PatientInfo' as any)}>
-            {`← ${t['common.back']}`}
-          </Button>
+          <HeaderNav 
+            onBack={() => navigation.navigate('PatientInfo' as any)}
+          />
         </View>
         <View style={styles.headerCenter}>
+          {currentPatient && (
+            <Text style={styles.headerPatientName}>
+              {currentPatient.family_name} {currentPatient.given_name}
+            </Text>
+          )}
           <Text style={styles.screenTitle}>
             {language === 'ja' ? '確認・送信' : 'Review & Submit'}
           </Text>
         </View>
         <View style={styles.headerRight}>
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>
@@ -654,7 +660,15 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     flex: 1,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: SPACING.md,
+  },
+  headerPatientName: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text.primary,
   },
   screenTitle: {
     fontSize: TYPOGRAPHY.fontSize.xl,

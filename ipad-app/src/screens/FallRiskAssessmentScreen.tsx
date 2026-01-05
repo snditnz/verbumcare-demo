@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Tex
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle } from '@components';
+import { LanguageToggle, HeaderNav, ServerStatusIndicator } from '@components';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -170,9 +170,10 @@ export default function FallRiskAssessmentScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Button variant="text" onPress={handleCancel}>
-            {`← ${t['common.cancel']}`}
-          </Button>
+          <HeaderNav 
+            onBack={handleCancel}
+            backLabel={`← ${t['common.cancel']}`}
+          />
         </View>
         <View style={styles.headerCenter}>
           {currentPatient && (
@@ -183,6 +184,7 @@ export default function FallRiskAssessmentScreen({ navigation }: Props) {
           <Text style={styles.screenTitle}>{t['fallRisk.title']}</Text>
         </View>
         <View style={styles.headerRight}>
+          <ServerStatusIndicator compact />
           <LanguageToggle />
         </View>
       </View>
@@ -333,7 +335,10 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     flex: 1,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: SPACING.md,
   },
   patientName: {
     fontSize: TYPOGRAPHY.fontSize.lg,

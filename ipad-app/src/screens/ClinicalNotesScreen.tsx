@@ -16,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { LanguageToggle } from '@components';
+import { LanguageToggle, HeaderNav } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { NoteCard } from '@components/ui/NoteCard';
 import { Button } from '@components/ui';
@@ -200,19 +200,18 @@ export default function ClinicalNotesScreen({ navigation, route }: Props) {
 
     return (
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={ICON_SIZES.lg} color={COLORS.primary} />
-          </TouchableOpacity>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>{noteTypeTitle}</Text>
-            <Text style={styles.patientName}>{patientName}</Text>
+        <View style={styles.headerMain}>
+          <View style={styles.headerLeft}>
+            <HeaderNav />
           </View>
-          <ServerStatusIndicator compact />
-          <LanguageToggle />
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerPatientName}>{patientName}</Text>
+            <Text style={styles.screenTitle}>{noteTypeTitle}</Text>
+          </View>
+          <View style={styles.headerRight}>
+            <ServerStatusIndicator compact />
+            <LanguageToggle />
+          </View>
         </View>
 
         {/* Filter Buttons */}
@@ -521,18 +520,42 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
+    paddingTop: SPACING.sm,
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  headerTop: {
+  headerMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: SPACING.md,
+  },
+  headerLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  headerCenter: {
+    flex: 2,
+    alignItems: 'center',
+  },
+  headerRight: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: SPACING.md,
+  },
+  headerPatientName: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text.primary,
+  },
+  screenTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
   },
   backButton: {
     padding: SPACING.sm,

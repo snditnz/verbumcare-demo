@@ -431,9 +431,20 @@ export default function PatientInfoScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Button variant="text" onPress={() => navigation.navigate('Dashboard' as any)}>
-            {`← ${t['common.back']}`}
-          </Button>
+          <View style={styles.headerNavButtons}>
+            <Button variant="text" onPress={() => navigation.goBack()}>
+              {`← ${t['common.back']}`}
+            </Button>
+            <TouchableOpacity 
+              style={styles.homeButton}
+              onPress={() => navigation.navigate('Dashboard' as any)}
+            >
+              <Ionicons name="home" size={20} color={COLORS.primary} />
+              <Text style={styles.homeButtonText}>
+                {language === 'ja' ? 'ホーム' : 'Home'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.headerCenter}>
           <Text style={styles.screenTitle}>{t['patientInfo.title']}</Text>
@@ -810,20 +821,11 @@ export default function PatientInfoScreen({ navigation }: Props) {
           <View style={styles.actionsColumn}>
             {/* Row 1 */}
             <ActionButton
-              icon="document-text-outline"
-              label={language === 'ja' ? '看護・医師記録' : 'Clinical Notes'}
-              onPress={() => {
-                if (!currentPatient) return;
-                const displayName = language === 'ja'
-                  ? `${currentPatient.family_name || ''} ${currentPatient.given_name || ''}`.trim()
-                  : `${currentPatient.family_name_en || ''} ${currentPatient.given_name_en || ''}`.trim();
-                navigation.navigate('ClinicalNotes' as any, {
-                  patientId: currentPatient.patient_id,
-                  patientName: displayName || currentPatient.patient_id
-                });
-              }}
+              icon="mic"
+              label={language === 'ja' ? '記録' : 'Record'}
+              onPress={handleVoiceRecording}
               status={{ completed: false, borderColor: COLORS.border }}
-              iconColor={COLORS.secondary}
+              iconColor={COLORS.error}
             />
             <ActionButton
               icon="clipboard"
@@ -854,19 +856,28 @@ export default function PatientInfoScreen({ navigation }: Props) {
               status={{ completed: false, borderColor: COLORS.border }}
             />
             <ActionButton
-              icon="pencil"
-              label={t['action.updatePatientInfo']}
-              onPress={() => navigation.navigate('UpdatePatientInfo')}
-              status={getActionStatus('patientInfo')}
+              icon="document-text-outline"
+              label={language === 'ja' ? '看護・医師記録' : 'Clinical Notes'}
+              onPress={() => {
+                if (!currentPatient) return;
+                const displayName = language === 'ja'
+                  ? `${currentPatient.family_name || ''} ${currentPatient.given_name || ''}`.trim()
+                  : `${currentPatient.family_name_en || ''} ${currentPatient.given_name_en || ''}`.trim();
+                navigation.navigate('ClinicalNotes' as any, {
+                  patientId: currentPatient.patient_id,
+                  patientName: displayName || currentPatient.patient_id
+                });
+              }}
+              status={{ completed: false, borderColor: COLORS.border }}
+              iconColor={COLORS.secondary}
             />
 
             {/* Row 4 */}
             <ActionButton
-              icon="mic"
-              label={language === 'ja' ? '記録' : 'Record'}
-              onPress={handleVoiceRecording}
-              status={{ completed: false, borderColor: COLORS.border }}
-              iconColor={COLORS.error}
+              icon="pencil"
+              label={t['action.updatePatientInfo']}
+              onPress={() => navigation.navigate('UpdatePatientInfo')}
+              status={getActionStatus('patientInfo')}
             />
 
             {/* Round Complete Button - Spans 2 columns */}
@@ -1026,6 +1037,27 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
     alignItems: 'flex-start',
+  },
+  headerNavButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  homeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  homeButtonText: {
+    marginLeft: SPACING.xs,
+    color: COLORS.primary,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: '500',
   },
   headerCenter: {
     flex: 2,

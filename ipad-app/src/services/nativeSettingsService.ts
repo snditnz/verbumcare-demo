@@ -174,7 +174,7 @@ class NativeSettingsService {
           serverId = 'mac-mini-tailscale';
           break;
         default:
-          serverId = 'pn51'; // Default fallback
+          serverId = 'mac-mini'; // Default fallback (Mac Mini is current production)
           break;
       }
 
@@ -347,7 +347,7 @@ class NativeSettingsService {
       } catch {
         errors.push('Invalid URL format');
         suggestions.push('Ensure the address starts with https:// or http://');
-        suggestions.push('Example: https://verbumcare-lab.local/api');
+        suggestions.push('Example: https://verbumcarenomac-mini.local/api');
         return {
           valid: false,
           errors,
@@ -507,8 +507,8 @@ class NativeSettingsService {
     try {
       // Prefilled server addresses from iOS Settings Bundle
       const prefilledServers = [
-        'https://verbumcare-lab.local/api',      // pn51 (Default)
-        'https://verbumcarenomac-mini.local/api',        // Mac Mini
+        'https://verbumcarenomac-mini.local/api',        // Mac Mini (Default - Current Production)
+        'https://verbumcare-lab.local/api',      // pn51 (Legacy/Rollback)
         'https://verbumcaremac-mini.tail609750.ts.net/api' // Mac Mini Tailscale
       ];
 
@@ -525,8 +525,8 @@ class NativeSettingsService {
       console.warn('[NativeSettings] Failed to get available servers:', error);
       // Return at least the prefilled servers
       return [
-        'https://verbumcare-lab.local/api',
         'https://verbumcarenomac-mini.local/api',
+        'https://verbumcare-lab.local/api',
         'https://verbumcaremac-mini.tail609750.ts.net/api'
       ];
     }
@@ -549,11 +549,11 @@ class NativeSettingsService {
         return result.settings.backendServerAddress;
       }
 
-      // Fallback to default
-      return 'https://verbumcare-lab.local/api';
+      // Fallback to default (Mac Mini is current production)
+      return 'https://verbumcarenomac-mini.local/api';
     } catch (error) {
       console.warn('[NativeSettings] Failed to get server address:', error);
-      return 'https://verbumcare-lab.local/api';
+      return 'https://verbumcarenomac-mini.local/api';
     }
   }
   /**
@@ -633,7 +633,7 @@ class NativeSettingsService {
     try {
       // For testing, we can still write to AsyncStorage cache
       const currentSettings = this.cachedSettings || {
-        backendServerAddress: 'https://verbumcare-lab.local/api',
+        backendServerAddress: 'https://verbumcarenomac-mini.local/api',
         customServerAddress: '',
         connectionTimeout: 120, // Increased default timeout for high network latency (350ms+ observed)
         autoSwitchOnFailure: true,

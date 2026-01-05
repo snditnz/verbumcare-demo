@@ -7,6 +7,7 @@ export { VitalsDisplay } from './VitalsDisplay';
 export { VoiceRecorder } from './VoiceRecorder';
 export { NetworkStatusIndicator } from './NetworkStatusIndicator';
 export { ServerStatusIndicator } from './ServerStatusIndicator';
+export { HeaderNav } from './HeaderNav';
 export { default as TranscriptEditor } from './TranscriptEditor';
 export { default as VoiceReviewCard } from './VoiceReviewCard';
 export { default as ExtractedDataEditor } from './ExtractedDataEditor';

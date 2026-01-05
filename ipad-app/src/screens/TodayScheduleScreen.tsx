@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Act
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle } from '@components';
+import { LanguageToggle, HeaderNav } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Card } from '@components/ui';
 import { COLORS, TYPOGRAPHY, SPACING, ICON_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -228,9 +228,7 @@ export default function TodayScheduleScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
-        </TouchableOpacity>
+        <HeaderNav />
         <View style={styles.headerCenter}>
           <Text style={styles.title}>
             {language === 'ja' ? 'マイスケジュール' : "My Schedule"}
@@ -341,9 +339,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     backgroundColor: COLORS.primary,
-  },
-  backButton: {
-    padding: SPACING.xs,
   },
   headerCenter: {
     flex: 1,

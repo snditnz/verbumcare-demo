@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, Tou
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle, BLEIndicator } from '@components';
+import { LanguageToggle, BLEIndicator, HeaderNav } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card, Input, StatusIndicator } from '@components/ui';
 import { bleService } from '@services';
@@ -558,9 +558,7 @@ export default function VitalsCaptureScreen({ navigation }: Props) {
       {/* Patient Context Bar */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Button variant="text" onPress={() => navigation.goBack()}>
-            {`← ${t['common.back']}`}
-          </Button>
+          <HeaderNav />
         </View>
         <View style={styles.headerCenter}>
           {currentPatient && (

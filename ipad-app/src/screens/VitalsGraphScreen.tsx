@@ -36,7 +36,7 @@ import { DateRangeSelector } from '@/components/vitals/DateRangeSelector';
 import { APIVitalSigns } from '@/models/api';
 import apiService from '@/services/api';
 import { translations } from '@/constants/translations';
-import { LanguageToggle } from '@/components';
+import { LanguageToggle, HeaderNav } from '@/components';
 import { ServerStatusIndicator } from '@/components/ServerStatusIndicator';
 
 type RootStackParamList = {
@@ -143,14 +143,9 @@ export const VitalsGraphScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
-          <Text style={styles.backText}>{t['common.back']}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          <HeaderNav />
+        </View>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>{vitalInfo.title} {t['vitals.history']}</Text>
           <Text style={styles.headerSubtitle}>
@@ -483,16 +478,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  backButton: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    padding: SPACING.sm,
-  },
-  backText: {
-    fontSize: 16,
-    color: COLORS.primary,
-    fontWeight: '600',
   },
   headerTitleContainer: {
     flex: 1,

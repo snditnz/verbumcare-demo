@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TextInput, Tou
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAssessmentStore } from '@stores/assessmentStore';
-import { LanguageToggle, VoiceRecorder } from '@components';
+import { LanguageToggle, VoiceRecorder, HeaderNav } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import { Button, Card } from '@components/ui';
 import { translations } from '@constants/translations';
@@ -157,9 +157,10 @@ export default function IncidentReportScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Button variant="text" onPress={handleCancel}>
-            {`← ${t['common.cancel']}`}
-          </Button>
+          <HeaderNav 
+            onBack={handleCancel}
+            backLabel={`← ${t['common.cancel']}`}
+          />
         </View>
         <View style={styles.headerCenter}>
           {currentPatient && (

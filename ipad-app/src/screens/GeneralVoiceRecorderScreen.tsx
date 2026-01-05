@@ -19,7 +19,7 @@ import { useAssessmentStore } from '@stores/assessmentStore';
 import { useAuthStore } from '@stores/authStore';
 import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { useSettingsStore } from '@stores/settingsStore';
-import { LanguageToggle, VoiceRecorder } from '@components';
+import { LanguageToggle, VoiceRecorder, HeaderNav } from '@components';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
 import ProgressiveTranscript, { TranscriptSegment } from '@components/ProgressiveTranscript';
 import { Button } from '@components/ui';
@@ -479,14 +479,24 @@ export default function GeneralVoiceRecorderScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Compact Header */}
+      {/* Header - Standard three-section layout */}
       <View style={styles.header}>
-        <Button variant="text" onPress={handleCancel} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{`← ${t['common.back']}`}</Text>
-        </Button>
-        <Text style={styles.title}>
-          {language === 'ja' ? '音声記録' : 'Voice Recording'}
-        </Text>
+        <View style={styles.headerLeft}>
+          <HeaderNav 
+            onBack={handleCancel}
+            backLabel={`← ${t['common.back']}`}
+          />
+        </View>
+        <View style={styles.headerCenter}>
+          {context?.type === 'patient' && context.patientName && (
+            <Text style={styles.headerPatientName}>
+              {context.patientName}
+            </Text>
+          )}
+          <Text style={styles.screenTitle}>
+            {language === 'ja' ? '音声記録' : 'Voice Recording'}
+          </Text>
+        </View>
         <View style={styles.headerRight}>
           <ServerStatusIndicator compact />
           <LanguageToggle />
@@ -681,11 +691,29 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.primary,
-    height: 60, // Compact header
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  headerCenter: {
+    flex: 2,
+    alignItems: 'center',
+  },
+  headerPatientName: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.text.primary,
+  },
+  screenTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.text.primary,
   },
   backButton: {
     paddingHorizontal: 0,
@@ -695,15 +723,12 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.white,
   },
-  title: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.white,
-  },
   headerRight: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    justifyContent: 'flex-end',
+    gap: SPACING.md,
   },
   content: {
     flex: 1,

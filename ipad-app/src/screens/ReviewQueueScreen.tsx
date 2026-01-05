@@ -6,13 +6,17 @@ import {
   FlatList,
   RefreshControl,
   TouchableOpacity,
+  SafeAreaView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useVoiceReviewStore } from '@stores/voiceReviewStore';
 import { useAuthStore } from '@stores/authStore';
 import { useAssessmentStore } from '@stores/assessmentStore';
 import VoiceReviewCard from '@components/VoiceReviewCard';
 import { ServerStatusIndicator } from '@components/ServerStatusIndicator';
+import { LanguageToggle } from '@components';
+import { Button } from '@components/ui';
 import { ReviewQueueSkeleton } from '@components/ui/SkeletonLoader';
 import { FadeIn } from '@components/ui/AnimatedTransitions';
 import { ErrorMessage } from '@components/ui/ErrorBoundary';
@@ -124,40 +128,42 @@ export default function ReviewQueueScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <SafeAreaView style={styles.container}>
+      {/* Header - Three Section Layout */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            accessibilityHint="Go back to previous screen"
-          >
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('voiceReview.title')}</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <ServerStatusIndicator compact />
-          {queueCount() > 0 && (
-            <View 
-              style={styles.badge}
-              accessible={true}
-              accessibilityRole="text"
-              accessibilityLabel={`${queueCount()} ${t('voiceReview.pendingReviews')}`}
+          <View style={styles.headerNavButtons}>
+            <Button variant="text" onPress={() => navigation.goBack()}>
+              {`← ${t('common.back')}`}
+            </Button>
+            <TouchableOpacity 
+              style={styles.homeButton}
+              onPress={() => (navigation as any).navigate('Dashboard')}
             >
-              <Text style={styles.badgeText}>{queueCount()}</Text>
-            </View>
-          )}
-          <View
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel="Help"
-            accessibilityHint="Show help information"
-          >
+              <Ionicons name="home" size={20} color={COLORS.primary} />
+              <Text style={styles.homeButtonText}>
+                {language === 'ja' ? 'ホーム' : 'Home'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.headerCenter}>
+          <Text style={styles.screenTitle}>{t('voiceReview.title')}</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <View style={styles.headerRightContent}>
+            {queueCount() > 0 && (
+              <View 
+                style={styles.badge}
+                accessible={true}
+                accessibilityRole="text"
+                accessibilityLabel={`${queueCount()} ${t('voiceReview.pendingReviews')}`}
+              >
+                <Text style={styles.badgeText}>{queueCount()}</Text>
+              </View>
+            )}
+            <ServerStatusIndicator compact />
+            <LanguageToggle />
             <HelpButton
               onPress={() => setShowOnboarding(true)}
               style={{ marginLeft: SPACING.sm }}
@@ -217,7 +223,7 @@ export default function ReviewQueueScreen() {
           },
         ]}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -231,32 +237,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.md,
+    paddingVertical: SPACING.md,
     backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   headerLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  headerActions: {
+  headerNavButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.md,
   },
-  backButton: {
-    marginRight: SPACING.md,
-    padding: SPACING.sm,
+  homeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
   },
-  backButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
+  homeButtonText: {
+    marginLeft: SPACING.xs,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
-  headerTitle: {
+  headerCenter: {
+    flex: 2,
+    alignItems: 'center',
+  },
+  screenTitle: {
     fontSize: TYPOGRAPHY.fontSize.xl,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.text.primary,
+  },
+  headerRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  headerRightContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   badge: {
     backgroundColor: COLORS.error,
