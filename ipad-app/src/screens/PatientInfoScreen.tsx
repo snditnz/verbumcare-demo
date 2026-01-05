@@ -61,7 +61,7 @@ export default function PatientInfoScreen({ navigation }: Props) {
     removeLastVital,
   } = useAssessmentStore();
   const { currentUser } = useAuthStore();
-  const { queueCount } = useVoiceReviewStore();
+  const { queueCount, loadQueue } = useVoiceReviewStore();
 
   const [scheduleData, setScheduleData] = useState<any>(null);
   const [bleStatus, setBleStatus] = useState<BLEConnectionStatus>('disconnected');
@@ -69,6 +69,11 @@ export default function PatientInfoScreen({ navigation }: Props) {
   const [showToast, setShowToast] = useState(false);
   const [toastOpacity] = useState(new Animated.Value(0));
   const t = translations[language];
+
+  // Load voice review queue
+  useEffect(() => {
+    loadQueue();
+  }, []);
 
   // Load patient's schedule
   useEffect(() => {
@@ -436,14 +441,14 @@ export default function PatientInfoScreen({ navigation }: Props) {
         <View style={styles.headerRight}>
           <View style={styles.headerRightContent}>
             {/* Review Queue Badge */}
-            {queueCount > 0 && (
+            {queueCount() > 0 && (
               <TouchableOpacity 
                 style={styles.reviewQueueBadge}
                 onPress={() => navigation.navigate('ReviewQueue' as any)}
               >
                 <Ionicons name="list" size={20} color={COLORS.white} />
                 <View style={styles.badgeCount}>
-                  <Text style={styles.badgeCountText}>{queueCount}</Text>
+                  <Text style={styles.badgeCountText}>{queueCount()}</Text>
                 </View>
               </TouchableOpacity>
             )}
